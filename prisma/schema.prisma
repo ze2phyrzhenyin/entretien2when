@@ -149,6 +149,7 @@ model InterviewGroup {
   appointments   Appointment[]
   adminNotes     CandidateAdminNote[]
   notifications  AdminNotification[]
+  auditLogs      AuditLog[]
 
   @@index([createdByAdminId])
   @@index([status])
@@ -372,6 +373,7 @@ model AuditLog {
   actorType        AuditActorType
   actorAdminId     String?
   actorCandidateId String?
+  groupId          String?
   action           String
   entityType       String
   entityId         String
@@ -381,9 +383,11 @@ model AuditLog {
   userAgent        String?
   createdAt        DateTime       @default(now())
 
-  actorAdmin     Admin?     @relation("AuditAdminActor", fields: [actorAdminId], references: [id], onDelete: SetNull)
-  actorCandidate Candidate? @relation("AuditCandidateActor", fields: [actorCandidateId], references: [id], onDelete: SetNull)
+  actorAdmin     Admin?          @relation("AuditAdminActor", fields: [actorAdminId], references: [id], onDelete: SetNull)
+  actorCandidate Candidate?      @relation("AuditCandidateActor", fields: [actorCandidateId], references: [id], onDelete: SetNull)
+  group          InterviewGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@index([actorType, createdAt])
   @@index([entityType, entityId])
+  @@index([groupId, createdAt])
 }

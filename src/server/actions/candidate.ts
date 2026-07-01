@@ -144,6 +144,7 @@ export async function submitInitialAvailabilityAction(formData: FormData) {
       data: {
         actorType: AuditActorType.CANDIDATE,
         actorCandidateId: candidate.id,
+        groupId: group.id,
         action: "candidate.submit_initial_availability",
         entityType: "CandidateSubmission",
         entityId: submission.id,
@@ -274,6 +275,7 @@ export async function requestSubmissionModificationAction(formData: FormData) {
       data: {
         actorType: AuditActorType.CANDIDATE,
         actorCandidateId: candidate.id,
+        groupId: group.id,
         action: "candidate.request_submission_modification",
         entityType: "CandidateSubmission",
         entityId: submission.id,

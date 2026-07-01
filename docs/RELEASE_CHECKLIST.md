@@ -2,6 +2,8 @@
 
 本文用于 P0 发布前或交付前复现环境、生成验收证据和执行最终检查。
 
+线上账号创建和人工验收路径见 `docs/DEPLOYMENT.md`。
+
 ## 前置条件
 
 - Node.js 和 pnpm 可用。
@@ -97,6 +99,7 @@ pnpm exec playwright test tests/e2e/business-flow.spec.ts --project=chromium
 - 数据库 migration 已在目标环境执行。
 - 超级管理员账号已创建并可以登录。
 - 候选人端抽查确认不展示其他候选人、锁定原因、内部备注、管理员私有备注。
+- `/admin/audit` 可查看本次验收的建组、提交、修改申请、审核、预约、取消预约等审计记录。
 
 ## 启动
 
