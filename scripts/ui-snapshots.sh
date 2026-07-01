@@ -11,6 +11,7 @@ else
 fi
 OUT_DIR="artifacts/ui-snapshots/frontend-refactor-p0"
 mkdir -p "$OUT_DIR"
+rm -f "$OUT_DIR"/*.png
 
 SERVER_PID=""
 cleanup() {
@@ -43,6 +44,31 @@ fi
 if ! check_health; then
   echo "Dev server failed to become ready at $BASE_URL."
   exit 1
+fi
+
+if [[ -z "${PLAYWRIGHT_ADMIN_EMAIL:-}" ||
+  -z "${PLAYWRIGHT_ADMIN_PASSWORD:-}" ||
+  -z "${PLAYWRIGHT_GROUP_ID:-}" ||
+  -z "${PLAYWRIGHT_GROUP_CODE:-}" ||
+  -z "${PLAYWRIGHT_CANDIDATE_ID:-}" ||
+  -z "${PLAYWRIGHT_SUBMISSION_ID:-}" ]]; then
+  echo "Preparing demo screenshot data."
+  DEMO_JSON_FILE="$OUT_DIR/demo-data.json"
+  pnpm --silent db:seed:demo > "$DEMO_JSON_FILE"
+
+  export PLAYWRIGHT_ADMIN_EMAIL
+  export PLAYWRIGHT_ADMIN_PASSWORD
+  export PLAYWRIGHT_GROUP_ID
+  export PLAYWRIGHT_GROUP_CODE
+  export PLAYWRIGHT_CANDIDATE_ID
+  export PLAYWRIGHT_SUBMISSION_ID
+
+  PLAYWRIGHT_ADMIN_EMAIL="$(node -e "const data=require('./$DEMO_JSON_FILE'); process.stdout.write(data.adminEmail)")"
+  PLAYWRIGHT_ADMIN_PASSWORD="$(node -e "const data=require('./$DEMO_JSON_FILE'); process.stdout.write(data.adminPassword)")"
+  PLAYWRIGHT_GROUP_ID="$(node -e "const data=require('./$DEMO_JSON_FILE'); process.stdout.write(data.groupId)")"
+  PLAYWRIGHT_GROUP_CODE="$(node -e "const data=require('./$DEMO_JSON_FILE'); process.stdout.write(data.groupCode)")"
+  PLAYWRIGHT_CANDIDATE_ID="$(node -e "const data=require('./$DEMO_JSON_FILE'); process.stdout.write(data.candidateId)")"
+  PLAYWRIGHT_SUBMISSION_ID="$(node -e "const data=require('./$DEMO_JSON_FILE'); process.stdout.write(data.submissionId)")"
 fi
 
 if ! node -e "try { const fs=require('node:fs'); const { chromium }=require('@playwright/test'); process.exit(fs.existsSync(chromium.executablePath()) ? 0 : 1); } catch { process.exit(1); }"; then
