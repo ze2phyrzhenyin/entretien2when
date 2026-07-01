@@ -114,7 +114,7 @@ export default async function GroupSlotsPage({ params }: SlotsPageProps) {
           ) : (
             <div className="overflow-hidden rounded-lg border border-border bg-white">
               <table className="w-full border-collapse text-left text-sm">
-                <thead className="sticky top-16 bg-slate-50 text-xs font-medium text-muted-foreground">
+                <thead className="bg-slate-50 text-xs font-medium text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3">时间</th>
                     <th className="px-4 py-3">状态</th>

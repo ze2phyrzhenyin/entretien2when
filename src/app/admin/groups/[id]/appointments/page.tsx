@@ -9,6 +9,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { formatDateTimeRange } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
+import { appointmentStatusLabel } from "@/lib/status-labels";
 import { cancelAppointmentAction } from "@/server/actions/appointment";
 
 type AppointmentsPageProps = {
@@ -84,7 +85,7 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
                         appointment.status === AppointmentStatus.SCHEDULED ? "success" : "neutral"
                       }
                     >
-                      {appointment.status}
+                      {appointmentStatusLabel[appointment.status]}
                     </Badge>
                   </td>
                   <td className="px-4 py-3">{appointment.meetingLocation ?? "-"}</td>

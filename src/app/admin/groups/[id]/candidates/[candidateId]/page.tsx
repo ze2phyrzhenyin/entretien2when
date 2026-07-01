@@ -12,6 +12,11 @@ import { requireAdmin } from "@/lib/auth/session";
 import { formatDateTimeRange } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
+import {
+  candidateStatusLabel,
+  candidateSubmissionStatusLabel,
+  candidateSubmissionTypeLabel
+} from "@/lib/status-labels";
 import { scheduleAppointmentAction } from "@/server/actions/appointment";
 import { upsertCandidateAdminNoteAction } from "@/server/actions/admin-note";
 
@@ -110,7 +115,7 @@ export default async function CandidateDetailPage({
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-lg font-semibold">当前有效可用时间</h3>
               <Badge tone={candidate.status === "SCHEDULED" ? "success" : "neutral"}>
-                {candidate.status}
+                {candidateStatusLabel[candidate.status]}
               </Badge>
             </div>
             {candidate.activeSubmission ? (
@@ -204,9 +209,11 @@ export default async function CandidateDetailPage({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">版本 {submission.versionNo}</span>
                     <Badge tone={submission.status === "ACTIVE" ? "success" : "neutral"}>
-                      {submission.status}
+                      {candidateSubmissionStatusLabel[submission.status]}
                     </Badge>
-                    <span className="text-muted-foreground">{submission.submissionType}</span>
+                    <span className="text-muted-foreground">
+                      {candidateSubmissionTypeLabel[submission.submissionType]}
+                    </span>
                   </div>
                   <div className="mt-2 grid gap-2 md:grid-cols-2">
                     {submission.slots.map(({ slot }) => (

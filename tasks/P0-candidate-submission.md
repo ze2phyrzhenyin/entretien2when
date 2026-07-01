@@ -1,5 +1,7 @@
 # P0 Candidate Submission
 
+状态：已完成。
+
 范围：
 
 - `/join`

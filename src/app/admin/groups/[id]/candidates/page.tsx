@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
+import { candidateStatusLabel } from "@/lib/status-labels";
 
 type CandidatesPageProps = {
   params: Promise<{ id: string }>;
@@ -126,7 +127,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
                       <Badge tone={candidate.status === "SCHEDULED" ? "success" : "neutral"}>
-                        {candidate.status}
+                        {candidateStatusLabel[candidate.status]}
                       </Badge>
                       {candidate.submissions.length > 0 ? (
                         <Badge tone="warning">待审核</Badge>

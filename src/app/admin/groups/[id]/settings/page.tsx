@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup } from "@/lib/permissions/admin";
+import { interviewGroupStatusLabel } from "@/lib/status-labels";
 import {
   grantGroupAdminAction,
   revokeGroupAdminAction,
@@ -55,7 +56,9 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-semibold">{group.name}</h2>
-            <Badge tone={group.status === "OPEN" ? "success" : "neutral"}>{group.status}</Badge>
+            <Badge tone={group.status === "OPEN" ? "success" : "neutral"}>
+              {interviewGroupStatusLabel[group.status]}
+            </Badge>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">设置公开说明、规则和普通管理员授权。</p>
         </div>

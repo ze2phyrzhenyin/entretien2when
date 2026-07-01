@@ -1,5 +1,7 @@
 # P0 Scheduling Locks
 
+状态：已完成。
+
 范围：
 
 - schedule appointment。

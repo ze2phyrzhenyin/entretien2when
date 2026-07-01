@@ -24,7 +24,14 @@ pnpm doctor
 
 ## 当前阶段
 
-- P0.0：项目脚手架、AI 开发框架、Prisma 数据模型、基础 UI 与 CI。
-- P0.1：管理员邮箱密码登录、httpOnly session、密码 scrypt hash、超级管理员 seed/create-admin 脚本。
+- P0 主流程已闭环，当前处于 P0 收尾验收 / UI 打磨阶段。
+- P0.0-P0.7 已实现：项目脚手架、管理员认证、面试组管理、时间段管理、候选人提交、修改审核、预约锁定、管理员私有备注。
+- P0.8 已生成 UI 截图证据，待人工走查确认视觉和交互细节。
+
+## 验收证据
+
+- `pnpm check` 已通过 format、lint、typecheck、unit tests、production build 和 Playwright smoke。
+- 单测覆盖 group code、password hash、permissions、candidate DTO 隐私边界、slot selection、submission review、appointment lock。
+- UI 截图位于 `artifacts/ui-snapshots/`。
 
 完整产品、权限、隐私、测试和工程循环见 `docs/`。

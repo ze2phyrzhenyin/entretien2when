@@ -10,6 +10,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { formatDateTimeRange } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
+import { candidateSubmissionStatusLabel } from "@/lib/status-labels";
 import { approveSubmissionAction, rejectSubmissionAction } from "@/server/actions/review";
 
 type ReviewDetailPageProps = {
@@ -153,7 +154,7 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
                     : "neutral"
                 }
               >
-                {submission.status}
+                {candidateSubmissionStatusLabel[submission.status]}
               </Badge>
             </div>
             <div className="flex items-center justify-between gap-3">

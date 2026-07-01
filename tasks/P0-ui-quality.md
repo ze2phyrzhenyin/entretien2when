@@ -1,5 +1,7 @@
 # P0 UI Quality
 
+状态：验收中。
+
 范围：
 
 - Run ui-quality-gate。

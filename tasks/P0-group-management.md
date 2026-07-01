@@ -1,5 +1,7 @@
 # P0 Group Management
 
+状态：已完成。
+
 范围：
 
 - create group。
