@@ -49,6 +49,7 @@ export async function upsertCandidateAdminNoteAction(
     data: {
       actorType: AuditActorType.ADMIN,
       actorAdminId: admin.id,
+      groupId,
       action: "admin.upsert_candidate_admin_note",
       entityType: "CandidateAdminNote",
       entityId: note.id

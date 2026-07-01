@@ -43,3 +43,40 @@ jobs:
       - run: pnpm db:generate
       - run: pnpm exec prisma migrate deploy
       - run: pnpm check
+
+  business-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: interview_scheduler_cn
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/interview_scheduler_cn?schema=public
+      ADMIN_BOOTSTRAP_EMAIL: admin@example.com
+      ADMIN_BOOTSTRAP_PASSWORD: ChangeMe_StrongPassword_123!
+      ADMIN_BOOTSTRAP_NAME: 超级管理员
+      SESSION_TTL_DAYS: "7"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm exec prisma migrate deploy
+      - run: pnpm exec playwright install chromium
+      - run: pnpm exec playwright test tests/e2e/business-flow.spec.ts --project=chromium

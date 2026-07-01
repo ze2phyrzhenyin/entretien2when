@@ -112,6 +112,7 @@ export async function scheduleAppointmentAction(
       data: {
         actorType: AuditActorType.ADMIN,
         actorAdminId: admin.id,
+        groupId,
         action: "admin.schedule_appointment",
         entityType: "Appointment",
         entityId: appointment.id,
@@ -168,6 +169,7 @@ export async function cancelAppointmentAction(groupId: string, appointmentId: st
       data: {
         actorType: AuditActorType.ADMIN,
         actorAdminId: admin.id,
+        groupId,
         action: "admin.cancel_appointment",
         entityType: "Appointment",
         entityId: appointment.id

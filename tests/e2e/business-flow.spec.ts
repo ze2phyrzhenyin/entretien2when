@@ -305,5 +305,16 @@ test.describe("P0 business flow", () => {
     await expect(page.getByRole("button", { name: "不可选" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "10:00-10:30" })).toBeEnabled();
     await expect(page.getByRole("button", { name: "10:30-11:00" })).toBeEnabled();
+
+    await page.goto(`/admin/audit?q=${encodeURIComponent(groupName)}`);
+    await expect(page.getByRole("heading", { level: 2, name: "操作日志" })).toBeVisible();
+    await expect(page.getByText("创建面试组").first()).toBeVisible();
+    await expect(page.getByText("批量生成时间段").first()).toBeVisible();
+    await expect(page.getByText("候选人首次提交").first()).toBeVisible();
+    await expect(page.getByText("候选人申请修改").first()).toBeVisible();
+    await expect(page.getByText("管理员通过修改申请").first()).toBeVisible();
+    await expect(page.getByText("管理员安排面试").first()).toBeVisible();
+    await expect(page.getByText("保存管理员私有备注").first()).toBeVisible();
+    await expect(page.getByText("管理员取消预约").first()).toBeVisible();
   });
 });

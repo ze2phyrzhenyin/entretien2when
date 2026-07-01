@@ -118,6 +118,7 @@ export async function approveSubmissionAction(
       data: {
         actorType: AuditActorType.ADMIN,
         actorAdminId: admin.id,
+        groupId,
         action: "admin.approve_submission_modification",
         entityType: "CandidateSubmission",
         entityId: pendingSubmission.id,
@@ -188,6 +189,7 @@ export async function rejectSubmissionAction(
       data: {
         actorType: AuditActorType.ADMIN,
         actorAdminId: admin.id,
+        groupId,
         action: "admin.reject_submission_modification",
         entityType: "CandidateSubmission",
         entityId: pendingSubmission.id

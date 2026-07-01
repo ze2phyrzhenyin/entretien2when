@@ -17,7 +17,7 @@
 - `Appointment` / `AppointmentSlot`：管理员安排的面试及覆盖 slot。
 - `CandidateAdminNote`：管理员私有备注，语义固定 ADMIN_ONLY。
 - `AdminNotification`：修改审核等后台通知。
-- `AuditLog`：管理员、候选人、系统动作审计。
+- `AuditLog`：管理员、候选人、系统动作审计；`groupId` 为空表示全局动作，非空时按面试组做权限隔离和筛选。
 
 ## 时间规则
 
@@ -34,3 +34,4 @@
 - `CandidateSubmissionSlot` 在 `submissionId + slotId` 唯一。
 - `AppointmentSlot` 在 `appointmentId + slotId` 唯一。
 - 活动 slot lock 通过 `TimeSlotLock.activeSlotId @unique` 保证。
+- `AuditLog.groupId + createdAt` 用于后台操作日志按面试组过滤。

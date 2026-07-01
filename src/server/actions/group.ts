@@ -2,13 +2,24 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { AdminRole } from "@prisma/client";
+import { AdminRole, AuditActorType } from "@prisma/client";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { requireGroupPermission } from "@/lib/permissions/admin";
 import { formValue } from "@/lib/validation/common";
 import { grantGroupAdminSchema, groupFormSchema } from "@/lib/validation/group";
 import { generateUniqueGroupCode } from "@/server/services/group-code";
+
+const groupAuditSelect = {
+  name: true,
+  publicDescription: true,
+  timezone: true,
+  status: true,
+  slotDurationMinutes: true,
+  interviewDurationMinutes: true,
+  minSelectSlots: true,
+  maxSelectSlots: true
+} as const;
 
 export async function createGroupAction(formData: FormData) {
   const admin = await requireAdmin();
@@ -23,16 +34,35 @@ export async function createGroupAction(formData: FormData) {
     maxSelectSlots: formValue(formData, "maxSelectSlots")
   });
 
-  const group = await prisma.interviewGroup.create({
-    data: {
-      ...input,
-      publicDescription: input.publicDescription || null,
-      groupCode: await generateUniqueGroupCode(),
-      createdByAdminId: admin.id
-    },
-    select: {
-      id: true
-    }
+  const groupCode = await generateUniqueGroupCode();
+  const group = await prisma.$transaction(async (tx) => {
+    const createdGroup = await tx.interviewGroup.create({
+      data: {
+        ...input,
+        publicDescription: input.publicDescription || null,
+        groupCode,
+        createdByAdminId: admin.id
+      },
+      select: {
+        id: true,
+        groupCode: true,
+        ...groupAuditSelect
+      }
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorType: AuditActorType.ADMIN,
+        actorAdminId: admin.id,
+        groupId: createdGroup.id,
+        action: "admin.create_group",
+        entityType: "InterviewGroup",
+        entityId: createdGroup.id,
+        afterData: createdGroup
+      }
+    });
+
+    return createdGroup;
   });
 
   revalidatePath("/admin");
@@ -54,12 +84,33 @@ export async function updateGroupAction(groupId: string, formData: FormData) {
     maxSelectSlots: formValue(formData, "maxSelectSlots")
   });
 
-  await prisma.interviewGroup.update({
+  const beforeGroup = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
-    data: {
-      ...input,
-      publicDescription: input.publicDescription || null
-    }
+    select: groupAuditSelect
+  });
+
+  await prisma.$transaction(async (tx) => {
+    const updatedGroup = await tx.interviewGroup.update({
+      where: { id: groupId },
+      data: {
+        ...input,
+        publicDescription: input.publicDescription || null
+      },
+      select: groupAuditSelect
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorType: AuditActorType.ADMIN,
+        actorAdminId: admin.id,
+        groupId,
+        action: "admin.update_group",
+        entityType: "InterviewGroup",
+        entityId: groupId,
+        beforeData: beforeGroup,
+        afterData: updatedGroup
+      }
+    });
   });
 
   revalidatePath(`/admin/groups/${groupId}/settings`);
@@ -90,29 +141,58 @@ export async function grantGroupAdminAction(groupId: string, formData: FormData)
     redirect(`/admin/groups/${groupId}/settings?error=super-admin-no-grant-needed`);
   }
 
-  await prisma.groupAdmin.upsert({
-    where: {
-      groupId_adminId: {
+  await prisma.$transaction(async (tx) => {
+    const grant = await tx.groupAdmin.upsert({
+      where: {
+        groupId_adminId: {
+          groupId,
+          adminId: targetAdmin.id
+        }
+      },
+      update: {
+        canViewCandidates: input.canViewCandidates,
+        canEditGroup: input.canEditGroup,
+        canReviewModifications: input.canReviewModifications,
+        canScheduleInterview: input.canScheduleInterview,
+        grantedByAdminId: admin.id
+      },
+      create: {
         groupId,
-        adminId: targetAdmin.id
+        adminId: targetAdmin.id,
+        canViewCandidates: input.canViewCandidates,
+        canEditGroup: input.canEditGroup,
+        canReviewModifications: input.canReviewModifications,
+        canScheduleInterview: input.canScheduleInterview,
+        grantedByAdminId: admin.id
+      },
+      select: {
+        id: true,
+        adminId: true,
+        canViewCandidates: true,
+        canEditGroup: true,
+        canReviewModifications: true,
+        canScheduleInterview: true
       }
-    },
-    update: {
-      canViewCandidates: input.canViewCandidates,
-      canEditGroup: input.canEditGroup,
-      canReviewModifications: input.canReviewModifications,
-      canScheduleInterview: input.canScheduleInterview,
-      grantedByAdminId: admin.id
-    },
-    create: {
-      groupId,
-      adminId: targetAdmin.id,
-      canViewCandidates: input.canViewCandidates,
-      canEditGroup: input.canEditGroup,
-      canReviewModifications: input.canReviewModifications,
-      canScheduleInterview: input.canScheduleInterview,
-      grantedByAdminId: admin.id
-    }
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorType: AuditActorType.ADMIN,
+        actorAdminId: admin.id,
+        groupId,
+        action: "admin.grant_group_admin",
+        entityType: "GroupAdmin",
+        entityId: grant.id,
+        afterData: {
+          targetAdminId: grant.adminId,
+          targetAdminEmail: input.adminEmail,
+          canViewCandidates: grant.canViewCandidates,
+          canEditGroup: grant.canEditGroup,
+          canReviewModifications: grant.canReviewModifications,
+          canScheduleInterview: grant.canScheduleInterview
+        }
+      }
+    });
   });
 
   revalidatePath(`/admin/groups/${groupId}/settings`);
@@ -122,12 +202,55 @@ export async function revokeGroupAdminAction(groupId: string, grantId: string) {
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, "canEditGroup");
 
-  await prisma.groupAdmin.deleteMany({
+  const grant = await prisma.groupAdmin.findFirst({
     where: {
       id: grantId,
       groupId
+    },
+    select: {
+      id: true,
+      adminId: true,
+      canViewCandidates: true,
+      canEditGroup: true,
+      canReviewModifications: true,
+      canScheduleInterview: true,
+      admin: {
+        select: {
+          email: true
+        }
+      }
     }
   });
+
+  if (grant) {
+    await prisma.$transaction(async (tx) => {
+      await tx.groupAdmin.deleteMany({
+        where: {
+          id: grantId,
+          groupId
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorType: AuditActorType.ADMIN,
+          actorAdminId: admin.id,
+          groupId,
+          action: "admin.revoke_group_admin",
+          entityType: "GroupAdmin",
+          entityId: grant.id,
+          beforeData: {
+            targetAdminId: grant.adminId,
+            targetAdminEmail: grant.admin.email,
+            canViewCandidates: grant.canViewCandidates,
+            canEditGroup: grant.canEditGroup,
+            canReviewModifications: grant.canReviewModifications,
+            canScheduleInterview: grant.canScheduleInterview
+          }
+        }
+      });
+    });
+  }
 
   revalidatePath(`/admin/groups/${groupId}/settings`);
 }

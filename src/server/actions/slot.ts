@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { GroupTimeSlotStatus } from "@prisma/client";
+import { AuditActorType, GroupTimeSlotStatus } from "@prisma/client";
 import { requireAdmin } from "@/lib/auth/session";
 import {
   addMinutes,
@@ -64,9 +64,31 @@ export async function batchGenerateSlotsAction(groupId: string, formData: FormDa
   }
 
   if (data.length > 0) {
-    await prisma.groupTimeSlot.createMany({
-      data,
-      skipDuplicates: true
+    await prisma.$transaction(async (tx) => {
+      const createResult = await tx.groupTimeSlot.createMany({
+        data,
+        skipDuplicates: true
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorType: AuditActorType.ADMIN,
+          actorAdminId: admin.id,
+          groupId,
+          action: "admin.batch_generate_slots",
+          entityType: "GroupTimeSlot",
+          entityId: groupId,
+          afterData: {
+            dateFrom: input.dateFrom,
+            dateTo: input.dateTo,
+            startTime: input.startTime,
+            endTime: input.endTime,
+            weekdays: input.weekdays,
+            requestedCount: data.length,
+            insertedCount: createResult.count
+          }
+        }
+      });
     });
   }
 
@@ -82,15 +104,47 @@ export async function updateSlotStatusAction(
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, "canEditGroup");
 
-  await prisma.groupTimeSlot.updateMany({
+  const slot = await prisma.groupTimeSlot.findFirst({
     where: {
       id: slotId,
       groupId
     },
-    data: {
-      status
+    select: {
+      id: true,
+      status: true
     }
   });
+
+  if (slot) {
+    await prisma.$transaction(async (tx) => {
+      await tx.groupTimeSlot.updateMany({
+        where: {
+          id: slotId,
+          groupId
+        },
+        data: {
+          status
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorType: AuditActorType.ADMIN,
+          actorAdminId: admin.id,
+          groupId,
+          action: "admin.update_slot_status",
+          entityType: "GroupTimeSlot",
+          entityId: slot.id,
+          beforeData: {
+            status: slot.status
+          },
+          afterData: {
+            status
+          }
+        }
+      });
+    });
+  }
 
   revalidatePath(`/admin/groups/${groupId}/slots`);
 }

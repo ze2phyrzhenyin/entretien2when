@@ -3,13 +3,23 @@ import { CalendarClock, LogOut, ShieldCheck } from "lucide-react";
 import type { Admin } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { adminLogoutAction } from "@/server/actions/admin-auth";
+import { cn } from "@/lib/utils";
+
+type AdminShellActive = "groups" | "audit";
+
+const navItems: Array<{ key: AdminShellActive; label: string; href: string }> = [
+  { key: "groups", label: "面试组", href: "/admin" },
+  { key: "audit", label: "操作日志", href: "/admin/audit" }
+];
 
 export function AdminShell({
   admin,
-  children
+  children,
+  active = "groups"
 }: {
   admin: Pick<Admin, "displayName" | "email" | "role">;
   children: React.ReactNode;
+  active?: AdminShellActive;
 }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -19,9 +29,20 @@ export function AdminShell({
           面试时间管理
         </Link>
         <nav className="mt-8 space-y-1 text-sm">
-          <Link className="block rounded-md bg-muted px-3 py-2 font-medium" href="/admin">
-            面试组
-          </Link>
+          {navItems.map((item) => (
+            <Link
+              key={item.key}
+              className={cn(
+                "block rounded-md px-3 py-2 font-medium transition-colors",
+                active === item.key
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+              href={item.href}
+            >
+              {item.label}
+            </Link>
+          ))}
           <span className="block rounded-md px-3 py-2 text-muted-foreground">审核中心</span>
           <span className="block rounded-md px-3 py-2 text-muted-foreground">预约管理</span>
         </nav>
@@ -31,7 +52,9 @@ export function AdminShell({
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-white/95 px-4 backdrop-blur md:px-8">
           <div>
             <p className="text-sm text-muted-foreground">管理员后台</p>
-            <h1 className="text-base font-semibold">面试组工作台</h1>
+            <h1 className="text-base font-semibold">
+              {active === "audit" ? "操作日志" : "面试组工作台"}
+            </h1>
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden text-right text-sm sm:block">
