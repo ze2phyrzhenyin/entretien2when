@@ -198,8 +198,8 @@ test.describe("P0 business flow", () => {
       await dialog.accept();
     });
     await page.getByRole("button", { name: "提交修改申请" }).click();
-    await expect(page.getByText("修改申请已提交，待管理员审核。")).toBeVisible();
-    await expect(page.getByText("修改审核中。审核通过前仍以当前有效版本为准。")).toBeVisible();
+    await expect(page.getByText("你的修改申请正在等待管理员审核。").first()).toBeVisible();
+    await expect(page.getByText("审核通过前，当前有效提交不会改变。").first()).toBeVisible();
     await expectCandidateActiveSlots(candidateAEmail, group.id, initialSlotIds);
 
     const pendingSubmission = await prisma.candidateSubmission.findFirst({
@@ -276,6 +276,7 @@ test.describe("P0 business flow", () => {
     await expect(page.getByText(candidateVisibleMessage)).toBeVisible();
     await expect(page.locator("body")).not.toContainText(internalNote);
     await expect(page.locator("body")).not.toContainText(adminPrivateNote);
+    await expect(page.locator("body")).not.toContainText("管理员私有备注");
     await expect(page.locator("body")).not.toContainText("已预约给");
 
     await enterCandidateFromJoin(page, group.groupCode, candidateBName, candidateBEmail, groupName);
@@ -284,6 +285,7 @@ test.describe("P0 business flow", () => {
     await expect(page.locator("body")).not.toContainText("已预约给");
     await expect(page.locator("body")).not.toContainText(internalNote);
     await expect(page.locator("body")).not.toContainText(adminPrivateNote);
+    await expect(page.locator("body")).not.toContainText("管理员私有备注");
 
     await page.goto(`/admin/groups/${group.id}/appointments`);
     await expect(page.getByText("已预约")).toBeVisible();

@@ -1,28 +1,36 @@
 import Link from "next/link";
 import { AppointmentStatus } from "@prisma/client";
+import { CandidateAdminNoteEditor } from "@/components/admin/candidate-admin-note-editor";
+import { CandidateEmailComposer } from "@/components/admin/candidate-email-composer";
+import { FormField } from "@/components/design-system/form-field";
+import { InlineNotice } from "@/components/design-system/inline-notice";
+import { PageHeader } from "@/components/design-system/page-header";
+import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { GroupAdminNav } from "@/components/layout/group-admin-nav";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
 import { formatDateTimeRange } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
-import {
-  candidateStatusLabel,
-  candidateSubmissionStatusLabel,
-  candidateSubmissionTypeLabel
-} from "@/lib/status-labels";
+import { candidateSubmissionStatusLabel, candidateSubmissionTypeLabel } from "@/lib/status-labels";
 import { scheduleAppointmentAction } from "@/server/actions/appointment";
 import { upsertCandidateAdminNoteAction } from "@/server/actions/admin-note";
 
 type CandidateDetailPageProps = {
   params: Promise<{ id: string; candidateId: string }>;
-  searchParams: Promise<{ review?: string }>;
+  searchParams: Promise<{
+    review?: string;
+    mail?: string;
+    mailCount?: string;
+    mailFailed?: string;
+    mailDryRun?: string;
+  }>;
 };
 
 export default async function CandidateDetailPage({
@@ -86,27 +94,50 @@ export default async function CandidateDetailPage({
       ({ slot }) => slot.status === "OPEN" && !slot.activeLock
     ) ?? [];
   const ownNote = candidate.adminNotes.find((note) => note.authorAdminId === admin.id);
+  const returnTo = `/admin/groups/${groupId}/candidates/${candidateId}`;
+  const mailCount = Number(query.mailCount ?? 0);
+  const mailFailed = Number(query.mailFailed ?? 0);
 
   return (
     <AdminShell admin={admin}>
       <GroupAdminNav groupId={groupId} active="candidates" />
-      <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div>
-          <h2 className="text-2xl font-semibold">{candidate.name}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{candidate.email}</p>
-        </div>
-        <Link
-          className="text-sm font-medium text-primary"
-          href={`/admin/groups/${groupId}/candidates`}
-        >
-          返回候选人列表
-        </Link>
-      </div>
+      <PageHeader
+        title={candidate.name}
+        description={candidate.email}
+        action={
+          <Link
+            className="text-sm font-medium text-primary"
+            href={`/admin/groups/${groupId}/candidates`}
+          >
+            返回候选人列表
+          </Link>
+        }
+      />
 
       {query.review ? (
-        <div className="mb-5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
+        <InlineNotice tone="success" className="mb-5">
           审核操作已完成。
-        </div>
+        </InlineNotice>
+      ) : null}
+      {query.mail === "sent" ? (
+        <InlineNotice tone="success" className="mb-5">
+          已发送 {mailCount} 封候选人邮件{query.mailDryRun ? "（dry-run 预览）" : ""}。
+        </InlineNotice>
+      ) : null}
+      {query.mail === "partial" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          已发送 {mailCount} 封，失败 {mailFailed} 封。请检查 mailato 配置或发送日志。
+        </InlineNotice>
+      ) : null}
+      {query.mail === "error" ? (
+        <InlineNotice tone="danger" className="mb-5">
+          邮件发送失败。请检查服务器 mailato 配置和发送日志。
+        </InlineNotice>
+      ) : null}
+      {query.mail === "invalid" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          请填写邮件主题和正文后再发送。
+        </InlineNotice>
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -114,9 +145,7 @@ export default async function CandidateDetailPage({
           <Card className="p-6">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-lg font-semibold">当前有效可用时间</h3>
-              <Badge tone={candidate.status === "SCHEDULED" ? "success" : "neutral"}>
-                {candidateStatusLabel[candidate.status]}
-              </Badge>
+              <StatusBadge kind="candidate" status={candidate.status} />
             </div>
             {candidate.activeSubmission ? (
               <>
@@ -175,28 +204,25 @@ export default async function CandidateDetailPage({
                       key={slot.id}
                       className="flex items-center gap-2 rounded-md border border-border p-2 text-sm"
                     >
-                      <input name="slotIds" type="checkbox" value={slot.id} />
+                      <Checkbox name="slotIds" value={slot.id} />
                       {formatDateTimeRange(slot.startAt, slot.endAt, group.timezone)}
                     </label>
                   ))}
                 </div>
-                <div>
-                  <Label htmlFor="meetingLocation">会议地点或链接</Label>
+                <FormField id="meetingLocation" label="会议地点或链接">
                   <Input
                     id="meetingLocation"
                     name="meetingLocation"
                     placeholder="会议室 / 腾讯会议链接"
                   />
-                </div>
-                <div>
-                  <Label htmlFor="candidateVisibleMessage">候选人可见说明</Label>
+                </FormField>
+                <FormField id="candidateVisibleMessage" label="候选人可见说明">
                   <Textarea id="candidateVisibleMessage" name="candidateVisibleMessage" />
-                </div>
-                <div>
-                  <Label htmlFor="internalNote">内部备注</Label>
+                </FormField>
+                <FormField id="internalNote" label="内部备注">
                   <Textarea id="internalNote" name="internalNote" />
-                </div>
-                <Button type="submit">安排并锁定时间</Button>
+                </FormField>
+                <SubmitButton>安排并锁定时间</SubmitButton>
               </form>
             )}
           </Card>
@@ -229,45 +255,29 @@ export default async function CandidateDetailPage({
         </div>
 
         <div className="space-y-6">
-          <Card className="p-5">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="font-semibold">管理员私有备注</h3>
-              <Badge tone="warning">仅管理员可见</Badge>
-            </div>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              该备注只在管理员后台可见，候选人页面和候选人 API 永远不会返回。
-            </p>
-            <form
-              action={upsertCandidateAdminNoteAction.bind(null, groupId, candidateId)}
-              className="mt-4 space-y-3"
-            >
-              <Textarea
-                name="body"
-                defaultValue={ownNote?.body ?? ""}
-                placeholder="填写内部跟进信息"
-              />
-              <Button type="submit" variant="secondary" className="w-full">
-                保存私有备注
-              </Button>
-            </form>
-            <div className="mt-5 space-y-3">
-              {candidate.adminNotes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">暂无私有备注。</p>
-              ) : (
-                candidate.adminNotes.map((note) => (
-                  <div
-                    key={note.id}
-                    className="rounded-md border border-border bg-slate-50 p-3 text-sm"
-                  >
-                    <p className="whitespace-pre-wrap leading-6">{note.body}</p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {note.authorAdmin.displayName} · {note.authorAdmin.email}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
+          <CandidateAdminNoteEditor
+            defaultValue={ownNote?.body}
+            action={upsertCandidateAdminNoteAction.bind(null, groupId, candidateId)}
+            notes={candidate.adminNotes.map((note) => ({
+              id: note.id,
+              body: note.body,
+              authorName: note.authorAdmin.displayName,
+              authorEmail: note.authorAdmin.email
+            }))}
+          />
+          <CandidateEmailComposer
+            groupId={groupId}
+            returnTo={returnTo}
+            mode="single"
+            candidates={[
+              {
+                id: candidate.id,
+                name: candidate.name,
+                email: candidate.email,
+                status: candidate.status
+              }
+            ]}
+          />
         </div>
       </div>
     </AdminShell>

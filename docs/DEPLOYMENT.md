@@ -34,12 +34,45 @@ pnpm db:seed
 - `APP_URL` 指向实际访问域名。
 - `ADMIN_BOOTSTRAP_PASSWORD` 不是示例值。
 - `SESSION_TTL_DAYS` 符合目标环境要求。
+- 如启用候选人邮件发送，`MAILATO_COMMAND` 指向服务器上的 `mailato` wrapper，线上建议为 `/usr/local/bin/mailato`。
+- `MAILATO_DRY_RUN` 仅在本地或演练环境设为 `true`；真实发送环境设为 `false`。
 - 数据库已执行 `pnpm exec prisma migrate deploy`。
 - `pnpm check` 通过。
 - 完整业务 E2E 通过：
 
 ```bash
 pnpm exec playwright test tests/e2e/business-flow.spec.ts --project=chromium
+```
+
+## Aliyun 远端部署
+
+当前远端入口：
+
+- Portal: `http://120.24.108.234/`
+- Interview Scheduler CN: `http://120.24.108.234/when2entretien`
+- 健康检查：`http://120.24.108.234/when2entretien/api/health`
+
+部署命令：
+
+```bash
+scripts/deploy-aliyun.sh
+```
+
+部署脚本会：
+
+- 上传当前项目到 `/opt/when2entretien/releases/<release>`。
+- 使用远端 PostgreSQL `127.0.0.1:15432`。
+- 首次部署时创建远端数据库、数据库用户和超级管理员密码。
+- 将真实环境变量写入 `/etc/when2entretien/when2entretien.env`。
+- 通过 systemd 启动 `when2entretien-web.service`。
+- 在 nginx 根站点下挂载 `/when2entretien`。
+- 复用远端 `/usr/local/bin/mailato` 和 `/etc/mailato/mailato.env`，不复制邮箱密钥到本仓库。
+
+远端真实密码只保存在服务器 env 文件中，不提交到 git。需要查看或轮换线上管理员密码时，登录服务器处理：
+
+```bash
+sudo sed -n 's/^ADMIN_BOOTSTRAP_EMAIL=/ADMIN_BOOTSTRAP_EMAIL=/p' /etc/when2entretien/when2entretien.env
+sudo systemctl status when2entretien-web.service --no-pager
 ```
 
 ## 人工验收走查
@@ -52,7 +85,9 @@ pnpm exec playwright test tests/e2e/business-flow.spec.ts --project=chromium
 - `/admin/groups/[id]/settings`：确认组名称、公开说明、候选人最多选择数量可保存。
 - `/admin/groups/[id]/slots`：生成并查看时间段。
 - `/admin/groups/[id]/candidates`：查看候选人列表。
+- `/admin/groups/[id]/candidates`：勾选候选人，发送批量邮件；确认收件人逐个单独发送。
 - `/admin/groups/[id]/candidates/[candidateId]`：安排面试、保存管理员私有备注。
+- `/admin/groups/[id]/candidates/[candidateId]`：给单个候选人发送邮件。
 - `/admin/groups/[id]/reviews`：处理候选人的修改申请。
 - `/admin/groups/[id]/appointments`：查看预约并取消预约，确认时间锁释放。
 - `/admin/groups/[id]/overview`：查看时间段汇总。
@@ -72,6 +107,7 @@ pnpm exec playwright test tests/e2e/business-flow.spec.ts --project=chromium
 - 候选人页面不得出现管理员内部备注。
 - 候选人页面不得出现管理员私有备注。
 - 候选人页面不得展示已锁定时间属于谁或锁定原因。
+- 候选人页面不得出现邮件发送 UI、mailato 配置、SMTP/Resend 信息。
 - 普通管理员不得访问未授权面试组。
 
 ## 验收记录

@@ -1,12 +1,25 @@
 import { GroupTimeSlotStatus } from "@prisma/client";
+import { FormField } from "@/components/design-system/form-field";
+import { PageHeader } from "@/components/design-system/page-header";
+import { SectionHeader } from "@/components/design-system/section-header";
+import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { GroupAdminNav } from "@/components/layout/group-admin-nav";
-import { Badge } from "@/components/ui/badge";
+import { AdminSlotLegend } from "@/components/scheduling/slot-legend";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth/session";
 import { formatDateTimeRange } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
@@ -51,34 +64,28 @@ export default async function GroupSlotsPage({ params }: SlotsPageProps) {
   return (
     <AdminShell admin={admin}>
       <GroupAdminNav groupId={groupId} active="slots" />
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold">开放时间配置</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          按面试组时区生成时间段。管理员端可见关闭、锁定和内部原因；候选人端只会看到不可选。
-        </p>
-      </div>
+      <PageHeader
+        title="开放时间配置"
+        description="按面试组时区生成时间段。管理员端可见关闭、锁定和内部原因；候选人端只会看到不可选。"
+      />
 
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <Card className="p-5">
-          <h3 className="font-semibold">批量生成时间段</h3>
+          <SectionHeader title="批量生成时间段" description={`当前时区：${group.timezone}`} />
           <form action={batchGenerateSlotsAction.bind(null, groupId)} className="mt-4 space-y-4">
-            <div>
-              <Label htmlFor="dateFrom">开始日期</Label>
+            <FormField id="dateFrom" label="开始日期">
               <Input id="dateFrom" name="dateFrom" type="date" required />
-            </div>
-            <div>
-              <Label htmlFor="dateTo">结束日期</Label>
+            </FormField>
+            <FormField id="dateTo" label="结束日期">
               <Input id="dateTo" name="dateTo" type="date" required />
-            </div>
+            </FormField>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="startTime">开始时间</Label>
+              <FormField id="startTime" label="开始时间">
                 <Input id="startTime" name="startTime" type="time" defaultValue="09:00" required />
-              </div>
-              <div>
-                <Label htmlFor="endTime">结束时间</Label>
+              </FormField>
+              <FormField id="endTime" label="结束时间">
                 <Input id="endTime" name="endTime" type="time" defaultValue="18:00" required />
-              </div>
+              </FormField>
             </div>
             <div>
               <p className="mb-2 text-sm font-medium">星期</p>
@@ -88,9 +95,8 @@ export default async function GroupSlotsPage({ params }: SlotsPageProps) {
                     key={value}
                     className="flex items-center gap-2 rounded-md border border-border p-2"
                   >
-                    <input
+                    <Checkbox
                       name="weekdays"
-                      type="checkbox"
                       value={value}
                       defaultChecked={value !== "0" && value !== "6"}
                     />
@@ -106,45 +112,46 @@ export default async function GroupSlotsPage({ params }: SlotsPageProps) {
         </Card>
 
         <div>
+          <div className="mb-4">
+            <AdminSlotLegend />
+          </div>
           {group.timeSlots.length === 0 ? (
             <EmptyState
               title="还没有开放时间"
               description="先用左侧表单批量生成时间段。候选人只能在已开放且未锁定的时间中选择。"
             />
           ) : (
-            <div className="overflow-hidden rounded-lg border border-border bg-white">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-xs font-medium text-muted-foreground">
+            <TableContainer>
+              <Table>
+                <TableHeader>
                   <tr>
-                    <th className="px-4 py-3">时间</th>
-                    <th className="px-4 py-3">状态</th>
-                    <th className="px-4 py-3">锁定</th>
-                    <th className="px-4 py-3">内部原因</th>
-                    <th className="px-4 py-3">操作</th>
+                    <TableHead>时间</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>锁定</TableHead>
+                    <TableHead>内部原因</TableHead>
+                    <TableHead>操作</TableHead>
                   </tr>
-                </thead>
-                <tbody>
+                </TableHeader>
+                <TableBody>
                   {group.timeSlots.map((slot) => (
-                    <tr key={slot.id} className="border-t border-border">
-                      <td className="px-4 py-3 font-medium">
+                    <TableRow key={slot.id}>
+                      <TableCell className="font-medium">
                         {formatDateTimeRange(slot.startAt, slot.endAt, group.timezone)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge tone={slot.status === "OPEN" ? "success" : "neutral"}>
-                          {slot.status === "OPEN" ? "开放" : "关闭"}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge kind="slot" status={slot.status} />
+                      </TableCell>
+                      <TableCell>
                         {slot.activeLock ? (
-                          <Badge tone="warning">已锁定</Badge>
+                          <StatusBadge kind="slot" status="LOCKED" />
                         ) : (
-                          <Badge>未锁定</Badge>
+                          <StatusBadge kind="custom" label="未锁定" tone="neutral" />
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="max-w-xs text-muted-foreground">
                         {slot.activeLock?.reasonInternal ?? slot.internalNote ?? "-"}
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell>
                         <form
                           action={updateSlotStatusAction.bind(
                             null,
@@ -159,12 +166,12 @@ export default async function GroupSlotsPage({ params }: SlotsPageProps) {
                             {slot.status === "OPEN" ? "关闭" : "开放"}
                           </Button>
                         </form>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
         </div>
       </div>

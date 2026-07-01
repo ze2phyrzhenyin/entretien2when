@@ -1,14 +1,18 @@
 import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-type BadgeTone = "neutral" | "success" | "warning" | "danger" | "primary";
+export type BadgeTone =
+  "neutral" | "success" | "warning" | "danger" | "primary" | "info" | "locked" | "scheduled";
 
 const toneClassName: Record<BadgeTone, string> = {
-  neutral: "border-border bg-slate-50 text-slate-700",
-  success: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  warning: "border-amber-200 bg-amber-50 text-amber-800",
-  danger: "border-red-200 bg-red-50 text-red-700",
-  primary: "border-teal-200 bg-teal-50 text-teal-800"
+  neutral: "border-border bg-surface-subtle text-slate-700",
+  success: "border-emerald-200 bg-success-soft text-success",
+  warning: "border-amber-200 bg-warning-soft text-warning",
+  danger: "border-red-200 bg-danger-soft text-danger",
+  primary: "border-blue-200 bg-primary-soft text-primary",
+  info: "border-sky-200 bg-info-soft text-info",
+  locked: "border-orange-200 bg-locked-soft text-locked",
+  scheduled: "border-teal-200 bg-scheduled-soft text-scheduled"
 };
 
 export function Badge({

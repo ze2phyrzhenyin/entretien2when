@@ -1,15 +1,23 @@
 import Link from "next/link";
-import { AppointmentStatus } from "@prisma/client";
+import { PageHeader } from "@/components/design-system/page-header";
+import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { GroupAdminNav } from "@/components/layout/group-admin-nav";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth/session";
 import { formatDateTimeRange } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
-import { appointmentStatusLabel } from "@/lib/status-labels";
 import { cancelAppointmentAction } from "@/server/actions/appointment";
 
 type AppointmentsPageProps = {
@@ -43,31 +51,28 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
   return (
     <AdminShell admin={admin}>
       <GroupAdminNav groupId={groupId} active="appointments" />
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold">{group.name} · 预约</h2>
-        <p className="mt-1 text-sm text-muted-foreground">取消预约会自动释放对应时间锁。</p>
-      </div>
+      <PageHeader title={`${group.name} · 预约`} description="取消预约会自动释放对应时间锁。" />
 
       {appointments.length === 0 ? (
         <EmptyState title="暂无预约" description="在候选人详情页选择候选人可用时间并安排面试。" />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border bg-white">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-slate-50 text-xs font-medium text-muted-foreground">
+        <TableContainer>
+          <Table className="min-w-[1000px]">
+            <TableHeader>
               <tr>
-                <th className="px-4 py-3">候选人</th>
-                <th className="px-4 py-3">时间</th>
-                <th className="px-4 py-3">状态</th>
-                <th className="px-4 py-3">地点/链接</th>
-                <th className="px-4 py-3">候选人说明</th>
-                <th className="px-4 py-3">内部备注</th>
-                <th className="px-4 py-3">操作</th>
+                <TableHead>候选人</TableHead>
+                <TableHead>时间</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>地点/链接</TableHead>
+                <TableHead>候选人说明</TableHead>
+                <TableHead>内部备注</TableHead>
+                <TableHead>操作</TableHead>
               </tr>
-            </thead>
-            <tbody>
+            </TableHeader>
+            <TableBody>
               {appointments.map((appointment) => (
-                <tr key={appointment.id} className="border-t border-border">
-                  <td className="px-4 py-3">
+                <TableRow key={appointment.id}>
+                  <TableCell>
                     <Link
                       className="font-medium text-primary"
                       href={`/admin/groups/${groupId}/candidates/${appointment.candidate.id}`}
@@ -75,38 +80,32 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
                       {appointment.candidate.name}
                     </Link>
                     <p className="text-muted-foreground">{appointment.candidate.email}</p>
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell>
                     {formatDateTimeRange(appointment.startAt, appointment.endAt, group.timezone)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge
-                      tone={
-                        appointment.status === AppointmentStatus.SCHEDULED ? "success" : "neutral"
-                      }
-                    >
-                      {appointmentStatusLabel[appointment.status]}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">{appointment.meetingLocation ?? "-"}</td>
-                  <td className="px-4 py-3">{appointment.candidateVisibleMessage ?? "-"}</td>
-                  <td className="px-4 py-3">{appointment.internalNote ?? "-"}</td>
-                  <td className="px-4 py-3">
-                    {appointment.status === AppointmentStatus.SCHEDULED ? (
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge kind="appointment" status={appointment.status} />
+                  </TableCell>
+                  <TableCell>{appointment.meetingLocation ?? "-"}</TableCell>
+                  <TableCell>{appointment.candidateVisibleMessage ?? "-"}</TableCell>
+                  <TableCell>{appointment.internalNote ?? "-"}</TableCell>
+                  <TableCell>
+                    {appointment.status === "SCHEDULED" ? (
                       <form action={cancelAppointmentAction.bind(null, groupId, appointment.id)}>
-                        <Button type="submit" variant="danger" className="h-8 px-3">
+                        <Button type="submit" variant="danger" size="sm">
                           取消
                         </Button>
                       </form>
                     ) : (
                       "-"
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
     </AdminShell>
   );

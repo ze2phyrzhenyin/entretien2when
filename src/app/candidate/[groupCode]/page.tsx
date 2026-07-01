@@ -1,7 +1,13 @@
 import Link from "next/link";
-import { CalendarCheck, Clock } from "lucide-react";
 import { AppointmentStatus, CandidateSubmissionStatus, GroupTimeSlotStatus } from "@prisma/client";
-import { Badge } from "@/components/ui/badge";
+import { CandidateAppointmentCard } from "@/components/candidate/candidate-appointment-card";
+import { CandidateIdentityCard } from "@/components/candidate/candidate-identity-card";
+import { CandidateSubmittedSummary } from "@/components/candidate/candidate-submitted-summary";
+import { InlineNotice } from "@/components/design-system/inline-notice";
+import { ReviewNotice } from "@/components/design-system/review-notice";
+import { CandidateShell } from "@/components/layout/candidate-shell";
+import { TimeRangePreview } from "@/components/scheduling/time-range-preview";
+import type { CandidateSlotView } from "@/components/scheduling/types";
 import { Card } from "@/components/ui/card";
 import { formatDate, formatDateTimeRange, formatTime } from "@/lib/date/timezone";
 import { normalizeGroupCode } from "@/lib/group-code/generate";
@@ -30,7 +36,7 @@ function buildCandidateSlotOptions(
   }>,
   timezone: string,
   selectedSlotIds = new Set<string>()
-) {
+): CandidateSlotView[] {
   return slots.map((slot) => ({
     id: slot.id,
     dateLabel: formatDate(slot.startAt, timezone),
@@ -66,7 +72,7 @@ export default async function CandidateGroupPage({
 
   if (!group) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-8">
+      <CandidateShell size="narrow">
         <Card className="mx-auto max-w-lg p-6">
           <h1 className="text-xl font-semibold">面试组不存在</h1>
           <p className="mt-2 text-sm text-muted-foreground">请检查招聘方提供的面试组编号。</p>
@@ -74,13 +80,13 @@ export default async function CandidateGroupPage({
             返回填写入口
           </Link>
         </Card>
-      </main>
+      </CandidateShell>
     );
   }
 
   if (!name || !email) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-8">
+      <CandidateShell size="narrow">
         <Card className="mx-auto max-w-lg p-6">
           <h1 className="text-xl font-semibold">请先填写身份信息</h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -90,7 +96,7 @@ export default async function CandidateGroupPage({
             返回填写入口
           </Link>
         </Card>
-      </main>
+      </CandidateShell>
     );
   }
 
@@ -133,10 +139,15 @@ export default async function CandidateGroupPage({
   const slotOptions = buildCandidateSlotOptions(group.timeSlots, group.timezone, activeSlotIds);
   const pendingSubmission = candidate?.submissions[0] ?? null;
   const appointment = candidate?.appointments[0] ?? null;
+  const activeSlotLabels =
+    candidate?.activeSubmission?.slots.map(({ slot }) =>
+      formatDateTimeRange(slot.startAt, slot.endAt, group.timezone)
+    ) ?? [];
+  const modifyHref = `/candidate/${group.groupCode}?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&mode=modify`;
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="mx-auto max-w-4xl">
+    <CandidateShell>
+      <div>
         <div className="mb-6">
           <h1 className="text-3xl font-semibold">{group.name}</h1>
           {group.publicDescription ? (
@@ -147,113 +158,43 @@ export default async function CandidateGroupPage({
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-          <Card className="h-fit p-5">
-            <p className="text-sm text-muted-foreground">候选人</p>
-            <p className="mt-1 font-semibold">{name}</p>
-            <p className="mt-1 break-all text-sm text-muted-foreground">{email}</p>
-            <div className="mt-4 space-y-2">
-              <Badge tone={candidate?.activeSubmission ? "success" : "warning"}>
-                {candidate?.activeSubmission ? "已提交" : "未提交"}
-              </Badge>
-              {pendingSubmission ? <Badge tone="warning">修改审核中</Badge> : null}
-            </div>
-          </Card>
+          <CandidateIdentityCard
+            name={name}
+            email={email}
+            status={candidate?.status}
+            hasActiveSubmission={Boolean(candidate?.activeSubmission)}
+            hasPendingSubmission={Boolean(pendingSubmission)}
+          />
 
           <div className="space-y-6">
-            {query.submitted ? (
-              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
-                可用时间已提交。
-              </div>
-            ) : null}
-            {query.pending ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
-                修改申请已提交，待管理员审核。审核通过前仍以原提交为准。
-              </div>
-            ) : null}
+            {query.submitted ? <InlineNotice tone="success">可用时间已提交。</InlineNotice> : null}
+            {query.pending ? <ReviewNotice mode="pending" /> : null}
 
             {appointment ? (
-              <Card className="p-6">
-                <div className="flex items-center gap-2">
-                  <CalendarCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-                  <h2 className="text-lg font-semibold">面试已安排</h2>
-                </div>
-                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="text-muted-foreground">面试时间</dt>
-                    <dd className="mt-1 font-medium">
-                      {formatDateTimeRange(appointment.startAt, appointment.endAt, group.timezone)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">会议地点或链接</dt>
-                    <dd className="mt-1 break-all font-medium">
-                      {appointment.meetingLocation ?? "待通知"}
-                    </dd>
-                  </div>
-                </dl>
-                {appointment.candidateVisibleMessage ? (
-                  <p className="mt-4 rounded-md bg-slate-50 p-3 text-sm leading-6">
-                    {appointment.candidateVisibleMessage}
-                  </p>
-                ) : null}
-              </Card>
+              <CandidateAppointmentCard
+                time={formatDateTimeRange(appointment.startAt, appointment.endAt, group.timezone)}
+                meetingLocation={appointment.meetingLocation}
+                message={appointment.candidateVisibleMessage}
+              />
             ) : null}
 
             {candidate?.activeSubmission && !isModifyMode ? (
-              <Card className="p-6">
-                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-5 w-5 text-primary" aria-hidden="true" />
-                      <h2 className="text-lg font-semibold">当前有效可用时间</h2>
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      如需修改，需要提交申请并等待管理员审核。
-                    </p>
-                  </div>
-                  <Link
-                    href={`/candidate/${group.groupCode}?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&mode=modify`}
-                    className="inline-flex h-10 items-center justify-center rounded-md border border-border bg-white px-4 text-sm font-medium hover:bg-slate-50"
-                  >
-                    申请修改
-                  </Link>
-                </div>
-                <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                  {candidate.activeSubmission.slots.map(({ slot }) => (
-                    <div
-                      key={slot.id}
-                      className="rounded-md border border-border bg-slate-50 px-3 py-2 text-sm"
-                    >
-                      {formatDateTimeRange(slot.startAt, slot.endAt, group.timezone)}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-5">
-                  <p className="text-sm font-medium">候选人备注</p>
-                  <p className="mt-2 rounded-md border border-border bg-white p-3 text-sm leading-6 text-muted-foreground">
-                    {candidate.activeSubmission.candidateNote || "未填写"}
-                  </p>
-                </div>
-                {pendingSubmission ? (
-                  <div className="mt-5 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
-                    修改审核中。审核通过前仍以当前有效版本为准。
-                  </div>
-                ) : null}
-              </Card>
+              <CandidateSubmittedSummary
+                slots={activeSlotLabels}
+                note={candidate.activeSubmission.candidateNote}
+                modifyHref={modifyHref}
+                hasPendingSubmission={Boolean(pendingSubmission)}
+              />
             ) : (
-              <Card className="p-6">
+              <Card className="p-6" variant="flat">
                 <h2 className="text-lg font-semibold">
                   {isModifyMode ? "申请修改可用时间" : "选择你的可用时间"}
                 </h2>
                 {candidate?.activeSubmission && isModifyMode ? (
-                  <div className="mt-4 rounded-md border border-border bg-slate-50 p-4">
+                  <div className="mt-4 rounded-lg border border-border bg-surface-subtle p-4">
                     <p className="text-sm font-medium">当前有效版本</p>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      {candidate.activeSubmission.slots.map(({ slot }) => (
-                        <div key={slot.id} className="rounded-md bg-white px-3 py-2 text-sm">
-                          {formatDateTimeRange(slot.startAt, slot.endAt, group.timezone)}
-                        </div>
-                      ))}
+                    <div className="mt-3">
+                      <TimeRangePreview items={activeSlotLabels} />
                     </div>
                   </div>
                 ) : null}
@@ -274,6 +215,6 @@ export default async function CandidateGroupPage({
           </div>
         </div>
       </div>
-    </main>
+    </CandidateShell>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { AdminRole, AuditActorType, type Prisma } from "@prisma/client";
+import { PageHeader } from "@/components/design-system/page-header";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,15 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 
@@ -72,7 +82,8 @@ const auditActionLabel: Record<string, string> = {
   "admin.reject_submission_modification": "管理员拒绝修改申请",
   "admin.schedule_appointment": "管理员安排面试",
   "admin.cancel_appointment": "管理员取消预约",
-  "admin.upsert_candidate_admin_note": "保存管理员私有备注"
+  "admin.upsert_candidate_admin_note": "保存管理员私有备注",
+  "admin.send_candidate_email": "发送候选人邮件"
 };
 
 const entityTypeLabel: Record<string, string> = {
@@ -81,7 +92,8 @@ const entityTypeLabel: Record<string, string> = {
   GroupTimeSlot: "时间段",
   CandidateSubmission: "候选人提交",
   Appointment: "预约",
-  CandidateAdminNote: "管理员私有备注"
+  CandidateAdminNote: "管理员私有备注",
+  CandidateEmailBatch: "候选人邮件批次"
 };
 
 function parseActorType(value: string | undefined) {
@@ -256,17 +268,15 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
 
   return (
     <AdminShell admin={admin} active="audit">
-      <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-        <div>
-          <h2 className="text-2xl font-semibold">操作日志</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            超级管理员可查看全部日志；普通管理员可查看已授权面试组日志和自己发起的操作。
+      <PageHeader
+        title="操作日志"
+        description="超级管理员可查看全部日志；普通管理员可查看已授权面试组日志和自己发起的操作。"
+        action={
+          <p className="text-sm text-muted-foreground">
+            显示最近 {logs.length} 条，共 {totalCount} 条
           </p>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          显示最近 {logs.length} 条，共 {totalCount} 条
-        </p>
-      </div>
+        }
+      />
 
       <Card className="mb-4 p-4">
         <form className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_240px_auto_auto]">
@@ -334,19 +344,19 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
           description="当管理员或候选人完成提交、审核、预约、取消预约等动作后，这里会显示审计记录。"
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-white">
-          <table className="w-full min-w-[980px] border-collapse text-left text-sm">
-            <thead className="bg-slate-50 text-xs font-medium text-muted-foreground">
+        <TableContainer>
+          <Table className="min-w-[980px]">
+            <TableHeader>
               <tr>
-                <th className="px-4 py-3">时间</th>
-                <th className="px-4 py-3">操作</th>
-                <th className="px-4 py-3">操作者</th>
-                <th className="px-4 py-3">面试组</th>
-                <th className="px-4 py-3">对象</th>
-                <th className="px-4 py-3">数据</th>
+                <TableHead>时间</TableHead>
+                <TableHead>操作</TableHead>
+                <TableHead>操作者</TableHead>
+                <TableHead>面试组</TableHead>
+                <TableHead>对象</TableHead>
+                <TableHead>数据</TableHead>
               </tr>
-            </thead>
-            <tbody>
+            </TableHeader>
+            <TableBody>
               {logs.map((log) => {
                 const actor = getActorDisplay(log);
                 const group = getGroupDisplay(log);
@@ -357,15 +367,15 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                   (admin.role === AdminRole.SUPER_ADMIN || accessibleGroupIds.has(group?.id ?? ""));
 
                 return (
-                  <tr key={log.id} className="border-t border-border align-top">
-                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
+                  <TableRow key={log.id} className="align-top">
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
                       {formatDateTime(log.createdAt)}
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       <p className="font-medium">{auditActionLabel[log.action] ?? log.action}</p>
                       <p className="mt-1 font-mono text-xs text-muted-foreground">{log.action}</p>
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       <div className="flex flex-col items-start gap-1">
                         <Badge tone={actorTone[log.actorType]}>
                           {actorTypeLabel[log.actorType]}
@@ -375,8 +385,8 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                           <p className="text-xs text-muted-foreground">{actor.secondary}</p>
                         ) : null}
                       </div>
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       {group ? (
                         canLinkGroup ? (
                           <Link
@@ -399,14 +409,14 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                       ) : (
                         "-"
                       )}
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       <p>{entityTypeLabel[log.entityType] ?? log.entityType}</p>
                       <p className="mt-1 font-mono text-xs text-muted-foreground">
                         {shortId(log.entityId)}
                       </p>
-                    </td>
-                    <td className="max-w-sm px-4 py-3">
+                    </TableCell>
+                    <TableCell className="max-w-sm">
                       {beforeData || afterData ? (
                         <div className="space-y-1">
                           {beforeData ? (
@@ -423,13 +433,13 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                       ) : (
                         "-"
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
     </AdminShell>
   );

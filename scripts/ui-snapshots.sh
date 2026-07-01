@@ -9,7 +9,7 @@ else
   BASE_URL="http://127.0.0.1:${SNAPSHOT_PORT}"
   SHOULD_START_SERVER="true"
 fi
-OUT_DIR="artifacts/ui-snapshots"
+OUT_DIR="artifacts/ui-snapshots/frontend-refactor-p0"
 mkdir -p "$OUT_DIR"
 
 SERVER_PID=""

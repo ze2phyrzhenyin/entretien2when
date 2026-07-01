@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { TabLink, Tabs, TabsList } from "@/components/ui/tabs";
 
 const groupNavItems = [
   ["settings", "设置"],
@@ -12,23 +11,14 @@ const groupNavItems = [
 
 export function GroupAdminNav({ groupId, active }: { groupId: string; active: string }) {
   return (
-    <div className="mb-6 overflow-x-auto border-b border-border">
-      <nav className="flex min-w-max gap-1">
+    <Tabs className="mb-6">
+      <TabsList>
         {groupNavItems.map(([key, label]) => (
-          <Link
-            key={key}
-            href={`/admin/groups/${groupId}/${key}`}
-            className={cn(
-              "border-b-2 px-3 py-3 text-sm font-medium transition-colors",
-              active === key
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
+          <TabLink key={key} href={`/admin/groups/${groupId}/${key}`} active={active === key}>
             {label}
-          </Link>
+          </TabLink>
         ))}
-      </nav>
-    </div>
+      </TabsList>
+    </Tabs>
   );
 }

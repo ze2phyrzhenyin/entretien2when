@@ -1,19 +1,40 @@
 import Link from "next/link";
 import { CandidateStatus } from "@prisma/client";
+import { CandidateEmailComposer } from "@/components/admin/candidate-email-composer";
+import { InlineNotice } from "@/components/design-system/inline-notice";
+import { PageHeader } from "@/components/design-system/page-header";
+import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { GroupAdminNav } from "@/components/layout/group-admin-nav";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
-import { candidateStatusLabel } from "@/lib/status-labels";
 
 type CandidatesPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    mail?: string;
+    mailCount?: string;
+    mailFailed?: string;
+    mailDryRun?: string;
+  }>;
 };
 
 const filters = [
@@ -69,34 +90,52 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
       }
     }
   });
+  const returnTo = `/admin/groups/${groupId}/candidates`;
+  const mailCount = Number(query.mailCount ?? 0);
+  const mailFailed = Number(query.mailFailed ?? 0);
 
   return (
     <AdminShell admin={admin}>
       <GroupAdminNav groupId={groupId} active="candidates" />
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold">{group.name} · 候选人</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          搜索候选人，查看备注状态、修改待审和预约状态。
-        </p>
-      </div>
+      <PageHeader
+        title={`${group.name} · 候选人`}
+        description="搜索候选人，查看备注状态、修改待审和预约状态。"
+      />
+
+      {query.mail === "sent" ? (
+        <InlineNotice tone="success" className="mb-5">
+          已发送 {mailCount} 封候选人邮件{query.mailDryRun ? "（dry-run 预览）" : ""}。
+        </InlineNotice>
+      ) : null}
+      {query.mail === "partial" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          已发送 {mailCount} 封，失败 {mailFailed} 封。请检查 mailato 配置或发送日志。
+        </InlineNotice>
+      ) : null}
+      {query.mail === "error" ? (
+        <InlineNotice tone="danger" className="mb-5">
+          邮件发送失败。请检查服务器 mailato 配置和发送日志。
+        </InlineNotice>
+      ) : null}
+      {query.mail === "invalid" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          请至少选择一位候选人，并填写邮件主题和正文。
+        </InlineNotice>
+      ) : null}
 
       <Card className="mb-5 p-4">
         <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
           <Input name="q" placeholder="搜索姓名或邮箱" defaultValue={q} />
-          <select
-            name="status"
-            defaultValue={status ?? ""}
-            className="h-11 rounded-md border border-border bg-white px-3 text-sm"
-          >
+          <Select name="status" defaultValue={status ?? ""}>
             {filters.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
             ))}
-          </select>
-          <button className="h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">
+          </Select>
+          <Button type="submit" size="lg">
             搜索
-          </button>
+          </Button>
         </form>
       </Card>
 
@@ -106,63 +145,73 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
           description="候选人通过组编号提交可用时间后，会出现在这里。"
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border bg-white">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-slate-50 text-xs font-medium text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3">候选人</th>
-                <th className="px-4 py-3">状态</th>
-                <th className="px-4 py-3">候选人备注</th>
-                <th className="px-4 py-3">管理员私有备注</th>
-                <th className="px-4 py-3">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {candidates.map((candidate) => (
-                <tr key={candidate.id} className="border-t border-border">
-                  <td className="px-4 py-3">
-                    <p className="font-medium">{candidate.name}</p>
-                    <p className="text-muted-foreground">{candidate.email}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      <Badge tone={candidate.status === "SCHEDULED" ? "success" : "neutral"}>
-                        {candidateStatusLabel[candidate.status]}
-                      </Badge>
-                      {candidate.submissions.length > 0 ? (
-                        <Badge tone="warning">待审核</Badge>
-                      ) : null}
-                      {candidate.appointments.length > 0 ? (
-                        <Badge tone="primary">已预约</Badge>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    {candidate.activeSubmission?.candidateNote ? (
-                      <Badge tone="primary">有备注</Badge>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {candidate.adminNotes.length > 0 ? (
-                      <Badge tone="warning">有私有备注</Badge>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Link
-                      className="font-medium text-primary"
-                      href={`/admin/groups/${groupId}/candidates/${candidate.id}`}
-                    >
-                      查看
-                    </Link>
-                  </td>
+        <div className="space-y-5">
+          <CandidateEmailComposer
+            groupId={groupId}
+            returnTo={returnTo}
+            candidates={candidates.map((candidate) => ({
+              id: candidate.id,
+              name: candidate.name,
+              email: candidate.email,
+              status: candidate.status
+            }))}
+          />
+          <TableContainer>
+            <Table>
+              <TableHeader>
+                <tr>
+                  <TableHead>候选人</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>候选人备注</TableHead>
+                  <TableHead>管理员私有备注</TableHead>
+                  <TableHead>操作</TableHead>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </TableHeader>
+              <TableBody>
+                {candidates.map((candidate) => (
+                  <TableRow key={candidate.id}>
+                    <TableCell>
+                      <p className="font-medium">{candidate.name}</p>
+                      <p className="text-muted-foreground">{candidate.email}</p>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge kind="candidate" status={candidate.status} />
+                        {candidate.submissions.length > 0 ? (
+                          <Badge tone="warning">待审核</Badge>
+                        ) : null}
+                        {candidate.appointments.length > 0 ? (
+                          <Badge tone="primary">已预约</Badge>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {candidate.activeSubmission?.candidateNote ? (
+                        <Badge tone="primary">有备注</Badge>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {candidate.adminNotes.length > 0 ? (
+                        <Badge tone="warning">有私有备注</Badge>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        className="font-medium text-primary"
+                        href={`/admin/groups/${groupId}/candidates/${candidate.id}`}
+                      >
+                        查看
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </div>
       )}
     </AdminShell>

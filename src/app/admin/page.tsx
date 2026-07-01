@@ -1,13 +1,24 @@
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { CalendarDays, ClipboardList, Plus, Search, Users } from "lucide-react";
 import { AdminRole, type Prisma } from "@prisma/client";
+import { MetricCard } from "@/components/design-system/metric-card";
+import { PageHeader } from "@/components/design-system/page-header";
+import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
 import { prisma } from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/session";
-import { interviewGroupStatusLabel } from "@/lib/status-labels";
 
 type AdminDashboardPageProps = {
   searchParams: Promise<{ q?: string }>;
@@ -54,23 +65,45 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
       }
     }
   });
+  const candidateCount = groups.reduce((total, group) => total + group._count.candidates, 0);
+  const appointmentCount = groups.reduce((total, group) => total + group._count.appointments, 0);
+  const submissionCount = groups.reduce((total, group) => total + group._count.submissions, 0);
 
   return (
     <AdminShell admin={admin}>
-      <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div>
-          <h2 className="text-2xl font-semibold">面试组</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            超级管理员可查看全部组；普通管理员只会看到被授权的面试组。
-          </p>
-        </div>
-        <Link
-          href="/admin/groups/new"
-          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-teal-800 sm:w-auto"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          创建面试组
-        </Link>
+      <PageHeader
+        title="面试组"
+        description="超级管理员可查看全部组；普通管理员只会看到被授权的面试组。"
+        action={
+          <Link
+            href="/admin/groups/new"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-teal-800 sm:w-auto"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            创建面试组
+          </Link>
+        }
+      />
+
+      <div className="mb-5 grid gap-3 md:grid-cols-3">
+        <MetricCard
+          label="候选人"
+          value={candidateCount}
+          description={`当前列表覆盖 ${groups.length} 个面试组`}
+          icon={<Users className="h-4 w-4" aria-hidden="true" />}
+        />
+        <MetricCard
+          label="提交版本"
+          value={submissionCount}
+          description="包含当前有效和历史提交"
+          icon={<ClipboardList className="h-4 w-4" aria-hidden="true" />}
+        />
+        <MetricCard
+          label="预约"
+          value={appointmentCount}
+          description="当前可见面试组中的预约数量"
+          icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
+        />
       </div>
 
       <form className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
@@ -122,39 +155,41 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
           )}
         </Card>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border bg-white">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-slate-50 text-xs font-medium text-muted-foreground">
+        <TableContainer>
+          <Table>
+            <TableHeader>
               <tr>
-                <th className="px-4 py-3">组名称</th>
-                <th className="px-4 py-3">组编号</th>
-                <th className="px-4 py-3">状态</th>
-                <th className="px-4 py-3">候选人</th>
-                <th className="px-4 py-3">预约</th>
-                <th className="px-4 py-3">操作</th>
+                <TableHead>组名称</TableHead>
+                <TableHead>组编号</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>候选人</TableHead>
+                <TableHead>预约</TableHead>
+                <TableHead>操作</TableHead>
               </tr>
-            </thead>
-            <tbody>
+            </TableHeader>
+            <TableBody>
               {groups.map((group) => (
-                <tr key={group.id} className="border-t border-border">
-                  <td className="px-4 py-3 font-medium">{group.name}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{group.groupCode}</td>
-                  <td className="px-4 py-3">{interviewGroupStatusLabel[group.status]}</td>
-                  <td className="px-4 py-3">{group._count.candidates}</td>
-                  <td className="px-4 py-3">{group._count.appointments}</td>
-                  <td className="px-4 py-3">
+                <TableRow key={group.id}>
+                  <TableCell className="font-medium">{group.name}</TableCell>
+                  <TableCell className="font-mono text-xs">{group.groupCode}</TableCell>
+                  <TableCell>
+                    <StatusBadge kind="group" status={group.status} />
+                  </TableCell>
+                  <TableCell>{group._count.candidates}</TableCell>
+                  <TableCell>{group._count.appointments}</TableCell>
+                  <TableCell>
                     <Link
                       className="font-medium text-primary"
                       href={`/admin/groups/${group.id}/settings`}
                     >
                       查看
                     </Link>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
     </AdminShell>
   );

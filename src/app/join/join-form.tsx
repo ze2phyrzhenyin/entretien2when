@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { FormField } from "@/components/design-system/form-field";
+import { InlineNotice } from "@/components/design-system/inline-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { isValidGroupCode, normalizeGroupCode } from "@/lib/group-code/generate";
 
 export function JoinForm() {
@@ -33,13 +34,12 @@ export function JoinForm() {
   return (
     <form className="space-y-5" onSubmit={handleSubmit} noValidate>
       <div>
-        <Label htmlFor="name">姓名</Label>
-        <Input id="name" name="name" autoComplete="name" placeholder="请输入姓名" required />
-        <p className="mt-1 text-xs text-muted-foreground">请填写与面试沟通一致的姓名。</p>
+        <FormField id="name" label="姓名" description="请填写与面试沟通一致的姓名。">
+          <Input id="name" name="name" autoComplete="name" placeholder="请输入姓名" required />
+        </FormField>
       </div>
 
-      <div>
-        <Label htmlFor="email">邮箱</Label>
+      <FormField id="email" label="邮箱">
         <Input
           id="email"
           name="email"
@@ -48,10 +48,9 @@ export function JoinForm() {
           placeholder="name@example.com"
           required
         />
-      </div>
+      </FormField>
 
-      <div>
-        <Label htmlFor="groupCode">面试组编号</Label>
+      <FormField id="groupCode" label="面试组编号">
         <Input
           id="groupCode"
           name="groupCode"
@@ -65,13 +64,9 @@ export function JoinForm() {
             setError(null);
           }}
         />
-      </div>
+      </FormField>
 
-      {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          {error}
-        </div>
-      ) : null}
+      {error ? <InlineNotice tone="danger">{error}</InlineNotice> : null}
 
       <Button type="submit" className="w-full">
         进入时间选择
