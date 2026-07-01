@@ -151,7 +151,7 @@ export function AvailabilityForm({
           id="candidateNote"
           name="candidateNote"
           defaultValue={defaultNote ?? ""}
-          placeholder="可填写时间偏好、面试方式限制等。该备注只对管理员可见。"
+          placeholder="可填写时间偏好、面试方式限制等。"
         />
       </div>
 

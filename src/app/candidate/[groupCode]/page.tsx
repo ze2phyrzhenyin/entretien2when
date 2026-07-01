@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarCheck, Clock, ShieldCheck } from "lucide-react";
+import { CalendarCheck, Clock } from "lucide-react";
 import { AppointmentStatus, CandidateSubmissionStatus, GroupTimeSlotStatus } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -138,10 +138,6 @@ export default async function CandidateGroupPage({
     <main className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="mx-auto max-w-4xl">
         <div className="mb-6">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-teal-100 bg-teal-50 px-3 py-2 text-sm text-teal-900">
-            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-            你的信息不会展示给其他候选人
-          </div>
           <h1 className="text-3xl font-semibold">{group.name}</h1>
           {group.publicDescription ? (
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -249,9 +245,6 @@ export default async function CandidateGroupPage({
                 <h2 className="text-lg font-semibold">
                   {isModifyMode ? "申请修改可用时间" : "选择你的可用时间"}
                 </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  不可选时间不会展示真实原因。请选择你确认可以参加面试的时间。
-                </p>
                 {candidate?.activeSubmission && isModifyMode ? (
                   <div className="mt-4 rounded-md border border-border bg-slate-50 p-4">
                     <p className="text-sm font-medium">当前有效版本</p>

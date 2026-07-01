@@ -65,7 +65,6 @@ export function JoinForm() {
             setError(null);
           }}
         />
-        <p className="mt-1 text-xs text-muted-foreground">支持粘贴有横杠或无横杠的编号。</p>
       </div>
 
       {error ? (
@@ -73,10 +72,6 @@ export function JoinForm() {
           {error}
         </div>
       ) : null}
-
-      <div className="rounded-md border border-teal-100 bg-teal-50 px-3 py-3 text-sm leading-6 text-teal-900">
-        候选人之间完全互相不可见；不可选时间只会显示为不可选，不会暴露原因。
-      </div>
 
       <Button type="submit" className="w-full">
         进入时间选择

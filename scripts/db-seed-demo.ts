@@ -42,7 +42,7 @@ async function main() {
     data: {
       name: "P0 演示面试组",
       groupCode: generateGroupCode(),
-      publicDescription: "用于本地 UI 质检的演示面试组。候选人之间不可见。",
+      publicDescription: null,
       timezone: "Asia/Shanghai",
       status: InterviewGroupStatus.OPEN,
       slotDurationMinutes: 30,

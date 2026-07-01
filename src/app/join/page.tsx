@@ -12,9 +12,6 @@ export default function JoinPage() {
               <LockKeyhole className="h-5 w-5" aria-hidden="true" />
             </div>
             <h1 className="text-2xl font-semibold">填写面试时间</h1>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              请输入招聘方提供的面试组编号。你的信息不会展示给其他候选人。
-            </p>
           </div>
 
           <JoinForm />
