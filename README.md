@@ -35,3 +35,5 @@ pnpm doctor
 - UI 截图位于 `artifacts/ui-snapshots/`。
 
 完整产品、权限、隐私、测试和工程循环见 `docs/`。
+
+发布前交付步骤见 `docs/RELEASE_CHECKLIST.md`。
