@@ -1,0 +1,15 @@
+.DS_Store
+node_modules/
+.next/
+out/
+coverage/
+artifacts/
+playwright-report/
+test-results/
+.env
+.env*.local
+!.env.example
+*.log
+dist/
+prisma/dev.db
+tsconfig.tsbuildinfo
