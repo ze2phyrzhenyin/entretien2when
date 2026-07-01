@@ -1,5 +1,7 @@
 # P0 Admin Auth
 
+状态：已完成。
+
 范围：
 
 - `/admin/login`

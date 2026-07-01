@@ -94,17 +94,17 @@ model Admin {
   updatedAt    DateTime    @updatedAt
   lastLoginAt  DateTime?
 
-  sessions                  AdminSession[]
-  createdGroups             InterviewGroup[]      @relation("GroupCreator")
-  groupGrants               GroupAdmin[]           @relation("GroupAdminAdmin")
-  grantedGroupAdminRecords  GroupAdmin[]           @relation("GroupAdminGranter")
-  reviewedSubmissions       CandidateSubmission[]  @relation("SubmissionReviewer")
-  scheduledAppointments     Appointment[]          @relation("AppointmentScheduler")
-  cancelledAppointments     Appointment[]          @relation("AppointmentCanceller")
-  writtenCandidateNotes     CandidateAdminNote[]   @relation("CandidateAdminNoteAuthor")
-  notifications             AdminNotification[]    @relation("AdminNotificationRecipient")
-  lockedSlots               TimeSlotLock[]         @relation("SlotLocker")
-  adminAuditLogs            AuditLog[]             @relation("AuditAdminActor")
+  sessions                 AdminSession[]
+  createdGroups            InterviewGroup[]      @relation("GroupCreator")
+  groupGrants              GroupAdmin[]          @relation("GroupAdminAdmin")
+  grantedGroupAdminRecords GroupAdmin[]          @relation("GroupAdminGranter")
+  reviewedSubmissions      CandidateSubmission[] @relation("SubmissionReviewer")
+  scheduledAppointments    Appointment[]         @relation("AppointmentScheduler")
+  cancelledAppointments    Appointment[]         @relation("AppointmentCanceller")
+  writtenCandidateNotes    CandidateAdminNote[]  @relation("CandidateAdminNoteAuthor")
+  notifications            AdminNotification[]   @relation("AdminNotificationRecipient")
+  lockedSlots              TimeSlotLock[]        @relation("SlotLocker")
+  adminAuditLogs           AuditLog[]            @relation("AuditAdminActor")
 
   @@index([role, status])
 }
@@ -140,7 +140,7 @@ model InterviewGroup {
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
 
-  createdByAdmin Admin                    @relation("GroupCreator", fields: [createdByAdminId], references: [id])
+  createdByAdmin Admin                 @relation("GroupCreator", fields: [createdByAdminId], references: [id])
   groupAdmins    GroupAdmin[]
   timeSlots      GroupTimeSlot[]
   locks          TimeSlotLock[]
@@ -165,9 +165,9 @@ model GroupAdmin {
   grantedByAdminId       String
   createdAt              DateTime @default(now())
 
-  group        InterviewGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  admin        Admin          @relation("GroupAdminAdmin", fields: [adminId], references: [id], onDelete: Cascade)
-  grantedBy    Admin          @relation("GroupAdminGranter", fields: [grantedByAdminId], references: [id])
+  group     InterviewGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  admin     Admin          @relation("GroupAdminAdmin", fields: [adminId], references: [id], onDelete: Cascade)
+  grantedBy Admin          @relation("GroupAdminGranter", fields: [grantedByAdminId], references: [id])
 
   @@unique([groupId, adminId])
   @@index([adminId])
@@ -183,33 +183,33 @@ model GroupTimeSlot {
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
-  group                  InterviewGroup            @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  locks                  TimeSlotLock[]             @relation("SlotLocks")
-  activeLock             TimeSlotLock?              @relation("ActiveSlotLock")
-  submissionSlots        CandidateSubmissionSlot[]
-  appointmentSlots       AppointmentSlot[]
+  group            InterviewGroup            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  locks            TimeSlotLock[]            @relation("SlotLocks")
+  activeLock       TimeSlotLock?             @relation("ActiveSlotLock")
+  submissionSlots  CandidateSubmissionSlot[]
+  appointmentSlots AppointmentSlot[]
 
   @@unique([groupId, startAt, endAt])
   @@index([groupId, status, startAt])
 }
 
 model TimeSlotLock {
-  id              String            @id @default(cuid())
-  groupId          String
-  slotId           String
-  activeSlotId     String?           @unique
-  lockType         TimeSlotLockType
-  appointmentId    String?
-  reasonInternal   String?
-  lockedByAdminId  String?
-  createdAt        DateTime          @default(now())
-  releasedAt       DateTime?
+  id              String           @id @default(cuid())
+  groupId         String
+  slotId          String
+  activeSlotId    String?          @unique
+  lockType        TimeSlotLockType
+  appointmentId   String?
+  reasonInternal  String?
+  lockedByAdminId String?
+  createdAt       DateTime         @default(now())
+  releasedAt      DateTime?
 
-  group           InterviewGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  slot            GroupTimeSlot  @relation("SlotLocks", fields: [slotId], references: [id], onDelete: Cascade)
-  activeSlot      GroupTimeSlot? @relation("ActiveSlotLock", fields: [activeSlotId], references: [id], onDelete: SetNull)
-  appointment     Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
-  lockedByAdmin   Admin?         @relation("SlotLocker", fields: [lockedByAdminId], references: [id], onDelete: SetNull)
+  group         InterviewGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  slot          GroupTimeSlot  @relation("SlotLocks", fields: [slotId], references: [id], onDelete: Cascade)
+  activeSlot    GroupTimeSlot? @relation("ActiveSlotLock", fields: [activeSlotId], references: [id], onDelete: SetNull)
+  appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  lockedByAdmin Admin?         @relation("SlotLocker", fields: [lockedByAdminId], references: [id], onDelete: SetNull)
 
   @@index([groupId, slotId])
   @@index([appointmentId])
@@ -227,41 +227,42 @@ model Candidate {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
-  group              InterviewGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  activeSubmission   CandidateSubmission?    @relation("CandidateActiveSubmission", fields: [activeSubmissionId], references: [id], onDelete: SetNull)
-  submissions        CandidateSubmission[]   @relation("CandidateSubmissions")
+  group              InterviewGroup            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  activeSubmission   CandidateSubmission?      @relation("CandidateActiveSubmission", fields: [activeSubmissionId], references: [id], onDelete: SetNull)
+  submissions        CandidateSubmission[]     @relation("CandidateSubmissions")
   submissionSlots    CandidateSubmissionSlot[]
   appointments       Appointment[]
   adminNotes         CandidateAdminNote[]
   notifications      AdminNotification[]
-  candidateAuditLogs AuditLog[]              @relation("AuditCandidateActor")
+  candidateAuditLogs AuditLog[]                @relation("AuditCandidateActor")
 
   @@unique([groupId, normalizedEmail])
   @@index([groupId, status])
 }
 
 model CandidateSubmission {
-  id                     String                    @id @default(cuid())
-  candidateId            String
-  groupId                String
-  versionNo              Int
-  submissionType         CandidateSubmissionType
-  candidateNameSnapshot  String
-  candidateEmailSnapshot String
-  candidateNote          String?
-  status                 CandidateSubmissionStatus
-  submittedAt            DateTime                  @default(now())
-  reviewedByAdminId      String?
-  reviewedAt             DateTime?
-  reviewComment          String?
-  createdAt              DateTime                  @default(now())
+  id                       String                    @id @default(cuid())
+  candidateId              String
+  pendingReviewCandidateId String?                   @unique
+  groupId                  String
+  versionNo                Int
+  submissionType           CandidateSubmissionType
+  candidateNameSnapshot    String
+  candidateEmailSnapshot   String
+  candidateNote            String?
+  status                   CandidateSubmissionStatus
+  submittedAt              DateTime                  @default(now())
+  reviewedByAdminId        String?
+  reviewedAt               DateTime?
+  reviewComment            String?
+  createdAt                DateTime                  @default(now())
 
-  candidate           Candidate                 @relation("CandidateSubmissions", fields: [candidateId], references: [id], onDelete: Cascade)
-  activeForCandidate  Candidate?                @relation("CandidateActiveSubmission")
-  group               InterviewGroup            @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  reviewedByAdmin     Admin?                    @relation("SubmissionReviewer", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
-  slots               CandidateSubmissionSlot[]
-  notifications       AdminNotification[]
+  candidate          Candidate                 @relation("CandidateSubmissions", fields: [candidateId], references: [id], onDelete: Cascade)
+  activeForCandidate Candidate?                @relation("CandidateActiveSubmission")
+  group              InterviewGroup            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  reviewedByAdmin    Admin?                    @relation("SubmissionReviewer", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+  slots              CandidateSubmissionSlot[]
+  notifications      AdminNotification[]
 
   @@unique([candidateId, versionNo])
   @@index([groupId, status])
@@ -302,12 +303,12 @@ model Appointment {
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt
 
-  group              InterviewGroup    @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  candidate          Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  scheduledByAdmin   Admin             @relation("AppointmentScheduler", fields: [scheduledByAdminId], references: [id])
-  cancelledByAdmin   Admin?            @relation("AppointmentCanceller", fields: [cancelledByAdminId], references: [id], onDelete: SetNull)
-  slots              AppointmentSlot[]
-  locks              TimeSlotLock[]
+  group            InterviewGroup    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  candidate        Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  scheduledByAdmin Admin             @relation("AppointmentScheduler", fields: [scheduledByAdminId], references: [id])
+  cancelledByAdmin Admin?            @relation("AppointmentCanceller", fields: [cancelledByAdminId], references: [id], onDelete: SetNull)
+  slots            AppointmentSlot[]
+  locks            TimeSlotLock[]
 
   @@index([groupId, status, startAt])
   @@index([candidateId, status])
@@ -358,9 +359,9 @@ model AdminNotification {
   handledAt        DateTime?
 
   recipientAdmin Admin?               @relation("AdminNotificationRecipient", fields: [recipientAdminId], references: [id], onDelete: SetNull)
-  group          InterviewGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  candidate      Candidate?            @relation(fields: [candidateId], references: [id], onDelete: SetNull)
-  submission     CandidateSubmission?  @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  group          InterviewGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  candidate      Candidate?           @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  submission     CandidateSubmission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
 
   @@index([recipientAdminId, status])
   @@index([groupId, type])

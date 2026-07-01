@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { candidateResponseContainsSensitiveField } from "@/lib/business/sensitive-fields";
 import { toCandidateSelfDTO } from "@/lib/candidate/dto";
 
 describe("candidate self DTO", () => {
@@ -37,10 +38,8 @@ describe("candidate self DTO", () => {
 
     const serialized = JSON.stringify(dto);
 
+    expect(candidateResponseContainsSensitiveField(dto)).toBe(false);
     expect(serialized).not.toContain("adminNotes");
-    expect(serialized).not.toContain("internalNote");
-    expect(serialized).not.toContain("reasonInternal");
-    expect(serialized).not.toContain("availableCandidateCount");
     expect(dto.activeSubmission?.candidateNote).toBe("周三下午更方便");
   });
 });

@@ -23,14 +23,9 @@
 
 ## E2E Tests
 
-- 管理员登录。
-- 创建面试组。
-- 候选人提交时间。
-- 候选人申请修改。
-- 管理员审核通过。
-- 管理员安排面试。
-- 第二个候选人看不到已锁定时间原因。
-- 管理员写私有备注，候选人端看不到。
+- `tests/e2e/smoke.spec.ts`：`/join` smoke。
+- `tests/e2e/ui-snapshots.spec.ts`：P0 核心页面截图。
+- `tests/e2e/business-flow.spec.ts`：管理员登录、创建面试组、生成时间段、候选人提交时间、候选人申请修改、管理员审核通过、管理员安排面试、取消预约释放锁、第二个候选人看不到已锁定时间原因、管理员私有备注和内部备注不出现在候选人端。
 
 ## UI Screenshot Checks
 
@@ -45,4 +40,9 @@
 - review detail
 - time overview
 
-当前 P0.1 已覆盖 group code、password hash、permission helper、candidate DTO 隐私字段。
+## 当前自动化覆盖
+
+- `pnpm check` 覆盖 format、lint、typecheck、unit tests、production build 和 Playwright smoke。
+- 单测已覆盖 group code、password hash、permission helper、candidate DTO 隐私字段、slot selection、submission review、appointment lock。
+- `scripts/ui-snapshots.sh` 已在本地演示数据库上通过，`artifacts/ui-snapshots/` 已保存 P0 核心页面截图。
+- `pnpm exec playwright test tests/e2e/business-flow.spec.ts --project=chromium` 已覆盖 P0 业务全链路。

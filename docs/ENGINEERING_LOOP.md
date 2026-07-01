@@ -17,7 +17,6 @@
 
 ## 本次任务复述
 
-- 从零搭建 Next.js + TypeScript + Tailwind + Prisma + 测试基础。
-- 创建 AI-assisted engineering framework：agents、skills、prompts、tasks、docs/ADR。
-- 先实现 P0.0 脚手架，再实现 P0.1 管理员认证。
-- 风险重点：候选人隐私、管理员私有备注不泄露、普通管理员权限、预约锁唯一性、密码不可明文保存。
+- P0.0-P0.7 已完成，当前循环用于 P0 收尾验收和 UI 打磨。
+- 风险重点：候选人隐私、管理员私有备注不泄露、普通管理员权限、预约锁唯一性、密码不可明文保存、修改审核不提前覆盖旧版本。
+- 收尾时先以 `pnpm check` 和 UI 截图为硬门槛，再补充人工业务流程验收。
