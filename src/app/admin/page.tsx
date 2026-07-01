@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 import { AdminRole } from "@prisma/client";
 import { AdminShell } from "@/components/layout/admin-shell";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/session";
@@ -44,10 +43,13 @@ export default async function AdminDashboardPage() {
             超级管理员可查看全部组；普通管理员只会看到被授权的面试组。
           </p>
         </div>
-        <Button className="w-full gap-2 sm:w-auto">
+        <Link
+          href="/admin/groups/new"
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-teal-800 sm:w-auto"
+        >
           <Plus className="h-4 w-4" aria-hidden="true" />
           创建面试组
-        </Button>
+        </Link>
       </div>
 
       <div className="mb-4 flex h-11 items-center rounded-md border border-border bg-white px-3 text-sm text-muted-foreground">
@@ -61,6 +63,12 @@ export default async function AdminDashboardPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             创建面试组后，系统会自动生成复杂随机组编号并提供候选人链接。
           </p>
+          <Link
+            href="/admin/groups/new"
+            className="mt-5 inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-teal-800"
+          >
+            创建第一个面试组
+          </Link>
         </Card>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-white">

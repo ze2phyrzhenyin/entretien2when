@@ -12,6 +12,7 @@
 - `TimeSlotLock`：时间锁。`activeSlotId @unique` 表示同一 slot 未释放时只能有一个活动锁；释放时置空并写 `releasedAt`。
 - `Candidate`：组内候选人，`groupId + normalizedEmail` 唯一。
 - `CandidateSubmission`：候选人提交版本，初次提交 ACTIVE，修改先 PENDING_REVIEW。
+- `CandidateSubmission.pendingReviewCandidateId`：仅待审核修改写入 candidateId，审核结束置空，用唯一约束保证同一候选人最多一个待审核修改。
 - `CandidateSubmissionSlot`：提交版本选择的 slot。
 - `Appointment` / `AppointmentSlot`：管理员安排的面试及覆盖 slot。
 - `CandidateAdminNote`：管理员私有备注，语义固定 ADMIN_ONLY。

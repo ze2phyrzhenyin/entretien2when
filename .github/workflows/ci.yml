@@ -41,5 +41,5 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
-      - run: pnpm exec prisma db push --skip-generate
+      - run: pnpm exec prisma migrate deploy
       - run: pnpm check

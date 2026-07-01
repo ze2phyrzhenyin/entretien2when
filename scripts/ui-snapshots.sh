@@ -50,5 +50,5 @@ if ! node -e "try { const fs=require('node:fs'); const { chromium }=require('@pl
   exit 1
 fi
 
-PLAYWRIGHT_BASE_URL="$BASE_URL" pnpm exec playwright test tests/e2e/ui-snapshots.spec.ts
+PLAYWRIGHT_BASE_URL="$BASE_URL" env -u NO_COLOR pnpm exec playwright test tests/e2e/ui-snapshots.spec.ts
 echo "Screenshots saved to $OUT_DIR"

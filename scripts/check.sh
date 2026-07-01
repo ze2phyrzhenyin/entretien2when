@@ -19,7 +19,7 @@ pnpm build
 if command -v pnpm >/dev/null 2>&1 && pnpm exec playwright --version >/dev/null 2>&1; then
   if node -e "try { const fs=require('node:fs'); const { chromium }=require('@playwright/test'); process.exit(fs.existsSync(chromium.executablePath()) ? 0 : 1); } catch { process.exit(1); }"; then
     echo "Optional e2e smoke"
-    pnpm exec playwright test --grep "@smoke"
+    env -u NO_COLOR pnpm exec playwright test --grep "@smoke"
   else
     echo "Playwright Chromium is not installed; skipped e2e smoke with explicit notice."
   fi
