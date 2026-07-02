@@ -3,13 +3,13 @@ import { InterviewGroupStatus } from "@prisma/client";
 import { isValidTimezone } from "@/lib/date/timezone";
 import { requiredTextSchema } from "@/lib/validation/common";
 
-const minutesSchema = (label: string, max: number) =>
+const minutesSchema = (label: string, min: number, max: number) =>
   z.coerce
     .number({
       invalid_type_error: `${label}必须是数字`
     })
     .int(`${label}必须是整数`)
-    .min(5, `${label}不能少于 5 分钟`)
+    .min(min, `${label}不能少于 ${min} 分钟`)
     .max(max, `${label}不能超过 ${max} 分钟`)
     .refine((value) => value % 5 === 0, `${label}必须是 5 分钟的倍数`);
 
@@ -24,10 +24,14 @@ export const groupFormSchema = z
       .refine(isValidTimezone, "请输入有效 IANA 时区，例如 Asia/Shanghai 或 Europe/Paris")
       .default("Asia/Shanghai"),
     status: z.nativeEnum(InterviewGroupStatus).default(InterviewGroupStatus.OPEN),
-    slotDurationMinutes: minutesSchema("时间粒度", 180).default(30),
-    interviewDurationMinutes: minutesSchema("面试时长", 240).default(60),
+    slotDurationMinutes: minutesSchema("时间粒度", 10, 180).default(60),
+    interviewDurationMinutes: minutesSchema("面试时长", 5, 175).default(30),
     minSelectSlots: z.coerce.number().int().min(1).max(100).default(1),
     maxSelectSlots: z.coerce.number().int().min(1).max(100).default(6)
+  })
+  .refine((value) => value.interviewDurationMinutes < value.slotDurationMinutes, {
+    path: ["interviewDurationMinutes"],
+    message: "面试时长必须短于时间粒度"
   })
   .refine((value) => value.maxSelectSlots >= value.minSelectSlots, {
     path: ["maxSelectSlots"],

@@ -73,9 +73,16 @@ function getGroupFormStateFromError(error: z.ZodError): GroupFormState {
   };
 }
 
-export async function createGroupAction(formData: FormData) {
+export async function createGroupAction(
+  _previousState: GroupFormState,
+  formData: FormData
+): Promise<GroupFormState> {
   const admin = await requireAdmin();
-  const input = groupFormSchema.parse(readGroupFormValues(formData));
+  const parsed = groupFormSchema.safeParse(readGroupFormValues(formData));
+  if (!parsed.success) {
+    return getGroupFormStateFromError(parsed.error);
+  }
+  const input = parsed.data;
 
   const groupCode = await generateUniqueGroupCode();
   const group = await prisma.$transaction(async (tx) => {

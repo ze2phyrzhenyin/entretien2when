@@ -136,8 +136,8 @@ model InterviewGroup {
   publicDescription          String?
   timezone                   String               @default("Asia/Shanghai")
   status                     InterviewGroupStatus @default(DRAFT)
-  slotDurationMinutes        Int                  @default(30)
-  interviewDurationMinutes   Int                  @default(60)
+  slotDurationMinutes        Int                  @default(60)
+  interviewDurationMinutes   Int                  @default(30)
   minSelectSlots             Int                  @default(1)
   maxSelectSlots             Int                  @default(6)
   allowCandidateNote         Boolean              @default(true)

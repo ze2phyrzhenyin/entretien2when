@@ -2,25 +2,14 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { Save } from "lucide-react";
+import { Plus } from "lucide-react";
 import { FormField } from "@/components/design-system/form-field";
 import { InlineNotice } from "@/components/design-system/inline-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { updateGroupAction, type GroupFormState } from "@/server/actions/group";
-
-type GroupSettingsFormValues = {
-  name: string;
-  publicDescription: string;
-  timezone: string;
-  status: "DRAFT" | "OPEN" | "CLOSED" | "ARCHIVED";
-  slotDurationMinutes: number;
-  interviewDurationMinutes: number;
-  minSelectSlots: number;
-  maxSelectSlots: number;
-};
+import { createGroupAction, type GroupFormState } from "@/server/actions/group";
 
 type TimezoneOption = {
   value: string;
@@ -34,22 +23,14 @@ function SubmitButton() {
 
   return (
     <Button type="submit" className="w-full md:w-auto" disabled={pending} isLoading={pending}>
-      {pending ? null : <Save className="h-4 w-4" aria-hidden="true" />}
-      {pending ? "正在保存" : "保存设置"}
+      {pending ? null : <Plus className="h-4 w-4" aria-hidden="true" />}
+      {pending ? "正在创建" : "创建面试组"}
     </Button>
   );
 }
 
-export function GroupSettingsForm({
-  groupId,
-  group,
-  timezoneOptions
-}: {
-  groupId: string;
-  group: GroupSettingsFormValues;
-  timezoneOptions: TimezoneOption[];
-}) {
-  const [state, formAction] = useActionState(updateGroupAction.bind(null, groupId), initialState);
+export function NewGroupForm({ timezoneOptions }: { timezoneOptions: TimezoneOption[] }) {
+  const [state, formAction] = useActionState(createGroupAction, initialState);
   const errors = state.fieldErrors ?? {};
 
   return (
@@ -58,8 +39,8 @@ export function GroupSettingsForm({
         <Input
           id="name"
           name="name"
-          defaultValue={group.name}
           required
+          placeholder="例如：产品经理一面 7 月批次"
           aria-invalid={Boolean(errors.name)}
         />
       </FormField>
@@ -67,7 +48,7 @@ export function GroupSettingsForm({
         <Textarea
           id="publicDescription"
           name="publicDescription"
-          defaultValue={group.publicDescription}
+          placeholder="候选人可见，例如面试形式、预计时长、注意事项"
           aria-invalid={Boolean(errors.publicDescription)}
         />
       </FormField>
@@ -76,7 +57,7 @@ export function GroupSettingsForm({
           <Select
             id="timezone"
             name="timezone"
-            defaultValue={group.timezone}
+            defaultValue="Asia/Shanghai"
             aria-invalid={Boolean(errors.timezone)}
           >
             {timezoneOptions.map((timezone) => (
@@ -90,7 +71,7 @@ export function GroupSettingsForm({
           <Select
             id="status"
             name="status"
-            defaultValue={group.status}
+            defaultValue="OPEN"
             aria-invalid={Boolean(errors.status)}
           >
             <option value="DRAFT">草稿</option>
@@ -114,7 +95,7 @@ export function GroupSettingsForm({
             min={10}
             max={180}
             step={5}
-            defaultValue={group.slotDurationMinutes}
+            defaultValue={60}
             aria-invalid={Boolean(errors.slotDurationMinutes)}
           />
         </FormField>
@@ -131,7 +112,7 @@ export function GroupSettingsForm({
             min={5}
             max={175}
             step={5}
-            defaultValue={group.interviewDurationMinutes}
+            defaultValue={30}
             aria-invalid={Boolean(errors.interviewDurationMinutes)}
           />
         </FormField>
@@ -144,7 +125,7 @@ export function GroupSettingsForm({
             type="number"
             min={1}
             max={100}
-            defaultValue={group.minSelectSlots}
+            defaultValue={1}
             aria-invalid={Boolean(errors.minSelectSlots)}
           />
         </FormField>
@@ -155,16 +136,15 @@ export function GroupSettingsForm({
             type="number"
             min={1}
             max={100}
-            defaultValue={group.maxSelectSlots}
+            defaultValue={6}
             aria-invalid={Boolean(errors.maxSelectSlots)}
           />
         </FormField>
       </div>
-      {state.message ? (
-        <InlineNotice tone={state.status === "success" ? "success" : "danger"}>
-          {state.message}
-        </InlineNotice>
-      ) : null}
+      <InlineNotice tone={state.status === "error" ? "danger" : "info"}>
+        {state.message ??
+          "组编号不能手工输入弱编号。创建成功后，请在设置页复制组编号或候选人链接。"}
+      </InlineNotice>
       <SubmitButton />
     </form>
   );

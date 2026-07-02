@@ -45,8 +45,8 @@ async function main() {
       publicDescription: null,
       timezone: "Asia/Shanghai",
       status: InterviewGroupStatus.OPEN,
-      slotDurationMinutes: 30,
-      interviewDurationMinutes: 60,
+      slotDurationMinutes: 60,
+      interviewDurationMinutes: 30,
       minSelectSlots: 1,
       maxSelectSlots: 4,
       createdByAdminId: admin.id
