@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { SubmitButton } from "@/components/ui/submit-button";
 import {
   Table,
   TableBody,
@@ -35,6 +36,9 @@ import {
 type SlotsPageProps = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{
+    slotGenerate?: string;
+    slotGenerated?: string;
+    slotSkippedGenerate?: string;
     slotDelete?: string;
     slotDeleted?: string;
     slotSkipped?: string;
@@ -72,6 +76,8 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
   });
   const deletedCount = Number(query.slotDeleted ?? 0);
   const skippedCount = Number(query.slotSkipped ?? 0);
+  const generatedCount = Number(query.slotGenerated ?? 0);
+  const skippedGenerateCount = Number(query.slotSkippedGenerate ?? 0);
   const deletableSlotCount = group.timeSlots.filter(
     (slot) =>
       !slot.activeLock &&
@@ -90,6 +96,22 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
       <div className="mb-5">
         <TimezoneSwitcher defaultTimezone={group.timezone} />
       </div>
+      {query.slotGenerate === "generated" ? (
+        <InlineNotice tone="success" className="mb-5">
+          已生成 {generatedCount} 个时间段
+          {skippedGenerateCount > 0 ? `，跳过 ${skippedGenerateCount} 个已存在的时间段` : ""}。
+        </InlineNotice>
+      ) : null}
+      {query.slotGenerate === "empty" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          没有生成新的时间段。请确认起止时间至少覆盖一个时间粒度，或这些时间段尚未存在。
+        </InlineNotice>
+      ) : null}
+      {query.slotGenerate === "invalid" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          请检查开始日期、结束日期和起止时间。
+        </InlineNotice>
+      ) : null}
       {query.slotDelete === "deleted" ? (
         <InlineNotice tone="success" className="mb-5">
           已删除 {deletedCount} 个时间段。
@@ -129,9 +151,9 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                 <Input id="endTime" name="endTime" type="time" defaultValue="18:00" required />
               </FormField>
             </div>
-            <Button type="submit" className="w-full">
+            <SubmitButton className="w-full" pendingText="正在生成">
               生成时间段
-            </Button>
+            </SubmitButton>
           </form>
         </Card>
 

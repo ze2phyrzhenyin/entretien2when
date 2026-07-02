@@ -39,6 +39,25 @@ function redirectWithSlotDeleteStatus(
   redirect(`${url.pathname}${url.search}`);
 }
 
+function redirectWithSlotGenerateStatus(
+  groupId: string,
+  params: {
+    result: "generated" | "empty" | "invalid";
+    generated?: number;
+    skipped?: number;
+  }
+): never {
+  const url = new URL(`http://local/admin/groups/${groupId}/slots`);
+  url.searchParams.set("slotGenerate", params.result);
+  if (typeof params.generated === "number") {
+    url.searchParams.set("slotGenerated", String(params.generated));
+  }
+  if (typeof params.skipped === "number") {
+    url.searchParams.set("slotSkippedGenerate", String(params.skipped));
+  }
+  redirect(`${url.pathname}${url.search}`);
+}
+
 export async function batchGenerateSlotsAction(groupId: string, formData: FormData) {
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, "canEditGroup");
@@ -48,12 +67,16 @@ export async function batchGenerateSlotsAction(groupId: string, formData: FormDa
     select: { timezone: true, slotDurationMinutes: true }
   });
 
-  const input = batchGenerateSlotsSchema.parse({
+  const parsed = batchGenerateSlotsSchema.safeParse({
     dateFrom: formValue(formData, "dateFrom"),
     dateTo: formValue(formData, "dateTo"),
     startTime: formValue(formData, "startTime"),
     endTime: formValue(formData, "endTime")
   });
+  if (!parsed.success) {
+    redirectWithSlotGenerateStatus(groupId, { result: "invalid" });
+  }
+  const input = parsed.data;
 
   const startMinutes = minutesSinceMidnight(input.startTime);
   const endMinutes = minutesSinceMidnight(input.endTime);
@@ -81,36 +104,45 @@ export async function batchGenerateSlotsAction(groupId: string, formData: FormDa
     }
   }
 
-  if (data.length > 0) {
-    await prisma.$transaction(async (tx) => {
-      const createResult = await tx.groupTimeSlot.createMany({
-        data,
-        skipDuplicates: true
-      });
-
-      await tx.auditLog.create({
-        data: {
-          actorType: AuditActorType.ADMIN,
-          actorAdminId: admin.id,
-          groupId,
-          action: "admin.batch_generate_slots",
-          entityType: "GroupTimeSlot",
-          entityId: groupId,
-          afterData: {
-            dateFrom: input.dateFrom,
-            dateTo: input.dateTo,
-            startTime: input.startTime,
-            endTime: input.endTime,
-            requestedCount: data.length,
-            insertedCount: createResult.count
-          }
-        }
-      });
-    });
+  if (data.length === 0) {
+    redirectWithSlotGenerateStatus(groupId, { result: "empty", generated: 0, skipped: 0 });
   }
+
+  const createResult = await prisma.$transaction(async (tx) => {
+    const result = await tx.groupTimeSlot.createMany({
+      data,
+      skipDuplicates: true
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorType: AuditActorType.ADMIN,
+        actorAdminId: admin.id,
+        groupId,
+        action: "admin.batch_generate_slots",
+        entityType: "GroupTimeSlot",
+        entityId: groupId,
+        afterData: {
+          dateFrom: input.dateFrom,
+          dateTo: input.dateTo,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          requestedCount: data.length,
+          insertedCount: result.count
+        }
+      }
+    });
+
+    return result;
+  });
 
   revalidatePath(`/admin/groups/${groupId}/slots`);
   revalidatePath(`/candidate`);
+  redirectWithSlotGenerateStatus(groupId, {
+    result: createResult.count > 0 ? "generated" : "empty",
+    generated: createResult.count,
+    skipped: data.length - createResult.count
+  });
 }
 
 export async function updateSlotStatusAction(
