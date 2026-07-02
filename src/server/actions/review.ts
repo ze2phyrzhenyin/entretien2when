@@ -128,6 +128,7 @@ export async function approveSubmissionAction(
   });
 
   revalidatePath(`/admin/groups/${groupId}/reviews`);
+  revalidatePath("/admin/reviews");
   revalidatePath(`/admin/groups/${groupId}/candidates/${pendingSubmission.candidateId}`);
   redirect(`/admin/groups/${groupId}/candidates/${pendingSubmission.candidateId}?review=approved`);
 }
@@ -198,5 +199,6 @@ export async function rejectSubmissionAction(
   });
 
   revalidatePath(`/admin/groups/${groupId}/reviews`);
+  revalidatePath("/admin/reviews");
   redirect(`/admin/groups/${groupId}/candidates/${pendingSubmission.candidateId}?review=rejected`);
 }

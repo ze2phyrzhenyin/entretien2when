@@ -2,14 +2,14 @@ import Link from "next/link";
 import { CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type AdminShellActive = "groups" | "audit";
+export type AdminShellActive = "groups" | "audit" | "reviews" | "appointments";
 
 const navItems: Array<{ key: AdminShellActive; label: string; href: string }> = [
   { key: "groups", label: "面试组", href: "/admin" },
-  { key: "audit", label: "操作日志", href: "/admin/audit" }
+  { key: "audit", label: "操作日志", href: "/admin/audit" },
+  { key: "reviews", label: "审核中心", href: "/admin/reviews" },
+  { key: "appointments", label: "预约管理", href: "/admin/appointments" }
 ];
-
-const disabledNavItems = ["审核中心", "预约管理"];
 
 export function AdminSidebar({ active = "groups" }: { active?: AdminShellActive }) {
   return (
@@ -32,15 +32,6 @@ export function AdminSidebar({ active = "groups" }: { active?: AdminShellActive 
           >
             {item.label}
           </Link>
-        ))}
-        {disabledNavItems.map((label) => (
-          <span
-            key={label}
-            className="block rounded-md px-3 py-2 text-muted-foreground/80"
-            aria-disabled="true"
-          >
-            {label}
-          </span>
         ))}
       </nav>
     </aside>

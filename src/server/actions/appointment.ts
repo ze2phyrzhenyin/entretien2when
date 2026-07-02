@@ -157,6 +157,7 @@ export async function scheduleAppointmentAction(
 
   revalidatePath(`/admin/groups/${groupId}/candidates/${candidateId}`);
   revalidatePath(`/admin/groups/${groupId}/appointments`);
+  revalidatePath("/admin/appointments");
   revalidatePath(`/admin/groups/${groupId}/overview`);
 
   if (input.sendEmail) {
@@ -269,6 +270,7 @@ export async function cancelAppointmentAction(groupId: string, appointmentId: st
   });
 
   revalidatePath(`/admin/groups/${groupId}/appointments`);
+  revalidatePath("/admin/appointments");
   revalidatePath(`/admin/groups/${groupId}/candidates/${appointment.candidateId}`);
   revalidatePath(`/admin/groups/${groupId}/overview`);
 }
