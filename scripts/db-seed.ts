@@ -12,19 +12,22 @@ async function main() {
     throw new Error("ADMIN_BOOTSTRAP_PASSWORD must be at least 12 characters.");
   }
 
+  const passwordHash = await hashPassword(password);
+
   await prisma.admin.upsert({
     where: { email },
     update: {
       displayName,
       role: AdminRole.SUPER_ADMIN,
-      status: AdminStatus.ACTIVE
+      status: AdminStatus.ACTIVE,
+      passwordHash
     },
     create: {
       email,
       displayName,
       role: AdminRole.SUPER_ADMIN,
       status: AdminStatus.ACTIVE,
-      passwordHash: await hashPassword(password)
+      passwordHash
     }
   });
 
