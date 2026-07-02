@@ -39,6 +39,8 @@ async function createGroupThroughUi(page: Page, groupName: string) {
   await expect(page.getByRole("heading", { name: "创建面试组" })).toBeVisible();
   await page.getByLabel("组名称").fill(groupName);
   await page.getByLabel("公开说明").fill("E2E 自动化业务验收面试组。");
+  await page.getByLabel("时间粒度（分钟）").fill("30");
+  await page.getByLabel("面试时长（分钟）").fill("25");
   await page.getByLabel("候选人最多选择").fill("4");
   await page.getByRole("button", { name: "创建面试组" }).click();
   await expect(page.getByText("面试组已创建。")).toBeVisible();
@@ -288,9 +290,18 @@ test.describe("P0 business flow", () => {
     await expect(page.locator("body")).not.toContainText("管理员私有备注");
 
     await page.goto(`/admin/groups/${group.id}/appointments`);
-    await expect(page.getByText("已预约")).toBeVisible();
-    await page.getByRole("button", { name: "取消" }).click();
-    await expect(page.getByText("已取消")).toBeVisible();
+    await expect(page.getByRole("table").getByText("已预约")).toBeVisible();
+    await page.getByRole("table").getByRole("button", { name: "取消" }).click();
+    await expect(page.getByRole("table").getByText("已取消")).toBeVisible();
+    await expect
+      .poll(async () => {
+        const appointment = await prisma.appointment.findUnique({
+          where: { id: scheduledAppointment.id },
+          select: { status: true }
+        });
+        return appointment?.status;
+      })
+      .toBe(AppointmentStatus.CANCELLED);
 
     const cancelledAppointment = await prisma.appointment.findUnique({
       where: { id: scheduledAppointment.id },
