@@ -60,6 +60,7 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
     templateKey: formValue(formData, "templateKey"),
     subject: formValue(formData, "subject"),
     body: formValue(formData, "body"),
+    ccEmails: formValue(formData, "ccEmails"),
     confirmSend: formValue(formData, "confirmSend"),
     returnTo
   });
@@ -120,6 +121,7 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
       templateKey: input.templateKey,
       subject: input.subject,
       bodyTemplate: input.body,
+      ccEmails: input.ccEmails,
       templateValues: buildAppointmentEmailContext(candidate.appointments[0])
     });
     results.push(result);
@@ -139,6 +141,7 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
       entityId: batchId,
       afterData: {
         subject: input.subject,
+        ccEmails: input.ccEmails,
         candidateIds: candidates.map((candidate) => candidate.id),
         deliveryIds: results.map((result) => result.deliveryId),
         recipientCount: candidates.length,
@@ -222,6 +225,7 @@ export async function retryCandidateEmailDeliveryAction(
     templateKey: original.templateKey,
     subject: original.subject,
     bodyTemplate: original.bodyTemplate,
+    ccEmails: original.ccEmailSnapshots,
     templateValues: buildAppointmentEmailContext(original.candidate.appointments[0]),
     retriedFromId: original.id
   });

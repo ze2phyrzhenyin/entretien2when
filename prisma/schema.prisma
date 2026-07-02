@@ -388,6 +388,7 @@ model CandidateEmailDelivery {
   bodyTemplate           String
   candidateNameSnapshot  String
   recipientEmailSnapshot String
+  ccEmailSnapshots       String[]                     @default([])
   status                 CandidateEmailDeliveryStatus
   providerMessageId      String?
   errorMessage           String?

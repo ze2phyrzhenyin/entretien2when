@@ -32,6 +32,7 @@ export async function attemptCandidateEmailDelivery(input: {
   templateKey?: string | null;
   subject: string;
   bodyTemplate: string;
+  ccEmails?: string[];
   templateValues?: Partial<
     Pick<CandidateEmailTemplateValues, "appointmentTime" | "meetingLocation" | "candidateMessage">
   >;
@@ -52,6 +53,7 @@ export async function attemptCandidateEmailDelivery(input: {
         email: input.candidate.email,
         name: input.candidate.name
       },
+      cc: input.ccEmails?.map((email) => ({ email })),
       subject: renderCandidateEmailTemplate(input.subject, templateValues),
       body: renderCandidateEmailTemplate(input.bodyTemplate, templateValues),
       auditId: `${input.batchId}:${input.candidate.id}`
@@ -67,6 +69,7 @@ export async function attemptCandidateEmailDelivery(input: {
         bodyTemplate: input.bodyTemplate,
         candidateNameSnapshot: input.candidate.name,
         recipientEmailSnapshot: input.candidate.email,
+        ccEmailSnapshots: input.ccEmails ?? [],
         status:
           result.status === "sent"
             ? CandidateEmailDeliveryStatus.SENT
@@ -96,6 +99,7 @@ export async function attemptCandidateEmailDelivery(input: {
         bodyTemplate: input.bodyTemplate,
         candidateNameSnapshot: input.candidate.name,
         recipientEmailSnapshot: input.candidate.email,
+        ccEmailSnapshots: input.ccEmails ?? [],
         status: CandidateEmailDeliveryStatus.FAILED,
         errorMessage,
         retriedFromId: input.retriedFromId || null

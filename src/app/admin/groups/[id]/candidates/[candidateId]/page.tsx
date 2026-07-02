@@ -113,6 +113,7 @@ export default async function CandidateDetailPage({
           id: true,
           candidateNameSnapshot: true,
           recipientEmailSnapshot: true,
+          ccEmailSnapshots: true,
           subject: true,
           status: true,
           errorMessage: true
@@ -286,6 +287,18 @@ export default async function CandidateDetailPage({
                       maxLength={160}
                     />
                   </FormField>
+                  <FormField
+                    id="appointmentEmailCc"
+                    label="抄送（可选）"
+                    description="多个邮箱可用逗号、分号、空格或换行分隔。"
+                  >
+                    <Textarea
+                      id="appointmentEmailCc"
+                      name="ccEmails"
+                      rows={2}
+                      placeholder="hr@example.com；manager@example.com"
+                    />
+                  </FormField>
                   <FormField id="appointmentEmailBody" label="邮件正文">
                     <Textarea
                       id="appointmentEmailBody"
@@ -366,6 +379,7 @@ export default async function CandidateDetailPage({
             deliveries={candidate.emailDeliveries.map((delivery) => ({
               id: delivery.id,
               subject: delivery.subject,
+              ccEmailSnapshots: delivery.ccEmailSnapshots,
               status: delivery.status,
               providerMessageId: delivery.providerMessageId,
               errorMessage: delivery.errorMessage,

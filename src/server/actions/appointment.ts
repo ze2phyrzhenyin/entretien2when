@@ -54,7 +54,8 @@ export async function scheduleAppointmentAction(
     internalNote: formValue(formData, "internalNote"),
     sendEmail: formValue(formData, "sendEmail") === "yes",
     emailSubject: formValue(formData, "emailSubject"),
-    emailBody: formValue(formData, "emailBody")
+    emailBody: formValue(formData, "emailBody"),
+    ccEmails: formValue(formData, "ccEmails")
   });
   const slotIds = uniqueSlotIds(input.slotIds);
 
@@ -172,6 +173,7 @@ export async function scheduleAppointmentAction(
       templateKey: appointmentConfirmedEmailTemplate.key,
       subject: input.emailSubject ?? appointmentConfirmedEmailTemplate.subject,
       bodyTemplate: input.emailBody ?? appointmentConfirmedEmailTemplate.body,
+      ccEmails: input.ccEmails,
       templateValues: buildAppointmentEmailContext({
         startAt: appointment.startAt,
         endAt: appointment.endAt,
@@ -192,6 +194,7 @@ export async function scheduleAppointmentAction(
           appointmentId: appointment.id,
           candidateId: candidate.id,
           deliveryId: result.deliveryId,
+          ccEmails: input.ccEmails,
           status: result.status,
           emailId: result.emailId,
           error: result.error

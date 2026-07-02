@@ -9,6 +9,15 @@ describe("mailato adapter", () => {
         name: "张三",
         email: "zhangsan@example.com"
       },
+      cc: [
+        {
+          email: "hr@example.com"
+        },
+        {
+          name: "面试官",
+          email: "interviewer@example.com"
+        }
+      ],
       subject: "面试通知",
       bodyFile: "/tmp/body.txt",
       auditId: "audit-1",
@@ -23,6 +32,10 @@ describe("mailato adapter", () => {
       "面试通知",
       "--body-file",
       "/tmp/body.txt",
+      "--cc",
+      "hr@example.com",
+      "--cc",
+      "面试官 <interviewer@example.com>",
       "--audit-id",
       "audit-1",
       "--dry-run-json"

@@ -172,6 +172,7 @@ test.describe("P0 business flow", () => {
     const candidateVisibleMessage = "E2E 候选人可见说明";
     const internalNote = "E2E 内部备注不能给候选人看";
     const adminPrivateNote = "E2E 管理员私有备注不能给候选人看";
+    const appointmentCcEmail = `appointment-cc-${runId}@example.com`;
 
     await loginAdmin(page);
     const group = await createGroupThroughUi(page, groupName);
@@ -247,6 +248,7 @@ test.describe("P0 business flow", () => {
       has: page.getByRole("button", { name: "安排并锁定时间" })
     });
     await expect(scheduleForm.getByLabel("安排后发送邮件通知候选人")).toBeChecked();
+    await scheduleForm.getByLabel("抄送（可选）").fill(appointmentCcEmail);
     await expect(scheduleForm.getByLabel("邮件正文")).toContainText("面试时间：{appointmentTime}");
     await page.getByRole("button", { name: "安排并锁定时间" }).click();
     await expect(page.getByText(/已预约：/)).toBeVisible();
@@ -291,6 +293,7 @@ test.describe("P0 business flow", () => {
     assertFound(appointmentEmailDelivery, "Expected appointment email delivery.");
     expect(appointmentEmailDelivery.status).toBe("PREVIEW");
     expect(appointmentEmailDelivery.bodyTemplate).toContain("{appointmentTime}");
+    expect(appointmentEmailDelivery.ccEmailSnapshots).toEqual([appointmentCcEmail]);
 
     await page.getByPlaceholder("填写内部跟进信息").fill(adminPrivateNote);
     await page.getByRole("button", { name: "保存私有备注" }).click();

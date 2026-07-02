@@ -122,6 +122,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
           id: true,
           candidateNameSnapshot: true,
           recipientEmailSnapshot: true,
+          ccEmailSnapshots: true,
           subject: true,
           status: true,
           errorMessage: true

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ccEmailListSchema } from "@/lib/validation/email";
 
 export const scheduleAppointmentSchema = z
   .object({
@@ -12,7 +13,8 @@ export const scheduleAppointmentSchema = z
     internalNote: z.string().trim().max(1000, "内部备注最多 1000 个字符").optional(),
     sendEmail: z.boolean(),
     emailSubject: z.string().trim().max(160, "邮件主题最多 160 个字符").optional(),
-    emailBody: z.string().trim().max(5000, "邮件正文最多 5000 个字符").optional()
+    emailBody: z.string().trim().max(5000, "邮件正文最多 5000 个字符").optional(),
+    ccEmails: ccEmailListSchema
   })
   .superRefine((value, context) => {
     if (!value.sendEmail) {

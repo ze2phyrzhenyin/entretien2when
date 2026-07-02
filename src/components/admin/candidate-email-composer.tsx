@@ -66,6 +66,7 @@ export function CandidateEmailComposer({
   const [templateKey, setTemplateKey] = useState(initialTemplate.key);
   const [subject, setSubject] = useState(initialTemplate.subject);
   const [body, setBody] = useState(initialTemplate.body);
+  const [ccEmails, setCcEmails] = useState("");
   const [selectedIds, setSelectedIds] = useState(() =>
     isSingle ? candidates.map((candidate) => candidate.id) : []
   );
@@ -155,6 +156,23 @@ export function CandidateEmailComposer({
             required
           />
         </FormField>
+        <FormField
+          id={isSingle ? "singleEmailCc" : "bulkEmailCc"}
+          label="抄送（可选）"
+          description="多个邮箱可用逗号、分号、空格或换行分隔。"
+        >
+          <Textarea
+            id={isSingle ? "singleEmailCc" : "bulkEmailCc"}
+            name="ccEmails"
+            value={ccEmails}
+            onChange={(event) => {
+              setCcEmails(event.target.value);
+              setConfirmed(false);
+            }}
+            rows={2}
+            placeholder="hr@example.com；manager@example.com"
+          />
+        </FormField>
         <FormField id={isSingle ? "singleEmailBody" : "bulkEmailBody"} label="邮件正文">
           <Textarea
             id={isSingle ? "singleEmailBody" : "bulkEmailBody"}
@@ -178,6 +196,9 @@ export function CandidateEmailComposer({
           </div>
           <div className="mt-3 rounded-md border border-border bg-white p-3 text-sm">
             <p className="font-medium">{previewSubject}</p>
+            {ccEmails.trim() ? (
+              <p className="mt-1 text-xs text-muted-foreground">抄送：{ccEmails.trim()}</p>
+            ) : null}
             <p className="mt-2 whitespace-pre-wrap leading-6 text-muted-foreground">
               {previewBody}
             </p>

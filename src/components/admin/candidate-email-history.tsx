@@ -11,6 +11,7 @@ import { retryCandidateEmailDeliveryAction } from "@/server/actions/email";
 type CandidateEmailHistoryItem = {
   id: string;
   subject: string;
+  ccEmailSnapshots: string[];
   status: CandidateEmailDeliveryStatus;
   providerMessageId?: string | null;
   errorMessage?: string | null;
@@ -83,6 +84,11 @@ export function CandidateEmailHistory({
                       ? `服务商消息 ID：${delivery.providerMessageId}`
                       : delivery.sentByAdminEmail}
                   </p>
+                  {delivery.ccEmailSnapshots.length > 0 ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      抄送：{delivery.ccEmailSnapshots.join("，")}
+                    </p>
+                  ) : null}
                 </div>
                 {delivery.status === "FAILED" ? (
                   <form action={retryCandidateEmailDeliveryAction.bind(null, groupId, delivery.id)}>

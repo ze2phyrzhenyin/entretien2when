@@ -13,6 +13,7 @@ export type MailatoRecipient = {
 
 export type MailatoSendInput = {
   recipient: MailatoRecipient;
+  cc?: MailatoRecipient[];
   subject: string;
   body: string;
   auditId?: string;
@@ -40,12 +41,14 @@ export function getMailatoCommand() {
 
 export function buildMailatoArgs({
   recipient,
+  cc,
   subject,
   bodyFile,
   auditId,
   dryRun
 }: {
   recipient: MailatoRecipient;
+  cc?: MailatoRecipient[];
   subject: string;
   bodyFile: string;
   auditId?: string;
@@ -60,6 +63,13 @@ export function buildMailatoArgs({
     "--body-file",
     bodyFile
   ];
+
+  for (const ccRecipient of cc ?? []) {
+    args.push(
+      "--cc",
+      ccRecipient.name ? `${ccRecipient.name} <${ccRecipient.email}>` : ccRecipient.email
+    );
+  }
 
   if (auditId) {
     args.push("--audit-id", auditId);
@@ -85,6 +95,7 @@ export async function sendMailatoEmail(input: MailatoSendInput): Promise<Mailato
       getMailatoCommand(),
       buildMailatoArgs({
         recipient: input.recipient,
+        cc: input.cc,
         subject: input.subject,
         bodyFile,
         auditId: input.auditId,

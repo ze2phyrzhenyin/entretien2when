@@ -15,6 +15,7 @@ type CandidateEmailBatchSummaryItem = {
   id: string;
   candidateNameSnapshot: string;
   recipientEmailSnapshot: string;
+  ccEmailSnapshots: string[];
   subject: string;
   status: CandidateEmailDeliveryStatus;
   errorMessage?: string | null;
@@ -68,6 +69,11 @@ export function CandidateEmailBatchSummary({ deliveries }: CandidateEmailBatchSu
                 <TableCell>
                   <p className="font-medium">{delivery.candidateNameSnapshot}</p>
                   <p className="text-muted-foreground">{delivery.recipientEmailSnapshot}</p>
+                  {delivery.ccEmailSnapshots.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      抄送：{delivery.ccEmailSnapshots.join("，")}
+                    </p>
+                  ) : null}
                 </TableCell>
                 <TableCell>{delivery.subject}</TableCell>
                 <TableCell>
