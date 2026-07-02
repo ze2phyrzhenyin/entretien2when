@@ -49,6 +49,36 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
       }
     }
   });
+  const candidateSelections = await prisma.candidate.findMany({
+    where: {
+      groupId,
+      activeSubmission: { is: { status: "ACTIVE" } }
+    },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      status: true,
+      activeSubmission: {
+        select: {
+          status: true,
+          slots: {
+            select: {
+              slot: {
+                select: {
+                  id: true,
+                  startAt: true,
+                  endAt: true,
+                  status: true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
 
   return (
     <AdminShell admin={admin}>
@@ -62,10 +92,7 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
       </div>
 
       <section className="mb-6">
-        <SectionHeader
-          title="预约预览"
-          description="按日期展示当前已预约面试，便于快速确认候选人和时间。"
-        />
+        <SectionHeader title="预约预览" description="同时展示已安排面试和候选人提交的可选时间。" />
         <AppointmentPreview
           groupId={groupId}
           appointments={appointments.map((appointment) => ({
@@ -78,6 +105,29 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
             status: appointment.status,
             meetingLocation: appointment.meetingLocation
           }))}
+          candidateSelections={candidateSelections.flatMap((candidate) => {
+            if (!candidate.activeSubmission || candidate.activeSubmission.slots.length === 0) {
+              return [];
+            }
+
+            return [
+              {
+                candidateId: candidate.id,
+                candidateName: candidate.name,
+                candidateEmail: candidate.email,
+                candidateStatus: candidate.status,
+                submissionStatus: candidate.activeSubmission.status,
+                slots: candidate.activeSubmission.slots
+                  .map(({ slot }) => ({
+                    id: slot.id,
+                    startAt: slot.startAt.toISOString(),
+                    endAt: slot.endAt.toISOString(),
+                    status: slot.status
+                  }))
+                  .sort((slotA, slotB) => slotA.startAt.localeCompare(slotB.startAt))
+              }
+            ];
+          })}
           defaultTimezone={group.timezone}
         />
       </section>

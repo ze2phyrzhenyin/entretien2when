@@ -223,6 +223,13 @@ test.describe("P0 business flow", () => {
     await expect(page.getByText("审核操作已完成。")).toBeVisible();
     await expectCandidateActiveSlots(candidateAEmail, group.id, modifiedSlotIds);
 
+    await page.goto(`/admin/groups/${group.id}/appointments`);
+    await expect(page.getByText("候选人已选时间")).toBeVisible();
+    await expect(page.getByRole("link", { name: new RegExp(candidateAName) })).toBeVisible();
+    await expect(page.getByText("10:00-10:30")).toBeVisible();
+    await expect(page.getByText("10:30-11:00")).toBeVisible();
+    await page.getByRole("link", { name: new RegExp(candidateAName) }).click();
+
     await page
       .locator("label")
       .filter({ hasText: "2026/08/03 10:00-10:30" })
