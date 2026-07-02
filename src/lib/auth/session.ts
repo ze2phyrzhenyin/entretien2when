@@ -17,6 +17,23 @@ export function getSessionExpiresAt(now = new Date()) {
   return new Date(now.getTime() + safeTtlDays * 24 * 60 * 60 * 1000);
 }
 
+export function shouldUseSecureAdminCookie() {
+  const override = process.env.SESSION_COOKIE_SECURE?.trim().toLowerCase();
+  if (override === "true" || override === "1" || override === "yes") {
+    return true;
+  }
+  if (override === "false" || override === "0" || override === "no") {
+    return false;
+  }
+
+  const appUrl = process.env.APP_URL?.trim();
+  if (appUrl) {
+    return appUrl.startsWith("https://");
+  }
+
+  return process.env.NODE_ENV === "production";
+}
+
 export async function createAdminSession(adminId: string) {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = getSessionExpiresAt();
@@ -33,7 +50,7 @@ export async function createAdminSession(adminId: string) {
   cookieStore.set(ADMIN_SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureAdminCookie(),
     path: "/",
     expires: expiresAt
   });
