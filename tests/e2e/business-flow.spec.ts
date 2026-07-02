@@ -247,14 +247,12 @@ test.describe("P0 business flow", () => {
       has: page.getByRole("button", { name: "安排并锁定时间" })
     });
     await expect(scheduleForm.getByLabel("安排后发送邮件通知候选人")).toBeChecked();
-    await expect(scheduleForm.getByLabel("邮件正文")).toContainText(
-      "你的面试时间（中国时间）：{appointmentTime}"
-    );
+    await expect(scheduleForm.getByLabel("邮件正文")).toContainText("面试时间：{appointmentTime}");
     await page.getByRole("button", { name: "安排并锁定时间" }).click();
     await expect(page.getByText(/已预约：/)).toBeVisible();
     await expect(page.getByText("已发送 1 封候选人邮件（dry-run 预览）")).toBeVisible();
     await expect(page.getByText("2026/08/03 10:00-11:00", { exact: true })).toBeVisible();
-    await expect(page.getByText("面试时间：2026/08/03 10:00-11:00（中国时间）")).toBeVisible();
+    await expect(page.getByText("面试时间：2026/08/03 10:00-11:00（北京时间）")).toBeVisible();
 
     const candidate = await prisma.candidate.findUnique({
       where: {

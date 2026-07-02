@@ -276,7 +276,7 @@ export default async function CandidateDetailPage({
                   <p className="text-sm leading-6 text-muted-foreground">
                     可使用 {"{name}"}、{"{email}"}、{"{groupName}"}、{"{appointmentTime}"}、
                     {"{meetingLocation}"}、{"{candidateMessage}"}。发送时会把 {"{appointmentTime}"}{" "}
-                    替换为你本次选择的中国时间。
+                    替换为你本次选择的北京时间。
                   </p>
                   <FormField id="appointmentEmailSubject" label="邮件主题">
                     <Input

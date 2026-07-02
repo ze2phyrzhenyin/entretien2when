@@ -7,8 +7,8 @@ export type AppointmentEmailContextInput = {
   candidateVisibleMessage?: string | null;
 };
 
-export function formatChinaAppointmentTime(startAt: Date | string, endAt: Date | string) {
-  return `${formatDateTimeRange(new Date(startAt), new Date(endAt), "Asia/Shanghai")}（中国时间）`;
+export function formatBeijingAppointmentTime(startAt: Date | string, endAt: Date | string) {
+  return `${formatDateTimeRange(new Date(startAt), new Date(endAt), "Asia/Shanghai")}（北京时间）`;
 }
 
 export function buildAppointmentEmailContext(appointment?: AppointmentEmailContextInput | null) {
@@ -21,7 +21,7 @@ export function buildAppointmentEmailContext(appointment?: AppointmentEmailConte
   }
 
   return {
-    appointmentTime: formatChinaAppointmentTime(appointment.startAt, appointment.endAt),
+    appointmentTime: formatBeijingAppointmentTime(appointment.startAt, appointment.endAt),
     meetingLocation: appointment.meetingLocation?.trim() || "未填写",
     candidateMessage: appointment.candidateVisibleMessage?.trim() || ""
   };
