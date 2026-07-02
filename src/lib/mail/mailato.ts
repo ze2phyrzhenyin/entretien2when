@@ -17,6 +17,7 @@ export type MailatoSendInput = {
   subject: string;
   body: string;
   auditId?: string;
+  timeoutMs?: number;
 };
 
 export type MailatoSendResult = {
@@ -102,7 +103,7 @@ export async function sendMailatoEmail(input: MailatoSendInput): Promise<Mailato
         dryRun
       }),
       {
-        timeout: 90_000,
+        timeout: input.timeoutMs ?? 90_000,
         maxBuffer: 1024 * 1024
       }
     );

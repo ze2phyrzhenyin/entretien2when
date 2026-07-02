@@ -17,6 +17,7 @@ import {
 import { prisma } from "@/lib/db/prisma";
 import { formValue } from "@/lib/validation/common";
 import { candidateAvailabilitySchema } from "@/lib/validation/candidate";
+import { notifyOwnerAboutSubmission } from "@/server/services/owner-notification-email";
 
 function parseSlotIds(formData: FormData) {
   return uniqueSlotIds(formValue(formData, "slotIds").split(","));
@@ -60,7 +61,7 @@ export async function submitInitialAvailabilityAction(formData: FormData) {
   const slots = await assertCandidateSlots(group.id, slotIds);
   assertSlotsSelectable(slots, slotIds);
 
-  await prisma.$transaction(async (tx) => {
+  const createdSubmission = await prisma.$transaction(async (tx) => {
     const transactionSlots = await tx.groupTimeSlot.findMany({
       where: {
         groupId: group.id,
@@ -151,6 +152,24 @@ export async function submitInitialAvailabilityAction(formData: FormData) {
         afterData: { slotIds }
       }
     });
+
+    return {
+      candidateId: candidate.id,
+      submissionId: submission.id
+    };
+  });
+
+  await notifyOwnerAboutSubmission({
+    kind: "initial",
+    group,
+    candidate: {
+      id: createdSubmission.candidateId,
+      name: input.name,
+      email: input.email
+    },
+    submissionId: createdSubmission.submissionId,
+    slots,
+    candidateNote: input.candidateNote
   });
 
   redirect(
@@ -182,7 +201,7 @@ export async function requestSubmissionModificationAction(formData: FormData) {
   const slots = await assertCandidateSlots(group.id, slotIds);
   assertSlotsSelectable(slots, slotIds);
 
-  await prisma.$transaction(async (tx) => {
+  const createdSubmission = await prisma.$transaction(async (tx) => {
     const transactionSlots = await tx.groupTimeSlot.findMany({
       where: {
         groupId: group.id,
@@ -282,6 +301,24 @@ export async function requestSubmissionModificationAction(formData: FormData) {
         afterData: { slotIds }
       }
     });
+
+    return {
+      candidateId: candidate.id,
+      submissionId: submission.id
+    };
+  });
+
+  await notifyOwnerAboutSubmission({
+    kind: "modification",
+    group,
+    candidate: {
+      id: createdSubmission.candidateId,
+      name: input.name,
+      email: input.email
+    },
+    submissionId: createdSubmission.submissionId,
+    slots,
+    candidateNote: input.candidateNote
   });
 
   redirect(

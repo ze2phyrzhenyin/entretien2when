@@ -18,6 +18,7 @@ import { requireGroupPermission } from "@/lib/permissions/admin";
 import { formValue, formValues } from "@/lib/validation/common";
 import { scheduleAppointmentSchema } from "@/lib/validation/appointment";
 import { attemptCandidateEmailDelivery } from "@/server/services/candidate-email";
+import { notifyOwnerAboutAppointment } from "@/server/services/owner-notification-email";
 
 function redirectWithScheduleMailStatus(
   groupId: string,
@@ -63,7 +64,7 @@ export async function scheduleAppointmentAction(
     where: { id: candidateId, groupId },
     include: {
       group: {
-        select: { id: true, name: true }
+        select: { id: true, name: true, groupCode: true, timezone: true }
       },
       activeSubmission: {
         include: {
@@ -159,6 +160,21 @@ export async function scheduleAppointmentAction(
   revalidatePath(`/admin/groups/${groupId}/appointments`);
   revalidatePath("/admin/appointments");
   revalidatePath(`/admin/groups/${groupId}/overview`);
+
+  await notifyOwnerAboutAppointment({
+    group: candidate.group,
+    candidate: {
+      id: candidate.id,
+      name: candidate.name,
+      email: candidate.email
+    },
+    appointmentId: appointment.id,
+    startAt: appointment.startAt,
+    endAt: appointment.endAt,
+    meetingLocation: appointment.meetingLocation,
+    candidateVisibleMessage: appointment.candidateVisibleMessage,
+    scheduledByEmail: admin.email
+  });
 
   if (input.sendEmail) {
     const batchId = randomUUID();

@@ -9,6 +9,8 @@
 - 邮箱 provider、发件域名、API key 或 SMTP 密码保存在 `/etc/mailato/mailato.env`。
 - 本仓库只保留变量名和说明，不提交真实密钥。
 - 本地或演练环境可设置 `MAILATO_DRY_RUN=true`，真实发送环境设为 `false`。
+- 候选人提交可用时间、提交修改申请，或管理员安排正式预约后，会向负责人发送通知邮件。
+- 负责人通知默认收件人为 `zephyr2515@gmail.com`；如需多人通知，可设置 `OWNER_NOTIFICATION_EMAILS`，用逗号、分号或空格分隔多个邮箱。
 
 ## 小流量真实邮件验收
 
