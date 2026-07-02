@@ -3,14 +3,17 @@ import { Clock } from "lucide-react";
 import { ReviewNotice } from "@/components/design-system/review-notice";
 import { Card } from "@/components/ui/card";
 import { TimeRangePreview } from "@/components/scheduling/time-range-preview";
+import type { TimeRangeItem } from "@/components/scheduling/types";
 
 export function CandidateSubmittedSummary({
   slots,
+  defaultTimezone,
   note,
   modifyHref,
   hasPendingSubmission
 }: {
-  slots: string[];
+  slots: TimeRangeItem[];
+  defaultTimezone: string;
   note?: string | null;
   modifyHref: string;
   hasPendingSubmission: boolean;
@@ -35,7 +38,7 @@ export function CandidateSubmittedSummary({
         </Link>
       </div>
       <div className="mt-5">
-        <TimeRangePreview items={slots} />
+        <TimeRangePreview items={slots} defaultTimezone={defaultTimezone} />
       </div>
       <div className="mt-5">
         <p className="text-sm font-medium">候选人备注</p>

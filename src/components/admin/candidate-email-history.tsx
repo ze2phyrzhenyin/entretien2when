@@ -1,6 +1,7 @@
 import type { CandidateEmailDeliveryStatus } from "@prisma/client";
 import { RotateCcw } from "lucide-react";
 import { AdminOnlyNotice } from "@/components/design-system/admin-only-notice";
+import { ZonedDateTime } from "@/components/timezone/zoned-time";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -22,6 +23,7 @@ type CandidateEmailHistoryItem = {
 type CandidateEmailHistoryProps = {
   groupId: string;
   returnTo: string;
+  defaultTimezone: string;
   deliveries: CandidateEmailHistoryItem[];
 };
 
@@ -37,20 +39,10 @@ const statusTone: Record<CandidateEmailDeliveryStatus, BadgeTone> = {
   FAILED: "danger"
 };
 
-function formatDateTime(value: Date) {
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  }).format(value);
-}
-
 export function CandidateEmailHistory({
   groupId,
   returnTo,
+  defaultTimezone,
   deliveries
 }: CandidateEmailHistoryProps) {
   return (
@@ -80,7 +72,11 @@ export function CandidateEmailHistory({
                     {delivery.retriedFromId ? <Badge tone="neutral">重试发送</Badge> : null}
                   </div>
                   <p className="mt-1 text-muted-foreground">
-                    {formatDateTime(delivery.createdAt)} · {delivery.sentByAdminName}
+                    <ZonedDateTime
+                      value={delivery.createdAt.toISOString()}
+                      defaultTimezone={defaultTimezone}
+                    />{" "}
+                    · {delivery.sentByAdminName}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {delivery.providerMessageId

@@ -3,23 +3,44 @@
 import { useMemo } from "react";
 import { CandidateTimeCell } from "@/components/scheduling/time-cell";
 import type { CandidateSlotView } from "@/components/scheduling/types";
+import { formatDate, formatTime } from "@/lib/date/timezone";
+import { useDisplayTimezone } from "@/components/timezone/use-display-timezone";
 
 export function CandidateTimeGrid({
   slots,
+  defaultTimezone,
   selectedSlotIds,
   onToggleSlot
 }: {
   slots: CandidateSlotView[];
+  defaultTimezone: string;
   selectedSlotIds: string[];
   onToggleSlot: (slot: CandidateSlotView) => void;
 }) {
+  const { timezone } = useDisplayTimezone(defaultTimezone);
+
+  const zonedSlots = useMemo(
+    () =>
+      slots.map((slot) => {
+        const start = new Date(slot.startAt);
+        const end = new Date(slot.endAt);
+
+        return {
+          ...slot,
+          dateLabel: formatDate(start, timezone),
+          timeLabel: `${formatTime(start, timezone)}-${formatTime(end, timezone)}`
+        };
+      }),
+    [slots, timezone]
+  );
+
   const groupedSlots = useMemo(() => {
-    const groups = new Map<string, CandidateSlotView[]>();
-    for (const slot of slots) {
+    const groups = new Map<string, typeof zonedSlots>();
+    for (const slot of zonedSlots) {
       groups.set(slot.dateLabel, [...(groups.get(slot.dateLabel) ?? []), slot]);
     }
     return [...groups.entries()];
-  }, [slots]);
+  }, [zonedSlots]);
 
   if (groupedSlots.length === 0) {
     return (

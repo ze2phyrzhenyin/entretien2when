@@ -38,7 +38,7 @@ export function AdminTimeCell({
   count,
   detail
 }: {
-  label: string;
+  label: React.ReactNode;
   status: "OPEN" | "CLOSED" | "LOCKED" | "SCHEDULED";
   count: number;
   detail?: string;

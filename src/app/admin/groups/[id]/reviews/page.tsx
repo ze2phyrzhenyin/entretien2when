@@ -3,6 +3,8 @@ import { CandidateSubmissionStatus } from "@prisma/client";
 import { PageHeader } from "@/components/design-system/page-header";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { GroupAdminNav } from "@/components/layout/group-admin-nav";
+import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
+import { ZonedDateTime } from "@/components/timezone/zoned-time";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -34,7 +36,7 @@ export default async function ReviewsPage({ params }: ReviewsPageProps) {
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
-    select: { name: true }
+    select: { name: true, timezone: true }
   });
   const submissions = await prisma.candidateSubmission.findMany({
     where: {
@@ -60,6 +62,9 @@ export default async function ReviewsPage({ params }: ReviewsPageProps) {
           </Badge>
         }
       />
+      <div className="mb-5">
+        <TimezoneSwitcher defaultTimezone={group.timezone} />
+      </div>
 
       {submissions.length === 0 ? (
         <EmptyState title="没有待审核修改" description="候选人提交修改申请后，会出现在这里。" />
@@ -84,7 +89,12 @@ export default async function ReviewsPage({ params }: ReviewsPageProps) {
                   </TableCell>
                   <TableCell>版本 {submission.versionNo}</TableCell>
                   <TableCell>{submission.slots.length}</TableCell>
-                  <TableCell>{submission.submittedAt.toLocaleString("zh-CN")}</TableCell>
+                  <TableCell>
+                    <ZonedDateTime
+                      value={submission.submittedAt.toISOString()}
+                      defaultTimezone={group.timezone}
+                    />
+                  </TableCell>
                   <TableCell>
                     <Link
                       className="font-medium text-primary"

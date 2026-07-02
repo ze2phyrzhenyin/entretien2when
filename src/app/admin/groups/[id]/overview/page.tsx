@@ -4,9 +4,9 @@ import { GroupAdminNav } from "@/components/layout/group-admin-nav";
 import { AdminTimeGrid } from "@/components/scheduling/admin-time-grid";
 import { AdminSlotLegend } from "@/components/scheduling/slot-legend";
 import type { AdminSlotView } from "@/components/scheduling/types";
+import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireAdmin } from "@/lib/auth/session";
-import { formatDateTimeRange } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
 
@@ -47,7 +47,8 @@ export default async function OverviewPage({ params }: OverviewPageProps) {
   });
   const slotViews: AdminSlotView[] = group.timeSlots.map((slot) => ({
     id: slot.id,
-    timeLabel: formatDateTimeRange(slot.startAt, slot.endAt, group.timezone),
+    startAt: slot.startAt.toISOString(),
+    endAt: slot.endAt.toISOString(),
     status: slot.activeLock ? "LOCKED" : slot.status === "CLOSED" ? "CLOSED" : "OPEN",
     availableCandidateCount: slot.submissionSlots.length,
     lockReasonInternal: slot.activeLock?.reasonInternal,
@@ -62,11 +63,14 @@ export default async function OverviewPage({ params }: OverviewPageProps) {
         description="管理员端显示可用候选人人数、关闭和锁定原因。候选人端不会看到这些信息。"
         action={<AdminSlotLegend />}
       />
+      <div className="mb-5">
+        <TimezoneSwitcher defaultTimezone={group.timezone} />
+      </div>
 
       {group.timeSlots.length === 0 ? (
         <EmptyState title="还没有时间段" description="先到时间段页面批量生成开放时间。" />
       ) : (
-        <AdminTimeGrid slots={slotViews} />
+        <AdminTimeGrid slots={slotViews} defaultTimezone={group.timezone} />
       )}
     </AdminShell>
   );

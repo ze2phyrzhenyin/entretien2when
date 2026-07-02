@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
+import { timezoneOptionsWith } from "@/lib/date/timezone";
 import { createGroupAction } from "@/server/actions/group";
 
 export default async function NewGroupPage() {
@@ -34,7 +35,13 @@ export default async function NewGroupPage() {
           </FormField>
           <div className="grid gap-5 md:grid-cols-2">
             <FormField id="timezone" label="时区">
-              <Input id="timezone" name="timezone" defaultValue="Asia/Shanghai" required />
+              <Select id="timezone" name="timezone" defaultValue="Asia/Shanghai">
+                {timezoneOptionsWith("Asia/Shanghai").map((timezone) => (
+                  <option key={timezone.value} value={timezone.value}>
+                    {timezone.label}
+                  </option>
+                ))}
+              </Select>
             </FormField>
             <FormField id="status" label="状态">
               <Select id="status" name="status" defaultValue="OPEN">

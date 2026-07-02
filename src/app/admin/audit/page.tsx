@@ -3,6 +3,8 @@ import { Search } from "lucide-react";
 import { AdminRole, AuditActorType, type Prisma } from "@prisma/client";
 import { PageHeader } from "@/components/design-system/page-header";
 import { AdminShell } from "@/components/layout/admin-shell";
+import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
+import { ZonedDateTime } from "@/components/timezone/zoned-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -49,7 +51,8 @@ const auditLogInclude = {
     select: {
       id: true,
       name: true,
-      groupCode: true
+      groupCode: true,
+      timezone: true
     }
   }
 } satisfies Prisma.AuditLogInclude;
@@ -108,18 +111,6 @@ function parseActorType(value: string | undefined) {
   }
 
   return undefined;
-}
-
-function formatDateTime(value: Date) {
-  return value.toLocaleString("zh-CN", {
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  });
 }
 
 function shortId(value: string) {
@@ -279,6 +270,9 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
           </p>
         }
       />
+      <div className="mb-4">
+        <TimezoneSwitcher defaultTimezone="Asia/Shanghai" />
+      </div>
 
       <Card className="mb-4 p-4">
         <form className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_240px_auto_auto]">
@@ -371,7 +365,10 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                 return (
                   <TableRow key={log.id} className="align-top">
                     <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {formatDateTime(log.createdAt)}
+                      <ZonedDateTime
+                        value={log.createdAt.toISOString()}
+                        defaultTimezone={log.group?.timezone ?? "Asia/Shanghai"}
+                      />
                     </TableCell>
                     <TableCell>
                       <p className="font-medium">{auditActionLabel[log.action] ?? log.action}</p>

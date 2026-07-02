@@ -1,12 +1,17 @@
 import { CalendarCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { ZonedDateTimeRange } from "@/components/timezone/zoned-time";
 
 export function CandidateAppointmentCard({
-  time,
+  startAt,
+  endAt,
+  defaultTimezone,
   meetingLocation,
   message
 }: {
-  time: string;
+  startAt: string;
+  endAt: string;
+  defaultTimezone: string;
   meetingLocation?: string | null;
   message?: string | null;
 }) {
@@ -19,7 +24,14 @@ export function CandidateAppointmentCard({
       <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-muted-foreground">面试时间</dt>
-          <dd className="mt-1 font-medium">{time}</dd>
+          <dd className="mt-1 font-medium">
+            <ZonedDateTimeRange
+              startAt={startAt}
+              endAt={endAt}
+              defaultTimezone={defaultTimezone}
+              showTimezone
+            />
+          </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">会议地点或链接</dt>

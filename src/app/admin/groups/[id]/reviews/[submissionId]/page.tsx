@@ -4,13 +4,13 @@ import { PageHeader } from "@/components/design-system/page-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { GroupAdminNav } from "@/components/layout/group-admin-nav";
+import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
-import { formatDateTimeRange } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
 import { approveSubmissionAction, rejectSubmissionAction } from "@/server/actions/review";
@@ -61,10 +61,12 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
     submission.candidate.activeSubmission?.slots.map((item) => item.slotId) ?? []
   );
   const newSlotIds = new Set(submission.slots.map((item) => item.slotId));
-  const oldSlotLabels =
-    submission.candidate.activeSubmission?.slots.map(({ slot }) =>
-      formatDateTimeRange(slot.startAt, slot.endAt, group.timezone)
-    ) ?? [];
+  const oldSlotItems =
+    submission.candidate.activeSubmission?.slots.map(({ slot }) => ({
+      id: slot.id,
+      startAt: slot.startAt.toISOString(),
+      endAt: slot.endAt.toISOString()
+    })) ?? [];
   const oldSlotById = new Map(
     submission.candidate.activeSubmission?.slots.map(({ slot }) => [slot.id, slot]) ?? []
   );
@@ -75,7 +77,8 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
       if (!slot) {
         return {
           id: slotId,
-          label: slotId,
+          startAt: new Date(0).toISOString(),
+          endAt: new Date(0).toISOString(),
           change: "unchanged"
         };
       }
@@ -84,7 +87,8 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
       const isOld = oldSlotIds.has(slotId);
       return {
         id: slotId,
-        label: formatDateTimeRange(slot.startAt, slot.endAt, group.timezone),
+        startAt: slot.startAt.toISOString(),
+        endAt: slot.endAt.toISOString(),
         change: isNew && !isOld ? "added" : !isNew && isOld ? "removed" : "unchanged",
         blockedReason:
           isNew && (slot.status !== "OPEN" || Boolean("activeLock" in slot && slot.activeLock))
@@ -112,11 +116,15 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
           </Link>
         }
       />
+      <div className="mb-5">
+        <TimezoneSwitcher defaultTimezone={group.timezone} />
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <ReviewComparison
-          oldSlots={oldSlotLabels}
+          oldSlots={oldSlotItems}
           changes={slotChanges}
+          defaultTimezone={group.timezone}
           oldNote={submission.candidate.activeSubmission?.candidateNote}
           newNote={submission.candidateNote}
         />

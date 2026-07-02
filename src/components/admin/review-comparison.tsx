@@ -1,9 +1,12 @@
 import { StatusBadge } from "@/components/design-system/status-badge";
+import { ZonedDateTimeRange } from "@/components/timezone/zoned-time";
 import { Card } from "@/components/ui/card";
+import type { TimeRangeItem } from "@/components/scheduling/types";
 
 export type ReviewSlotChange = {
   id: string;
-  label: string;
+  startAt: string;
+  endAt: string;
   change: "added" | "removed" | "unchanged";
   blockedReason?: string | null;
 };
@@ -11,11 +14,13 @@ export type ReviewSlotChange = {
 export function ReviewComparison({
   oldSlots,
   changes,
+  defaultTimezone,
   oldNote,
   newNote
 }: {
-  oldSlots: string[];
+  oldSlots: TimeRangeItem[];
   changes: ReviewSlotChange[];
+  defaultTimezone: string;
   oldNote?: string | null;
   newNote?: string | null;
 }) {
@@ -28,10 +33,14 @@ export function ReviewComparison({
           {oldSlots.length > 0 ? (
             oldSlots.map((slot) => (
               <div
-                key={slot}
+                key={slot.id}
                 className="rounded-lg border border-border bg-surface-subtle px-3 py-2 text-sm"
               >
-                {slot}
+                <ZonedDateTimeRange
+                  startAt={slot.startAt}
+                  endAt={slot.endAt}
+                  defaultTimezone={defaultTimezone}
+                />
               </div>
             ))
           ) : (
@@ -54,7 +63,13 @@ export function ReviewComparison({
               className="rounded-lg border border-border bg-surface-subtle px-3 py-2 text-sm"
             >
               <div className="flex items-center justify-between gap-3">
-                <span>{slot.label}</span>
+                <span>
+                  <ZonedDateTimeRange
+                    startAt={slot.startAt}
+                    endAt={slot.endAt}
+                    defaultTimezone={defaultTimezone}
+                  />
+                </span>
                 {slot.change === "added" ? (
                   <StatusBadge kind="custom" label="新增" tone="primary" />
                 ) : slot.change === "removed" ? (

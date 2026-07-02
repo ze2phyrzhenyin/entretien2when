@@ -1,3 +1,33 @@
+export const DEFAULT_TIMEZONE = "Asia/Shanghai";
+
+export const commonTimezones = [
+  { value: "Asia/Shanghai", label: "中国时间 / 上海" },
+  { value: "Europe/Paris", label: "法国时间 / 巴黎" },
+  { value: "UTC", label: "UTC" },
+  { value: "Asia/Tokyo", label: "日本时间 / 东京" },
+  { value: "Asia/Singapore", label: "新加坡时间" },
+  { value: "America/New_York", label: "美国东部 / 纽约" },
+  { value: "America/Los_Angeles", label: "美国西部 / 洛杉矶" },
+  { value: "Europe/London", label: "英国时间 / 伦敦" }
+] as const;
+
+export function isValidTimezone(timezone: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function timezoneOptionsWith(timezone: string) {
+  const options = [...commonTimezones];
+  if (timezone && isValidTimezone(timezone) && !options.some((item) => item.value === timezone)) {
+    return [{ value: timezone, label: timezone }, ...options];
+  }
+  return options;
+}
+
 export function formatDateTime(date: Date, timezone = "Asia/Shanghai") {
   return new Intl.DateTimeFormat("zh-CN", {
     timeZone: timezone,

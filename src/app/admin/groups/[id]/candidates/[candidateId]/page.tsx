@@ -10,6 +10,8 @@ import { PageHeader } from "@/components/design-system/page-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { GroupAdminNav } from "@/components/layout/group-admin-nav";
+import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
+import { ZonedDateTimeRange } from "@/components/timezone/zoned-time";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,7 +19,6 @@ import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
-import { formatDateTimeRange } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
 import { candidateSubmissionStatusLabel, candidateSubmissionTypeLabel } from "@/lib/status-labels";
@@ -143,6 +144,9 @@ export default async function CandidateDetailPage({
           </Link>
         }
       />
+      <div className="mb-5">
+        <TimezoneSwitcher defaultTimezone={group.timezone} />
+      </div>
 
       {query.review ? (
         <InlineNotice tone="success" className="mb-5">
@@ -187,7 +191,11 @@ export default async function CandidateDetailPage({
                       className="rounded-md border border-border bg-slate-50 px-3 py-2 text-sm"
                     >
                       <p className="font-medium">
-                        {formatDateTimeRange(slot.startAt, slot.endAt, group.timezone)}
+                        <ZonedDateTimeRange
+                          startAt={slot.startAt.toISOString()}
+                          endAt={slot.endAt.toISOString()}
+                          defaultTimezone={group.timezone}
+                        />
                       </p>
                       {slot.activeLock ? (
                         <p className="mt-1 text-xs text-amber-700">
@@ -214,11 +222,11 @@ export default async function CandidateDetailPage({
             {scheduledAppointment ? (
               <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
                 已预约：
-                {formatDateTimeRange(
-                  scheduledAppointment.startAt,
-                  scheduledAppointment.endAt,
-                  group.timezone
-                )}
+                <ZonedDateTimeRange
+                  startAt={scheduledAppointment.startAt.toISOString()}
+                  endAt={scheduledAppointment.endAt.toISOString()}
+                  defaultTimezone={group.timezone}
+                />
               </div>
             ) : schedulableSlots.length === 0 ? (
               <p className="mt-3 text-sm text-muted-foreground">
@@ -236,7 +244,11 @@ export default async function CandidateDetailPage({
                       className="flex items-center gap-2 rounded-md border border-border p-2 text-sm"
                     >
                       <Checkbox name="slotIds" value={slot.id} />
-                      {formatDateTimeRange(slot.startAt, slot.endAt, group.timezone)}
+                      <ZonedDateTimeRange
+                        startAt={slot.startAt.toISOString()}
+                        endAt={slot.endAt.toISOString()}
+                        defaultTimezone={group.timezone}
+                      />
                     </label>
                   ))}
                 </div>
@@ -275,7 +287,11 @@ export default async function CandidateDetailPage({
                   <div className="mt-2 grid gap-2 md:grid-cols-2">
                     {submission.slots.map(({ slot }) => (
                       <span key={slot.id} className="rounded-md bg-slate-50 px-2 py-1">
-                        {formatDateTimeRange(slot.startAt, slot.endAt, group.timezone)}
+                        <ZonedDateTimeRange
+                          startAt={slot.startAt.toISOString()}
+                          endAt={slot.endAt.toISOString()}
+                          defaultTimezone={group.timezone}
+                        />
                       </span>
                     ))}
                   </div>
@@ -313,6 +329,7 @@ export default async function CandidateDetailPage({
           <CandidateEmailHistory
             groupId={groupId}
             returnTo={returnTo}
+            defaultTimezone={group.timezone}
             deliveries={candidate.emailDeliveries.map((delivery) => ({
               id: delivery.id,
               subject: delivery.subject,

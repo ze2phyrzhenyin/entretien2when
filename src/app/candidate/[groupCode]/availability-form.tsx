@@ -17,6 +17,7 @@ import {
 export function AvailabilityForm({
   mode,
   groupCode,
+  defaultTimezone,
   name,
   email,
   minSelectSlots,
@@ -26,6 +27,7 @@ export function AvailabilityForm({
 }: {
   mode: "initial" | "modify";
   groupCode: string;
+  defaultTimezone: string;
   name: string;
   email: string;
   minSelectSlots: number;
@@ -81,6 +83,7 @@ export function AvailabilityForm({
         <CandidateSlotLegend />
         <CandidateTimeGrid
           slots={slots}
+          defaultTimezone={defaultTimezone}
           selectedSlotIds={selectedSlotIds}
           onToggleSlot={toggleSlot}
         />

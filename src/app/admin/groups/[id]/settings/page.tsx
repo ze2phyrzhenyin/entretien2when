@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
+import { timezoneOptionsWith } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup } from "@/lib/permissions/admin";
 import {
@@ -100,7 +101,13 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
             </FormField>
             <div className="grid gap-5 md:grid-cols-2">
               <FormField id="timezone" label="时区">
-                <Input id="timezone" name="timezone" defaultValue={group.timezone} required />
+                <Select id="timezone" name="timezone" defaultValue={group.timezone}>
+                  {timezoneOptionsWith(group.timezone).map((timezone) => (
+                    <option key={timezone.value} value={timezone.value}>
+                      {timezone.label}
+                    </option>
+                  ))}
+                </Select>
               </FormField>
               <FormField id="status" label="状态">
                 <Select id="status" name="status" defaultValue={group.status}>

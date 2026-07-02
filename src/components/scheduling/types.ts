@@ -1,14 +1,15 @@
 export type CandidateSlotView = {
   id: string;
-  dateLabel: string;
-  timeLabel: string;
+  startAt: string;
+  endAt: string;
   disabled: boolean;
   initiallySelected?: boolean;
 };
 
 export type AdminSlotView = {
   id: string;
-  timeLabel: string;
+  startAt: string;
+  endAt: string;
   status: "OPEN" | "CLOSED" | "LOCKED" | "SCHEDULED";
   availableCandidateCount: number;
   lockReasonInternal?: string | null;
@@ -17,4 +18,10 @@ export type AdminSlotView = {
     name: string;
     email: string;
   }>;
+};
+
+export type TimeRangeItem = {
+  id: string;
+  startAt: string;
+  endAt: string;
 };

@@ -1,12 +1,18 @@
 import { z } from "zod";
 import { InterviewGroupStatus } from "@prisma/client";
+import { isValidTimezone } from "@/lib/date/timezone";
 import { requiredTextSchema } from "@/lib/validation/common";
 
 export const groupFormSchema = z
   .object({
     name: requiredTextSchema("请输入面试组名称", 120),
     publicDescription: z.string().trim().max(1000, "说明最多 1000 个字符").optional(),
-    timezone: z.string().trim().min(1).default("Asia/Shanghai"),
+    timezone: z
+      .string()
+      .trim()
+      .min(1)
+      .refine(isValidTimezone, "请输入有效 IANA 时区，例如 Asia/Shanghai 或 Europe/Paris")
+      .default("Asia/Shanghai"),
     status: z.nativeEnum(InterviewGroupStatus).default(InterviewGroupStatus.OPEN),
     slotDurationMinutes: z.coerce.number().int().min(15).max(180).default(30),
     interviewDurationMinutes: z.coerce.number().int().min(15).max(240).default(60),

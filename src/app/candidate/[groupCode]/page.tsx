@@ -8,8 +8,8 @@ import { ReviewNotice } from "@/components/design-system/review-notice";
 import { CandidateShell } from "@/components/layout/candidate-shell";
 import { TimeRangePreview } from "@/components/scheduling/time-range-preview";
 import type { CandidateSlotView } from "@/components/scheduling/types";
+import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { Card } from "@/components/ui/card";
-import { formatDate, formatDateTimeRange, formatTime } from "@/lib/date/timezone";
 import { normalizeGroupCode } from "@/lib/group-code/generate";
 import { prisma } from "@/lib/db/prisma";
 import { AvailabilityForm } from "./availability-form";
@@ -34,13 +34,12 @@ function buildCandidateSlotOptions(
     status: GroupTimeSlotStatus;
     activeLock: { id: string } | null;
   }>,
-  timezone: string,
   selectedSlotIds = new Set<string>()
 ): CandidateSlotView[] {
   return slots.map((slot) => ({
     id: slot.id,
-    dateLabel: formatDate(slot.startAt, timezone),
-    timeLabel: `${formatTime(slot.startAt, timezone)}-${formatTime(slot.endAt, timezone)}`,
+    startAt: slot.startAt.toISOString(),
+    endAt: slot.endAt.toISOString(),
     disabled: slot.status !== GroupTimeSlotStatus.OPEN || Boolean(slot.activeLock),
     initiallySelected: selectedSlotIds.has(slot.id)
   }));
@@ -136,13 +135,15 @@ export default async function CandidateGroupPage({
   const activeSlotIds = new Set(
     candidate?.activeSubmission?.slots.map((item) => item.slotId) ?? []
   );
-  const slotOptions = buildCandidateSlotOptions(group.timeSlots, group.timezone, activeSlotIds);
+  const slotOptions = buildCandidateSlotOptions(group.timeSlots, activeSlotIds);
   const pendingSubmission = candidate?.submissions[0] ?? null;
   const appointment = candidate?.appointments[0] ?? null;
-  const activeSlotLabels =
-    candidate?.activeSubmission?.slots.map(({ slot }) =>
-      formatDateTimeRange(slot.startAt, slot.endAt, group.timezone)
-    ) ?? [];
+  const activeSlotItems =
+    candidate?.activeSubmission?.slots.map(({ slot }) => ({
+      id: slot.id,
+      startAt: slot.startAt.toISOString(),
+      endAt: slot.endAt.toISOString()
+    })) ?? [];
   const modifyHref = `/candidate/${group.groupCode}?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&mode=modify`;
 
   return (
@@ -155,6 +156,9 @@ export default async function CandidateGroupPage({
               {group.publicDescription}
             </p>
           ) : null}
+          <div className="mt-5 max-w-2xl">
+            <TimezoneSwitcher defaultTimezone={group.timezone} />
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -172,7 +176,9 @@ export default async function CandidateGroupPage({
 
             {appointment ? (
               <CandidateAppointmentCard
-                time={formatDateTimeRange(appointment.startAt, appointment.endAt, group.timezone)}
+                startAt={appointment.startAt.toISOString()}
+                endAt={appointment.endAt.toISOString()}
+                defaultTimezone={group.timezone}
                 meetingLocation={appointment.meetingLocation}
                 message={appointment.candidateVisibleMessage}
               />
@@ -180,7 +186,8 @@ export default async function CandidateGroupPage({
 
             {candidate?.activeSubmission && !isModifyMode ? (
               <CandidateSubmittedSummary
-                slots={activeSlotLabels}
+                slots={activeSlotItems}
+                defaultTimezone={group.timezone}
                 note={candidate.activeSubmission.candidateNote}
                 modifyHref={modifyHref}
                 hasPendingSubmission={Boolean(pendingSubmission)}
@@ -194,7 +201,7 @@ export default async function CandidateGroupPage({
                   <div className="mt-4 rounded-lg border border-border bg-surface-subtle p-4">
                     <p className="text-sm font-medium">当前有效版本</p>
                     <div className="mt-3">
-                      <TimeRangePreview items={activeSlotLabels} />
+                      <TimeRangePreview items={activeSlotItems} defaultTimezone={group.timezone} />
                     </div>
                   </div>
                 ) : null}
@@ -202,6 +209,7 @@ export default async function CandidateGroupPage({
                   <AvailabilityForm
                     mode={candidate?.activeSubmission ? "modify" : "initial"}
                     groupCode={group.groupCode}
+                    defaultTimezone={group.timezone}
                     name={name}
                     email={email}
                     minSelectSlots={group.minSelectSlots}

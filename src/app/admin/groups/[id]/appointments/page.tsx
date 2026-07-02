@@ -3,6 +3,8 @@ import { PageHeader } from "@/components/design-system/page-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { GroupAdminNav } from "@/components/layout/group-admin-nav";
+import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
+import { ZonedDateTimeRange } from "@/components/timezone/zoned-time";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -15,7 +17,6 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth/session";
-import { formatDateTimeRange } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
 import { cancelAppointmentAction } from "@/server/actions/appointment";
@@ -52,6 +53,9 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
     <AdminShell admin={admin}>
       <GroupAdminNav groupId={groupId} active="appointments" />
       <PageHeader title={`${group.name} · 预约`} description="取消预约会自动释放对应时间锁。" />
+      <div className="mb-5">
+        <TimezoneSwitcher defaultTimezone={group.timezone} />
+      </div>
 
       {appointments.length === 0 ? (
         <EmptyState title="暂无预约" description="在候选人详情页选择候选人可用时间并安排面试。" />
@@ -82,7 +86,11 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
                     <p className="text-muted-foreground">{appointment.candidate.email}</p>
                   </TableCell>
                   <TableCell>
-                    {formatDateTimeRange(appointment.startAt, appointment.endAt, group.timezone)}
+                    <ZonedDateTimeRange
+                      startAt={appointment.startAt.toISOString()}
+                      endAt={appointment.endAt.toISOString()}
+                      defaultTimezone={group.timezone}
+                    />
                   </TableCell>
                   <TableCell>
                     <StatusBadge kind="appointment" status={appointment.status} />

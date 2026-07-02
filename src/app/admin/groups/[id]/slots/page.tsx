@@ -6,6 +6,8 @@ import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { GroupAdminNav } from "@/components/layout/group-admin-nav";
 import { AdminSlotLegend } from "@/components/scheduling/slot-legend";
+import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
+import { ZonedDateTimeRange } from "@/components/timezone/zoned-time";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,7 +23,6 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth/session";
-import { formatDateTimeRange } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup } from "@/lib/permissions/admin";
 import { batchGenerateSlotsAction, updateSlotStatusAction } from "@/server/actions/slot";
@@ -68,6 +69,9 @@ export default async function GroupSlotsPage({ params }: SlotsPageProps) {
         title="开放时间配置"
         description="按面试组时区生成时间段。管理员端可见关闭、锁定和内部原因；候选人端只会看到不可选。"
       />
+      <div className="mb-5">
+        <TimezoneSwitcher defaultTimezone={group.timezone} />
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <Card className="p-5">
@@ -136,7 +140,11 @@ export default async function GroupSlotsPage({ params }: SlotsPageProps) {
                   {group.timeSlots.map((slot) => (
                     <TableRow key={slot.id}>
                       <TableCell className="font-medium">
-                        {formatDateTimeRange(slot.startAt, slot.endAt, group.timezone)}
+                        <ZonedDateTimeRange
+                          startAt={slot.startAt.toISOString()}
+                          endAt={slot.endAt.toISOString()}
+                          defaultTimezone={group.timezone}
+                        />
                       </TableCell>
                       <TableCell>
                         <StatusBadge kind="slot" status={slot.status} />
