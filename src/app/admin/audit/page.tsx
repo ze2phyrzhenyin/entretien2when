@@ -79,6 +79,8 @@ const auditActionLabel: Record<string, string> = {
   "admin.revoke_group_admin": "撤销组管理员",
   "admin.batch_generate_slots": "批量生成时间段",
   "admin.update_slot_status": "更新时间段状态",
+  "admin.batch_delete_slots": "批量删除时间段",
+  "admin.clear_slots": "清空时间段",
   "candidate.submit_initial_availability": "候选人首次提交",
   "candidate.request_submission_modification": "候选人申请修改",
   "admin.approve_submission_modification": "管理员通过修改申请",

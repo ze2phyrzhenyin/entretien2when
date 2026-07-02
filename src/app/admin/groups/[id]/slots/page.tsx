@@ -1,5 +1,6 @@
 import { GroupTimeSlotStatus } from "@prisma/client";
 import { FormField } from "@/components/design-system/form-field";
+import { InlineNotice } from "@/components/design-system/inline-notice";
 import { PageHeader } from "@/components/design-system/page-header";
 import { SectionHeader } from "@/components/design-system/section-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
@@ -25,10 +26,19 @@ import {
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup } from "@/lib/permissions/admin";
-import { batchGenerateSlotsAction, updateSlotStatusAction } from "@/server/actions/slot";
+import {
+  batchGenerateSlotsAction,
+  deleteSlotsAction,
+  updateSlotStatusAction
+} from "@/server/actions/slot";
 
 type SlotsPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    slotDelete?: string;
+    slotDeleted?: string;
+    slotSkipped?: string;
+  }>;
 };
 
 const weekdayOptions = [
@@ -41,8 +51,8 @@ const weekdayOptions = [
   ["0", "周日"]
 ] as const;
 
-export default async function GroupSlotsPage({ params }: SlotsPageProps) {
-  const { id: groupId } = await params;
+export default async function GroupSlotsPage({ params, searchParams }: SlotsPageProps) {
+  const [{ id: groupId }, query] = await Promise.all([params, searchParams]);
   const admin = await requireAdmin();
   const allowed = await canAccessGroup(admin, groupId);
 
@@ -56,11 +66,29 @@ export default async function GroupSlotsPage({ params }: SlotsPageProps) {
       timeSlots: {
         orderBy: { startAt: "asc" },
         include: {
-          activeLock: true
+          activeLock: true,
+          submissionSlots: {
+            select: { id: true }
+          },
+          appointmentSlots: {
+            select: { id: true }
+          },
+          locks: {
+            select: { id: true }
+          }
         }
       }
     }
   });
+  const deletedCount = Number(query.slotDeleted ?? 0);
+  const skippedCount = Number(query.slotSkipped ?? 0);
+  const deletableSlotCount = group.timeSlots.filter(
+    (slot) =>
+      !slot.activeLock &&
+      slot.submissionSlots.length === 0 &&
+      slot.appointmentSlots.length === 0 &&
+      slot.locks.length === 0
+  ).length;
 
   return (
     <AdminShell admin={admin}>
@@ -72,6 +100,26 @@ export default async function GroupSlotsPage({ params }: SlotsPageProps) {
       <div className="mb-5">
         <TimezoneSwitcher defaultTimezone={group.timezone} />
       </div>
+      {query.slotDelete === "deleted" ? (
+        <InlineNotice tone="success" className="mb-5">
+          已删除 {deletedCount} 个时间段。
+        </InlineNotice>
+      ) : null}
+      {query.slotDelete === "partial" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          已删除 {deletedCount} 个时间段，跳过 {skippedCount} 个已有业务引用的时间段。
+        </InlineNotice>
+      ) : null}
+      {query.slotDelete === "blocked" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          没有可删除的时间段。已被候选人提交、预约或锁定引用的时间段会被保留。
+        </InlineNotice>
+      ) : null}
+      {query.slotDelete === "invalid" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          请先选择时间段并勾选删除确认。
+        </InlineNotice>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <Card className="p-5">
@@ -125,61 +173,131 @@ export default async function GroupSlotsPage({ params }: SlotsPageProps) {
               description="先用左侧表单批量生成时间段。候选人只能在已开放且未锁定的时间中选择。"
             />
           ) : (
-            <TableContainer>
-              <Table>
-                <TableHeader>
-                  <tr>
-                    <TableHead>时间</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead>锁定</TableHead>
-                    <TableHead>内部原因</TableHead>
-                    <TableHead>操作</TableHead>
-                  </tr>
-                </TableHeader>
-                <TableBody>
-                  {group.timeSlots.map((slot) => (
-                    <TableRow key={slot.id}>
-                      <TableCell className="font-medium">
-                        <ZonedDateTimeRange
-                          startAt={slot.startAt.toISOString()}
-                          endAt={slot.endAt.toISOString()}
-                          defaultTimezone={group.timezone}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge kind="slot" status={slot.status} />
-                      </TableCell>
-                      <TableCell>
-                        {slot.activeLock ? (
-                          <StatusBadge kind="slot" status="LOCKED" />
-                        ) : (
-                          <StatusBadge kind="custom" label="未锁定" tone="neutral" />
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-xs text-muted-foreground">
-                        {slot.activeLock?.reasonInternal ?? slot.internalNote ?? "-"}
-                      </TableCell>
-                      <TableCell>
-                        <form
-                          action={updateSlotStatusAction.bind(
-                            null,
-                            groupId,
-                            slot.id,
-                            slot.status === "OPEN"
-                              ? GroupTimeSlotStatus.CLOSED
-                              : GroupTimeSlotStatus.OPEN
-                          )}
-                        >
-                          <Button type="submit" variant="secondary" className="h-8 px-3">
-                            {slot.status === "OPEN" ? "关闭" : "开放"}
-                          </Button>
-                        </form>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <div className="space-y-4">
+              <Card className="p-4">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <form
+                    id="deleteSlotsForm"
+                    action={deleteSlotsAction.bind(null, groupId)}
+                    className="space-y-3 rounded-lg border border-border bg-surface-subtle p-3"
+                  >
+                    <input type="hidden" name="deleteMode" value="selected" />
+                    <p className="text-sm font-semibold">删除选中时间段</p>
+                    <label className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <Checkbox name="confirmDelete" value="yes" />
+                      <span>我确认删除选中且未被引用的时间段。</span>
+                    </label>
+                    <Button type="submit" variant="danger" size="sm">
+                      删除选中
+                    </Button>
+                  </form>
+                  <form
+                    action={deleteSlotsAction.bind(null, groupId)}
+                    className="space-y-3 rounded-lg border border-red-200 bg-danger-soft p-3"
+                  >
+                    <input type="hidden" name="deleteMode" value="clearAll" />
+                    <p className="text-sm font-semibold text-danger">清空可删除时间段</p>
+                    <p className="text-sm leading-6 text-red-800">
+                      将删除当前面试组里 {deletableSlotCount} 个未被提交、预约或锁定引用的时间段。
+                    </p>
+                    <label className="flex items-start gap-2 text-sm text-red-800">
+                      <Checkbox name="confirmDelete" value="yes" />
+                      <span>我确认清空所有可删除时间段。</span>
+                    </label>
+                    <Button type="submit" variant="danger" size="sm">
+                      清空可删除
+                    </Button>
+                  </form>
+                </div>
+              </Card>
+              <TableContainer>
+                <Table>
+                  <TableHeader>
+                    <tr>
+                      <TableHead className="w-12">选择</TableHead>
+                      <TableHead>时间</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead>锁定</TableHead>
+                      <TableHead>删除</TableHead>
+                      <TableHead>内部原因</TableHead>
+                      <TableHead>操作</TableHead>
+                    </tr>
+                  </TableHeader>
+                  <TableBody>
+                    {group.timeSlots.map((slot) => {
+                      const blockedReasons = [
+                        slot.submissionSlots.length > 0 ? "候选人提交" : null,
+                        slot.appointmentSlots.length > 0 ? "预约" : null,
+                        slot.activeLock ? "锁定" : null,
+                        slot.locks.length > 0 ? "锁定记录" : null
+                      ].filter(Boolean);
+                      const canDelete = blockedReasons.length === 0;
+
+                      return (
+                        <TableRow key={slot.id}>
+                          <TableCell>
+                            <Checkbox
+                              form="deleteSlotsForm"
+                              name="slotIds"
+                              value={slot.id}
+                              disabled={!canDelete}
+                              aria-label={`选择时间段 ${slot.id}`}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <ZonedDateTimeRange
+                              startAt={slot.startAt.toISOString()}
+                              endAt={slot.endAt.toISOString()}
+                              defaultTimezone={group.timezone}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge kind="slot" status={slot.status} />
+                          </TableCell>
+                          <TableCell>
+                            {slot.activeLock ? (
+                              <StatusBadge kind="slot" status="LOCKED" />
+                            ) : (
+                              <StatusBadge kind="custom" label="未锁定" tone="neutral" />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {canDelete ? (
+                              <StatusBadge kind="custom" label="可删除" tone="success" />
+                            ) : (
+                              <StatusBadge
+                                kind="custom"
+                                label={`保留：${blockedReasons.join("、")}`}
+                                tone="warning"
+                              />
+                            )}
+                          </TableCell>
+                          <TableCell className="max-w-xs text-muted-foreground">
+                            {slot.activeLock?.reasonInternal ?? slot.internalNote ?? "-"}
+                          </TableCell>
+                          <TableCell>
+                            <form
+                              action={updateSlotStatusAction.bind(
+                                null,
+                                groupId,
+                                slot.id,
+                                slot.status === "OPEN"
+                                  ? GroupTimeSlotStatus.CLOSED
+                                  : GroupTimeSlotStatus.OPEN
+                              )}
+                            >
+                              <Button type="submit" variant="secondary" className="h-8 px-3">
+                                {slot.status === "OPEN" ? "关闭" : "开放"}
+                              </Button>
+                            </form>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </div>
           )}
         </div>
       </div>

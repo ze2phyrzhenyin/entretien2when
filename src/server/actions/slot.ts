@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { AuditActorType, GroupTimeSlotStatus } from "@prisma/client";
+import { partitionDeletableSlots } from "@/lib/business/slot-deletion";
 import { requireAdmin } from "@/lib/auth/session";
 import {
   addMinutes,
@@ -12,7 +14,30 @@ import {
 import { prisma } from "@/lib/db/prisma";
 import { requireGroupPermission } from "@/lib/permissions/admin";
 import { formValue, formValues } from "@/lib/validation/common";
-import { batchGenerateSlotsSchema } from "@/lib/validation/slot";
+import {
+  batchDeleteSlotsSchema,
+  batchGenerateSlotsSchema,
+  clearSlotsSchema
+} from "@/lib/validation/slot";
+
+function redirectWithSlotDeleteStatus(
+  groupId: string,
+  params: {
+    result: "deleted" | "partial" | "blocked" | "invalid";
+    deleted?: number;
+    skipped?: number;
+  }
+): never {
+  const url = new URL(`http://local/admin/groups/${groupId}/slots`);
+  url.searchParams.set("slotDelete", params.result);
+  if (typeof params.deleted === "number") {
+    url.searchParams.set("slotDeleted", String(params.deleted));
+  }
+  if (typeof params.skipped === "number") {
+    url.searchParams.set("slotSkipped", String(params.skipped));
+  }
+  redirect(`${url.pathname}${url.search}`);
+}
 
 export async function batchGenerateSlotsAction(groupId: string, formData: FormData) {
   const admin = await requireAdmin();
@@ -147,4 +172,136 @@ export async function updateSlotStatusAction(
   }
 
   revalidatePath(`/admin/groups/${groupId}/slots`);
+}
+
+export async function deleteSlotsAction(groupId: string, formData: FormData) {
+  const admin = await requireAdmin();
+  await requireGroupPermission(admin, groupId, "canEditGroup");
+
+  const mode = formValue(formData, "deleteMode") === "clearAll" ? "clearAll" : "selected";
+  let targetSlotIds: string[] | null = null;
+  if (mode === "clearAll") {
+    const parsed = clearSlotsSchema.safeParse({
+      confirmDelete: formValue(formData, "confirmDelete")
+    });
+    if (!parsed.success) {
+      redirectWithSlotDeleteStatus(groupId, { result: "invalid" });
+    }
+  } else {
+    const parsed = batchDeleteSlotsSchema.safeParse({
+      slotIds: formValues(formData, "slotIds"),
+      confirmDelete: formValue(formData, "confirmDelete")
+    });
+    if (!parsed.success) {
+      redirectWithSlotDeleteStatus(groupId, { result: "invalid" });
+    }
+    targetSlotIds = parsed.data.slotIds;
+  }
+
+  const slots = await prisma.groupTimeSlot.findMany({
+    where:
+      mode === "clearAll"
+        ? { groupId }
+        : {
+            groupId,
+            id: {
+              in: targetSlotIds ?? []
+            }
+          },
+    include: {
+      submissionSlots: {
+        select: { id: true }
+      },
+      appointmentSlots: {
+        select: { id: true }
+      },
+      locks: {
+        select: { id: true, releasedAt: true }
+      },
+      activeLock: {
+        select: { id: true }
+      }
+    }
+  });
+
+  if (slots.length === 0) {
+    redirectWithSlotDeleteStatus(groupId, { result: "invalid" });
+  }
+
+  const { deletable, blocked } = partitionDeletableSlots(slots);
+
+  if (deletable.length > 0) {
+    await prisma.$transaction(async (tx) => {
+      const deleteResult = await tx.groupTimeSlot.deleteMany({
+        where: {
+          groupId,
+          id: { in: deletable }
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorType: AuditActorType.ADMIN,
+          actorAdminId: admin.id,
+          groupId,
+          action: mode === "clearAll" ? "admin.clear_slots" : "admin.batch_delete_slots",
+          entityType: "GroupTimeSlot",
+          entityId: groupId,
+          beforeData: {
+            requestedSlotIds: slots.map((slot) => slot.id),
+            mode
+          },
+          afterData: {
+            deletedSlotIds: deletable,
+            deletedCount: deleteResult.count,
+            blocked
+          }
+        }
+      });
+    });
+  } else {
+    await prisma.auditLog.create({
+      data: {
+        actorType: AuditActorType.ADMIN,
+        actorAdminId: admin.id,
+        groupId,
+        action: mode === "clearAll" ? "admin.clear_slots" : "admin.batch_delete_slots",
+        entityType: "GroupTimeSlot",
+        entityId: groupId,
+        beforeData: {
+          requestedSlotIds: slots.map((slot) => slot.id),
+          mode
+        },
+        afterData: {
+          deletedSlotIds: [],
+          deletedCount: 0,
+          blocked
+        }
+      }
+    });
+  }
+
+  revalidatePath(`/admin/groups/${groupId}/slots`);
+  revalidatePath(`/admin/groups/${groupId}/overview`);
+  revalidatePath("/candidate");
+
+  if (deletable.length === 0) {
+    redirectWithSlotDeleteStatus(groupId, {
+      result: "blocked",
+      deleted: 0,
+      skipped: blocked.length
+    });
+  }
+  if (blocked.length > 0) {
+    redirectWithSlotDeleteStatus(groupId, {
+      result: "partial",
+      deleted: deletable.length,
+      skipped: blocked.length
+    });
+  }
+  redirectWithSlotDeleteStatus(groupId, {
+    result: "deleted",
+    deleted: deletable.length,
+    skipped: 0
+  });
 }
