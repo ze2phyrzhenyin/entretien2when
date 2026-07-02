@@ -5,11 +5,13 @@ export function CandidateTimeCell({
   label,
   selected,
   disabled,
+  active,
   onClick
 }: {
   label: string;
   selected?: boolean;
   disabled?: boolean;
+  active?: boolean;
   onClick?: () => void;
 }) {
   return (
@@ -22,6 +24,7 @@ export function CandidateTimeCell({
         selected
           ? "border-primary bg-primary text-primary-foreground"
           : "border-border bg-surface text-foreground hover:border-primary hover:bg-primary-soft",
+        active && "ring-2 ring-ring ring-offset-2",
         disabled &&
           "cursor-not-allowed border-slate-200 bg-muted text-muted-foreground hover:border-slate-200 hover:bg-muted"
       )}

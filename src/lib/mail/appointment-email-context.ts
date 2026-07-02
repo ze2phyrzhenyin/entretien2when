@@ -7,7 +7,7 @@ export type AppointmentEmailContextInput = {
   candidateVisibleMessage?: string | null;
 };
 
-export function formatBeijingAppointmentTime(startAt: Date | string, endAt: Date | string) {
+function formatBeijingAppointmentTime(startAt: Date | string, endAt: Date | string) {
   return `${formatDateTimeRange(new Date(startAt), new Date(endAt), "Asia/Shanghai")}（北京时间）`;
 }
 

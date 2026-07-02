@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 export type GroupPermission =
   "canViewCandidates" | "canEditGroup" | "canReviewModifications" | "canScheduleInterview";
 
-export class PermissionDeniedError extends Error {
+class PermissionDeniedError extends Error {
   constructor(message = "没有权限执行该操作") {
     super(message);
     this.name = "PermissionDeniedError";

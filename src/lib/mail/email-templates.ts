@@ -5,7 +5,7 @@ export type CandidateEmailTemplate = {
   body: string;
 };
 
-export const defaultEmailSignature = "此致\n\nZhaoyang SUI（隋朝阳）\n泓泽数商科技（深圳）有限公司";
+const defaultEmailSignature = "此致\n\nZhaoyang SUI（隋朝阳）\n泓泽数商科技（深圳）有限公司";
 
 export const defaultCandidateEmailTemplate = {
   key: "interview_notice",

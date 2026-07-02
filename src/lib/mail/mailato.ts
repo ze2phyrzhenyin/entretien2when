@@ -30,12 +30,12 @@ type MailatoJsonResponse = {
   email_id?: string | null;
 };
 
-export function isMailatoDryRun() {
+function isMailatoDryRun() {
   const value = process.env.MAILATO_DRY_RUN?.toLowerCase();
   return value === "1" || value === "true" || value === "yes";
 }
 
-export function getMailatoCommand() {
+function getMailatoCommand() {
   return process.env.MAILATO_COMMAND || "mailato";
 }
 

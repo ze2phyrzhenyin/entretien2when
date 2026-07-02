@@ -5,13 +5,13 @@ import type { Admin } from "@prisma/client";
 import { AdminStatus } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 
-export const ADMIN_SESSION_COOKIE_NAME = "interview_admin_session";
+const ADMIN_SESSION_COOKIE_NAME = "interview_admin_session";
 
-export function hashSessionToken(token: string) {
+function hashSessionToken(token: string) {
   return createHash("sha256").update(token).digest("base64url");
 }
 
-export function getSessionExpiresAt(now = new Date()) {
+function getSessionExpiresAt(now = new Date()) {
   const ttlDays = Number.parseInt(process.env.SESSION_TTL_DAYS ?? "7", 10);
   const safeTtlDays = Number.isSafeInteger(ttlDays) && ttlDays > 0 ? ttlDays : 7;
   return new Date(now.getTime() + safeTtlDays * 24 * 60 * 60 * 1000);

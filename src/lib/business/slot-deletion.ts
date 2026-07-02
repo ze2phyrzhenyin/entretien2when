@@ -6,7 +6,7 @@ export type SlotDeletionCandidate = {
   activeLock?: { id: string } | null;
 };
 
-export function getBlockedSlotDeletionReasons(slot: SlotDeletionCandidate) {
+function getBlockedSlotDeletionReasons(slot: SlotDeletionCandidate) {
   const reasons: string[] = [];
 
   if (slot.submissionSlots.length > 0) {

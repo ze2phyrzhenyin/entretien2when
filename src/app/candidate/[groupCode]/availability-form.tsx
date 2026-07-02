@@ -38,9 +38,54 @@ export function AvailabilityForm({
   const [selectedSlotIds, setSelectedSlotIds] = useState<string[]>(
     slots.filter((slot) => slot.initiallySelected && !slot.disabled).map((slot) => slot.id)
   );
+  const [rangeMode, setRangeMode] = useState(false);
+  const [rangeStart, setRangeStart] = useState<{
+    slotId: string;
+    daySlotIds: string[];
+  } | null>(null);
 
-  function toggleSlot(slot: CandidateSlotView) {
+  function selectSlots(targetSlots: CandidateSlotView[]) {
+    setSelectedSlotIds((current) => {
+      const next = [...current];
+      for (const slot of targetSlots) {
+        if (slot.disabled || next.includes(slot.id) || next.length >= maxSelectSlots) {
+          continue;
+        }
+        next.push(slot.id);
+      }
+      return next;
+    });
+  }
+
+  function clearSlots(targetSlots: CandidateSlotView[]) {
+    const targetSlotIds = new Set(targetSlots.map((slot) => slot.id));
+    setSelectedSlotIds((current) => current.filter((slotId) => !targetSlotIds.has(slotId)));
+    if (rangeStart && targetSlotIds.has(rangeStart.slotId)) {
+      setRangeStart(null);
+    }
+  }
+
+  function toggleSlot(slot: CandidateSlotView, daySlots: CandidateSlotView[]) {
     if (slot.disabled) {
+      return;
+    }
+
+    if (rangeMode) {
+      if (!rangeStart || !rangeStart.daySlotIds.includes(slot.id)) {
+        setRangeStart({ slotId: slot.id, daySlotIds: daySlots.map((daySlot) => daySlot.id) });
+        selectSlots([slot]);
+        return;
+      }
+
+      const startIndex = daySlots.findIndex((daySlot) => daySlot.id === rangeStart.slotId);
+      const endIndex = daySlots.findIndex((daySlot) => daySlot.id === slot.id);
+      if (startIndex >= 0 && endIndex >= 0) {
+        const from = Math.min(startIndex, endIndex);
+        const to = Math.max(startIndex, endIndex);
+        selectSlots(daySlots.slice(from, to + 1));
+      }
+      setRangeStart(null);
+      setRangeMode(false);
       return;
     }
 
@@ -85,7 +130,16 @@ export function AvailabilityForm({
           slots={slots}
           defaultTimezone={defaultTimezone}
           selectedSlotIds={selectedSlotIds}
+          maxSelectSlots={maxSelectSlots}
+          rangeMode={rangeMode}
+          rangeStartSlotId={rangeStart?.slotId ?? null}
+          onToggleRangeMode={() => {
+            setRangeMode((current) => !current);
+            setRangeStart(null);
+          }}
           onToggleSlot={toggleSlot}
+          onSelectSlots={selectSlots}
+          onClearSlots={clearSlots}
         />
       </div>
 

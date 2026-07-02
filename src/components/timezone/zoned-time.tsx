@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDate, formatDateTime, formatDateTimeRange, formatTime } from "@/lib/date/timezone";
+import { formatDateTime, formatDateTimeRange } from "@/lib/date/timezone";
 import { timezoneLabel } from "@/components/timezone/timezone-store";
 import { useDisplayTimezone } from "@/components/timezone/use-display-timezone";
 
@@ -50,25 +50,4 @@ export function ZonedDateTime({
       ) : null}
     </span>
   );
-}
-
-export function useZonedSlotLabels({
-  startAt,
-  endAt,
-  defaultTimezone
-}: {
-  startAt: string;
-  endAt: string;
-  defaultTimezone: string;
-}) {
-  const { timezone } = useDisplayTimezone(defaultTimezone);
-  const start = new Date(startAt);
-  const end = new Date(endAt);
-
-  return {
-    dateLabel: formatDate(start, timezone),
-    timeLabel: `${formatTime(start, timezone)}-${formatTime(end, timezone)}`,
-    rangeLabel: formatDateTimeRange(start, end, timezone),
-    timezone
-  };
 }

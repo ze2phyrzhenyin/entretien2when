@@ -31,7 +31,7 @@ export function assertSlotsSelectable(slots: SlotForSelection[], slotIds: string
   }
 }
 
-export function sortSlotsByStart<T extends Pick<GroupTimeSlot, "startAt">>(slots: T[]) {
+function sortSlotsByStart<T extends Pick<GroupTimeSlot, "startAt">>(slots: T[]) {
   return [...slots].sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
 }
 

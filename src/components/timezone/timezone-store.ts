@@ -2,8 +2,8 @@
 
 import { commonTimezones, DEFAULT_TIMEZONE, isValidTimezone } from "@/lib/date/timezone";
 
-export const TIMEZONE_MODE_STORAGE_KEY = "interviewScheduler.timezoneMode";
-export const TIMEZONE_MANUAL_STORAGE_KEY = "interviewScheduler.manualTimezone";
+const TIMEZONE_MODE_STORAGE_KEY = "interviewScheduler.timezoneMode";
+const TIMEZONE_MANUAL_STORAGE_KEY = "interviewScheduler.manualTimezone";
 export const TIMEZONE_CHANGE_EVENT = "interviewScheduler:timezone-change";
 
 export type TimezoneMode = "group" | "browser" | "manual";

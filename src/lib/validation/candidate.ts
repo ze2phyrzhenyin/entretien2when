@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { emailSchema, groupCodeSchema, requiredTextSchema } from "@/lib/validation/common";
 
-export const candidateIdentitySchema = z.object({
+const candidateIdentitySchema = z.object({
   groupCode: groupCodeSchema,
   name: requiredTextSchema("请输入姓名", 80),
   email: emailSchema

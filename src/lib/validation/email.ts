@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { cuidSchema, requiredTextSchema } from "@/lib/validation/common";
 
-export function parseEmailList(value: string) {
+function parseEmailList(value: string) {
   return [
     ...new Set(
       value
