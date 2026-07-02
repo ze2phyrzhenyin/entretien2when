@@ -1,11 +1,16 @@
+"use client";
+
 import { Send } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { CandidateStatus } from "@prisma/client";
 import { FormField } from "@/components/design-system/form-field";
 import { InlineNotice } from "@/components/design-system/inline-notice";
 import { StatusBadge } from "@/components/design-system/status-badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import {
   Table,
@@ -17,6 +22,8 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { candidateEmailTemplates, defaultCandidateEmailTemplate } from "@/lib/mail/email-templates";
+import { renderCandidateEmailTemplate } from "@/lib/mail/render-template";
 import { sendCandidateEmailAction } from "@/server/actions/email";
 
 type CandidateEmailTarget = {
@@ -28,21 +35,57 @@ type CandidateEmailTarget = {
 
 type CandidateEmailComposerProps = {
   groupId: string;
+  groupName: string;
   candidates: CandidateEmailTarget[];
   returnTo: string;
   mode?: "table" | "single";
 };
 
-const defaultBody =
-  "你好 {name}，\n\n这里是 {groupName} 面试安排通知。\n\n请查看你的面试时间或按要求回复。\n\n谢谢。";
-
 export function CandidateEmailComposer({
   groupId,
+  groupName,
   candidates,
   returnTo,
   mode = "table"
 }: CandidateEmailComposerProps) {
   const isSingle = mode === "single";
+  const [templateKey, setTemplateKey] = useState(defaultCandidateEmailTemplate.key);
+  const [subject, setSubject] = useState(defaultCandidateEmailTemplate.subject);
+  const [body, setBody] = useState(defaultCandidateEmailTemplate.body);
+  const [selectedIds, setSelectedIds] = useState(() =>
+    isSingle ? candidates.map((candidate) => candidate.id) : []
+  );
+  const [confirmed, setConfirmed] = useState(false);
+  const selectedCandidates = useMemo(
+    () => candidates.filter((candidate) => selectedIds.includes(candidate.id)),
+    [candidates, selectedIds]
+  );
+  const previewCandidate = selectedCandidates[0] ?? candidates[0];
+  const previewValues = {
+    candidateName: previewCandidate?.name ?? "候选人",
+    candidateEmail: previewCandidate?.email ?? "candidate@example.com",
+    groupName
+  };
+  const previewSubject = renderCandidateEmailTemplate(subject, previewValues);
+  const previewBody = renderCandidateEmailTemplate(body, previewValues);
+  const allSelected =
+    !isSingle && candidates.length > 0 && selectedIds.length === candidates.length;
+
+  function applyTemplate(nextKey: string) {
+    const template =
+      candidateEmailTemplates.find((item) => item.key === nextKey) ?? defaultCandidateEmailTemplate;
+    setTemplateKey(template.key);
+    setSubject(template.subject);
+    setBody(template.body);
+    setConfirmed(false);
+  }
+
+  function toggleCandidate(candidateId: string, checked: boolean) {
+    setConfirmed(false);
+    setSelectedIds((current) =>
+      checked ? [...new Set([...current, candidateId])] : current.filter((id) => id !== candidateId)
+    );
+  }
 
   return (
     <Card className="p-5">
@@ -58,20 +101,38 @@ export function CandidateEmailComposer({
         </div>
       </div>
       <InlineNotice tone="info" className="mb-4">
-        可在正文中使用 {"{name}"}、{"{email}"}、{"{groupName}"} 自动替换候选人信息。
+        可在主题和正文中使用 {"{name}"}、{"{email}"}、{"{groupName}"} 自动替换候选人信息。
       </InlineNotice>
       <form action={sendCandidateEmailAction.bind(null, groupId)} className="space-y-4">
         <input type="hidden" name="returnTo" value={returnTo} />
+        <input type="hidden" name="templateKey" value={templateKey} />
         {isSingle
           ? candidates.map((candidate) => (
               <input key={candidate.id} type="hidden" name="candidateIds" value={candidate.id} />
             ))
           : null}
+        <FormField id={isSingle ? "singleEmailTemplate" : "bulkEmailTemplate"} label="邮件模板">
+          <Select
+            id={isSingle ? "singleEmailTemplate" : "bulkEmailTemplate"}
+            value={templateKey}
+            onChange={(event) => applyTemplate(event.target.value)}
+          >
+            {candidateEmailTemplates.map((template) => (
+              <option key={template.key} value={template.key}>
+                {template.label}
+              </option>
+            ))}
+          </Select>
+        </FormField>
         <FormField id={isSingle ? "singleEmailSubject" : "bulkEmailSubject"} label="邮件主题">
           <Input
             id={isSingle ? "singleEmailSubject" : "bulkEmailSubject"}
             name="subject"
-            placeholder="例如：面试安排通知"
+            value={subject}
+            onChange={(event) => {
+              setSubject(event.target.value);
+              setConfirmed(false);
+            }}
             maxLength={160}
             required
           />
@@ -80,15 +141,47 @@ export function CandidateEmailComposer({
           <Textarea
             id={isSingle ? "singleEmailBody" : "bulkEmailBody"}
             name="body"
-            defaultValue={defaultBody}
+            value={body}
+            onChange={(event) => {
+              setBody(event.target.value);
+              setConfirmed(false);
+            }}
             rows={8}
             required
           />
         </FormField>
 
+        <div className="rounded-lg border border-border bg-surface-subtle p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold">发送前预览</p>
+            <p className="text-xs text-muted-foreground">
+              {isSingle ? "单独发送" : `已选择 ${selectedIds.length} 位候选人`}
+            </p>
+          </div>
+          <div className="mt-3 rounded-md border border-border bg-white p-3 text-sm">
+            <p className="font-medium">{previewSubject}</p>
+            <p className="mt-2 whitespace-pre-wrap leading-6 text-muted-foreground">
+              {previewBody}
+            </p>
+          </div>
+        </div>
+
         {!isSingle ? (
           <div>
-            <p className="mb-2 text-sm font-medium text-foreground">选择收件人</p>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-foreground">选择收件人</p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setSelectedIds(allSelected ? [] : candidates.map((candidate) => candidate.id));
+                  setConfirmed(false);
+                }}
+              >
+                {allSelected ? "取消全选" : "全选"}
+              </Button>
+            </div>
             <TableContainer>
               <Table>
                 <TableHeader>
@@ -105,6 +198,8 @@ export function CandidateEmailComposer({
                         <Checkbox
                           name="candidateIds"
                           value={candidate.id}
+                          checked={selectedIds.includes(candidate.id)}
+                          onChange={(event) => toggleCandidate(candidate.id, event.target.checked)}
                           aria-label={`选择 ${candidate.name}`}
                         />
                       </TableCell>
@@ -132,8 +227,22 @@ export function CandidateEmailComposer({
           </div>
         )}
 
+        <label className="flex items-start gap-2 rounded-lg border border-border bg-white p-3 text-sm">
+          <Checkbox
+            name="confirmSend"
+            value="yes"
+            checked={confirmed}
+            onChange={(event) => setConfirmed(event.target.checked)}
+          />
+          <span>
+            我已确认收件人、主题和正文无误。批量发送会逐位候选人单独发送，不会互相暴露邮箱。
+          </span>
+        </label>
+
         <div className="flex justify-end">
-          <SubmitButton>{isSingle ? "发送邮件" : "发送给选中候选人"}</SubmitButton>
+          <SubmitButton disabled={!confirmed || selectedIds.length === 0}>
+            {isSingle ? "发送邮件" : "发送给选中候选人"}
+          </SubmitButton>
         </div>
       </form>
     </Card>

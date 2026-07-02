@@ -36,6 +36,7 @@ pnpm db:seed
 - `SESSION_TTL_DAYS` 符合目标环境要求。
 - 如启用候选人邮件发送，`MAILATO_COMMAND` 指向服务器上的 `mailato` wrapper，线上建议为 `/usr/local/bin/mailato`。
 - `MAILATO_DRY_RUN` 仅在本地或演练环境设为 `true`；真实发送环境设为 `false`。
+- 邮件小流量验收、发送历史和重试说明见 `docs/EMAIL_OPERATIONS.md`。
 - 数据库已执行 `pnpm exec prisma migrate deploy`。
 - `pnpm check` 通过。
 - 完整业务 E2E 通过：

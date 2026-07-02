@@ -83,7 +83,8 @@ const auditActionLabel: Record<string, string> = {
   "admin.schedule_appointment": "管理员安排面试",
   "admin.cancel_appointment": "管理员取消预约",
   "admin.upsert_candidate_admin_note": "保存管理员私有备注",
-  "admin.send_candidate_email": "发送候选人邮件"
+  "admin.send_candidate_email": "发送候选人邮件",
+  "admin.retry_candidate_email": "重试候选人邮件"
 };
 
 const entityTypeLabel: Record<string, string> = {
@@ -93,7 +94,8 @@ const entityTypeLabel: Record<string, string> = {
   CandidateSubmission: "候选人提交",
   Appointment: "预约",
   CandidateAdminNote: "管理员私有备注",
-  CandidateEmailBatch: "候选人邮件批次"
+  CandidateEmailBatch: "候选人邮件批次",
+  CandidateEmailDelivery: "候选人邮件记录"
 };
 
 function parseActorType(value: string | undefined) {

@@ -74,20 +74,6 @@ export function buildMailatoArgs({
   return args;
 }
 
-export function renderCandidateEmailBody(
-  template: string,
-  values: {
-    candidateName: string;
-    candidateEmail: string;
-    groupName: string;
-  }
-) {
-  return template
-    .replaceAll("{name}", values.candidateName)
-    .replaceAll("{email}", values.candidateEmail)
-    .replaceAll("{groupName}", values.groupName);
-}
-
 export async function sendMailatoEmail(input: MailatoSendInput): Promise<MailatoSendResult> {
   const dryRun = isMailatoDryRun();
   const tempDir = await mkdtemp(path.join(tmpdir(), "interview-mailato-"));

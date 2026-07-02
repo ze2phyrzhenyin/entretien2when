@@ -1,6 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
+import path from "node:path";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3101";
+const mailatoCommand =
+  process.env.MAILATO_COMMAND ?? path.join(process.cwd(), "scripts/fake-mailato.mjs");
+const mailatoDryRun = process.env.MAILATO_DRY_RUN ?? "true";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -19,6 +23,11 @@ export default defineConfig({
     ? undefined
     : {
         command: "pnpm exec next dev -H 127.0.0.1 -p 3101",
+        env: {
+          ...process.env,
+          MAILATO_COMMAND: mailatoCommand,
+          MAILATO_DRY_RUN: mailatoDryRun
+        },
         url: baseURL,
         reuseExistingServer: true,
         timeout: 120_000

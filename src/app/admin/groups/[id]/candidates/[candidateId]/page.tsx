@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { AppointmentStatus } from "@prisma/client";
 import { CandidateAdminNoteEditor } from "@/components/admin/candidate-admin-note-editor";
+import { CandidateEmailBatchSummary } from "@/components/admin/candidate-email-batch-summary";
 import { CandidateEmailComposer } from "@/components/admin/candidate-email-composer";
+import { CandidateEmailHistory } from "@/components/admin/candidate-email-history";
 import { FormField } from "@/components/design-system/form-field";
 import { InlineNotice } from "@/components/design-system/inline-notice";
 import { PageHeader } from "@/components/design-system/page-header";
@@ -30,6 +32,7 @@ type CandidateDetailPageProps = {
     mailCount?: string;
     mailFailed?: string;
     mailDryRun?: string;
+    mailBatch?: string;
   }>;
 };
 
@@ -83,9 +86,36 @@ export default async function CandidateDetailPage({
             select: { displayName: true, email: true }
           }
         }
+      },
+      emailDeliveries: {
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        include: {
+          sentByAdmin: {
+            select: { displayName: true, email: true }
+          }
+        }
       }
     }
   });
+  const batchDeliveries = query.mailBatch
+    ? await prisma.candidateEmailDelivery.findMany({
+        where: {
+          groupId,
+          candidateId,
+          batchId: query.mailBatch
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          candidateNameSnapshot: true,
+          recipientEmailSnapshot: true,
+          subject: true,
+          status: true,
+          errorMessage: true
+        }
+      })
+    : [];
   const scheduledAppointment = candidate.appointments.find(
     (appointment) => appointment.status === AppointmentStatus.SCHEDULED
   );
@@ -136,9 +166,10 @@ export default async function CandidateDetailPage({
       ) : null}
       {query.mail === "invalid" ? (
         <InlineNotice tone="warning" className="mb-5">
-          请填写邮件主题和正文后再发送。
+          请填写邮件主题和正文，并确认后再发送。
         </InlineNotice>
       ) : null}
+      <CandidateEmailBatchSummary deliveries={batchDeliveries} />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
@@ -267,6 +298,7 @@ export default async function CandidateDetailPage({
           />
           <CandidateEmailComposer
             groupId={groupId}
+            groupName={group.name}
             returnTo={returnTo}
             mode="single"
             candidates={[
@@ -277,6 +309,21 @@ export default async function CandidateDetailPage({
                 status: candidate.status
               }
             ]}
+          />
+          <CandidateEmailHistory
+            groupId={groupId}
+            returnTo={returnTo}
+            deliveries={candidate.emailDeliveries.map((delivery) => ({
+              id: delivery.id,
+              subject: delivery.subject,
+              status: delivery.status,
+              providerMessageId: delivery.providerMessageId,
+              errorMessage: delivery.errorMessage,
+              createdAt: delivery.createdAt,
+              sentByAdminName: delivery.sentByAdmin.displayName,
+              sentByAdminEmail: delivery.sentByAdmin.email,
+              retriedFromId: delivery.retriedFromId
+            }))}
           />
         </div>
       </div>

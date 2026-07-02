@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CandidateStatus } from "@prisma/client";
+import { CandidateEmailBatchSummary } from "@/components/admin/candidate-email-batch-summary";
 import { CandidateEmailComposer } from "@/components/admin/candidate-email-composer";
 import { InlineNotice } from "@/components/design-system/inline-notice";
 import { PageHeader } from "@/components/design-system/page-header";
@@ -34,6 +35,7 @@ type CandidatesPageProps = {
     mailCount?: string;
     mailFailed?: string;
     mailDryRun?: string;
+    mailBatch?: string;
   }>;
 };
 
@@ -87,9 +89,36 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
       },
       adminNotes: {
         select: { id: true }
+      },
+      emailDeliveries: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          subject: true,
+          status: true,
+          createdAt: true
+        }
       }
     }
   });
+  const batchDeliveries = query.mailBatch
+    ? await prisma.candidateEmailDelivery.findMany({
+        where: {
+          groupId,
+          batchId: query.mailBatch
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          candidateNameSnapshot: true,
+          recipientEmailSnapshot: true,
+          subject: true,
+          status: true,
+          errorMessage: true
+        }
+      })
+    : [];
   const returnTo = `/admin/groups/${groupId}/candidates`;
   const mailCount = Number(query.mailCount ?? 0);
   const mailFailed = Number(query.mailFailed ?? 0);
@@ -119,9 +148,10 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
       ) : null}
       {query.mail === "invalid" ? (
         <InlineNotice tone="warning" className="mb-5">
-          请至少选择一位候选人，并填写邮件主题和正文。
+          请至少选择一位候选人，填写邮件主题和正文，并确认后再发送。
         </InlineNotice>
       ) : null}
+      <CandidateEmailBatchSummary deliveries={batchDeliveries} />
 
       <Card className="mb-5 p-4">
         <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
@@ -148,6 +178,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
         <div className="space-y-5">
           <CandidateEmailComposer
             groupId={groupId}
+            groupName={group.name}
             returnTo={returnTo}
             candidates={candidates.map((candidate) => ({
               id: candidate.id,
@@ -164,6 +195,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
                   <TableHead>状态</TableHead>
                   <TableHead>候选人备注</TableHead>
                   <TableHead>管理员私有备注</TableHead>
+                  <TableHead>最近邮件</TableHead>
                   <TableHead>操作</TableHead>
                 </tr>
               </TableHeader>
@@ -195,6 +227,32 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
                     <TableCell>
                       {candidate.adminNotes.length > 0 ? (
                         <Badge tone="warning">有私有备注</Badge>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {candidate.emailDeliveries[0] ? (
+                        <div className="space-y-1">
+                          <Badge
+                            tone={
+                              candidate.emailDeliveries[0].status === "FAILED"
+                                ? "danger"
+                                : candidate.emailDeliveries[0].status === "PREVIEW"
+                                  ? "info"
+                                  : "success"
+                            }
+                          >
+                            {candidate.emailDeliveries[0].status === "FAILED"
+                              ? "失败"
+                              : candidate.emailDeliveries[0].status === "PREVIEW"
+                                ? "预览"
+                                : "已发送"}
+                          </Badge>
+                          <p className="max-w-[180px] truncate text-xs text-muted-foreground">
+                            {candidate.emailDeliveries[0].subject}
+                          </p>
+                        </div>
                       ) : (
                         "-"
                       )}

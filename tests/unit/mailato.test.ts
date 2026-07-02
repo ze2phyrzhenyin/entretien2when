@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildMailatoArgs, renderCandidateEmailBody } from "@/lib/mail/mailato";
+import { buildMailatoArgs } from "@/lib/mail/mailato";
+import { renderCandidateEmailTemplate } from "@/lib/mail/render-template";
 
 describe("mailato adapter", () => {
   it("builds dry-run args for one recipient without shell interpolation", () => {
@@ -45,7 +46,7 @@ describe("mailato adapter", () => {
 
   it("renders candidate placeholders per recipient", () => {
     expect(
-      renderCandidateEmailBody("你好 {name}，请查看 {groupName}。你的邮箱：{email}", {
+      renderCandidateEmailTemplate("你好 {name}，请查看 {groupName}。你的邮箱：{email}", {
         candidateName: "李四",
         candidateEmail: "lisi@example.com",
         groupName: "产品一面"

@@ -83,6 +83,12 @@ enum AuditActorType {
   SYSTEM
 }
 
+enum CandidateEmailDeliveryStatus {
+  SENT
+  PREVIEW
+  FAILED
+}
+
 model Admin {
   id           String      @id @default(cuid())
   email        String      @unique
@@ -95,16 +101,17 @@ model Admin {
   lastLoginAt  DateTime?
 
   sessions                 AdminSession[]
-  createdGroups            InterviewGroup[]      @relation("GroupCreator")
-  groupGrants              GroupAdmin[]          @relation("GroupAdminAdmin")
-  grantedGroupAdminRecords GroupAdmin[]          @relation("GroupAdminGranter")
-  reviewedSubmissions      CandidateSubmission[] @relation("SubmissionReviewer")
-  scheduledAppointments    Appointment[]         @relation("AppointmentScheduler")
-  cancelledAppointments    Appointment[]         @relation("AppointmentCanceller")
-  writtenCandidateNotes    CandidateAdminNote[]  @relation("CandidateAdminNoteAuthor")
-  notifications            AdminNotification[]   @relation("AdminNotificationRecipient")
-  lockedSlots              TimeSlotLock[]        @relation("SlotLocker")
-  adminAuditLogs           AuditLog[]            @relation("AuditAdminActor")
+  createdGroups            InterviewGroup[]         @relation("GroupCreator")
+  groupGrants              GroupAdmin[]             @relation("GroupAdminAdmin")
+  grantedGroupAdminRecords GroupAdmin[]             @relation("GroupAdminGranter")
+  reviewedSubmissions      CandidateSubmission[]    @relation("SubmissionReviewer")
+  scheduledAppointments    Appointment[]            @relation("AppointmentScheduler")
+  cancelledAppointments    Appointment[]            @relation("AppointmentCanceller")
+  writtenCandidateNotes    CandidateAdminNote[]     @relation("CandidateAdminNoteAuthor")
+  notifications            AdminNotification[]      @relation("AdminNotificationRecipient")
+  lockedSlots              TimeSlotLock[]           @relation("SlotLocker")
+  adminAuditLogs           AuditLog[]               @relation("AuditAdminActor")
+  sentCandidateEmails      CandidateEmailDelivery[] @relation("CandidateEmailSender")
 
   @@index([role, status])
 }
@@ -140,16 +147,17 @@ model InterviewGroup {
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
 
-  createdByAdmin Admin                 @relation("GroupCreator", fields: [createdByAdminId], references: [id])
-  groupAdmins    GroupAdmin[]
-  timeSlots      GroupTimeSlot[]
-  locks          TimeSlotLock[]
-  candidates     Candidate[]
-  submissions    CandidateSubmission[]
-  appointments   Appointment[]
-  adminNotes     CandidateAdminNote[]
-  notifications  AdminNotification[]
-  auditLogs      AuditLog[]
+  createdByAdmin  Admin                    @relation("GroupCreator", fields: [createdByAdminId], references: [id])
+  groupAdmins     GroupAdmin[]
+  timeSlots       GroupTimeSlot[]
+  locks           TimeSlotLock[]
+  candidates      Candidate[]
+  submissions     CandidateSubmission[]
+  appointments    Appointment[]
+  adminNotes      CandidateAdminNote[]
+  notifications   AdminNotification[]
+  auditLogs       AuditLog[]
+  emailDeliveries CandidateEmailDelivery[]
 
   @@index([createdByAdminId])
   @@index([status])
@@ -236,6 +244,7 @@ model Candidate {
   adminNotes         CandidateAdminNote[]
   notifications      AdminNotification[]
   candidateAuditLogs AuditLog[]                @relation("AuditCandidateActor")
+  emailDeliveries    CandidateEmailDelivery[]
 
   @@unique([groupId, normalizedEmail])
   @@index([groupId, status])
@@ -366,6 +375,36 @@ model AdminNotification {
 
   @@index([recipientAdminId, status])
   @@index([groupId, type])
+}
+
+model CandidateEmailDelivery {
+  id                     String                       @id @default(cuid())
+  groupId                String
+  candidateId            String
+  sentByAdminId          String
+  batchId                String
+  templateKey            String?
+  subject                String
+  bodyTemplate           String
+  candidateNameSnapshot  String
+  recipientEmailSnapshot String
+  status                 CandidateEmailDeliveryStatus
+  providerMessageId      String?
+  errorMessage           String?
+  retriedFromId          String?
+  createdAt              DateTime                     @default(now())
+
+  group       InterviewGroup           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  candidate   Candidate                @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  sentByAdmin Admin                    @relation("CandidateEmailSender", fields: [sentByAdminId], references: [id])
+  retriedFrom CandidateEmailDelivery?  @relation("CandidateEmailRetry", fields: [retriedFromId], references: [id], onDelete: SetNull)
+  retries     CandidateEmailDelivery[] @relation("CandidateEmailRetry")
+
+  @@index([groupId, createdAt])
+  @@index([candidateId, createdAt])
+  @@index([sentByAdminId])
+  @@index([batchId])
+  @@index([status, createdAt])
 }
 
 model AuditLog {
