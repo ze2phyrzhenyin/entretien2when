@@ -52,23 +52,16 @@ export async function batchGenerateSlotsAction(groupId: string, formData: FormDa
     dateFrom: formValue(formData, "dateFrom"),
     dateTo: formValue(formData, "dateTo"),
     startTime: formValue(formData, "startTime"),
-    endTime: formValue(formData, "endTime"),
-    weekdays: formValues(formData, "weekdays")
+    endTime: formValue(formData, "endTime")
   });
 
   const startMinutes = minutesSinceMidnight(input.startTime);
   const endMinutes = minutesSinceMidnight(input.endTime);
   const dates = dateRangeDates(input.dateFrom, input.dateTo);
-  const weekdays = new Set(input.weekdays);
   const data: Array<{ groupId: string; startAt: Date; endAt: Date; status: GroupTimeSlotStatus }> =
     [];
 
   for (const date of dates) {
-    const weekday = new Date(`${date}T00:00:00.000Z`).getUTCDay();
-    if (!weekdays.has(weekday)) {
-      continue;
-    }
-
     for (
       let cursor = startMinutes;
       cursor + group.slotDurationMinutes <= endMinutes;
@@ -108,7 +101,6 @@ export async function batchGenerateSlotsAction(groupId: string, formData: FormDa
             dateTo: input.dateTo,
             startTime: input.startTime,
             endTime: input.endTime,
-            weekdays: input.weekdays,
             requestedCount: data.length,
             insertedCount: createResult.count
           }

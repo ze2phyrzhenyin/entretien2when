@@ -161,7 +161,7 @@
 
 - 大部分 label 位于输入框上方，方向正确。
 - 输入框高度基本一致，按钮有 40px 和 44px 混用，搜索按钮常用 `h-11`，主按钮默认 `h-10`。
-- 页面里仍存在原生 checkbox 和原生 select，如组授权、时间段 weekday、候选人列表筛选、预约 slot 勾选。
+- 页面里仍存在原生 checkbox 和原生 select，如组授权、候选人列表筛选、预约 slot 勾选。
 - 表单错误多为临时 red box，缺少字段级错误、错误图标、统一 spacing。
 - server action 表单多数没有 `SubmitButton`，提交时没有统一 pending 防重复和成功反馈。
 - `CandidateAdminNoteEditor` 只有保存按钮，没有保存中、保存成功、保存失败反馈。

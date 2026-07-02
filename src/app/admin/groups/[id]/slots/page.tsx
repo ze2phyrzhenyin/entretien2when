@@ -41,16 +41,6 @@ type SlotsPageProps = {
   }>;
 };
 
-const weekdayOptions = [
-  ["1", "周一"],
-  ["2", "周二"],
-  ["3", "周三"],
-  ["4", "周四"],
-  ["5", "周五"],
-  ["6", "周六"],
-  ["0", "周日"]
-] as const;
-
 export default async function GroupSlotsPage({ params, searchParams }: SlotsPageProps) {
   const [{ id: groupId }, query] = await Promise.all([params, searchParams]);
   const admin = await requireAdmin();
@@ -138,24 +128,6 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
               <FormField id="endTime" label="结束时间">
                 <Input id="endTime" name="endTime" type="time" defaultValue="18:00" required />
               </FormField>
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium">星期</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {weekdayOptions.map(([value, label]) => (
-                  <label
-                    key={value}
-                    className="flex items-center gap-2 rounded-md border border-border p-2"
-                  >
-                    <Checkbox
-                      name="weekdays"
-                      value={value}
-                      defaultChecked={value !== "0" && value !== "6"}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
             </div>
             <Button type="submit" className="w-full">
               生成时间段
