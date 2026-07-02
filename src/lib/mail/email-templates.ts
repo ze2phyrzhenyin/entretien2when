@@ -12,8 +12,16 @@ export const defaultCandidateEmailTemplate = {
   body: "你好 {name}，\n\n这里是 {groupName} 的面试安排通知。\n\n请查看你的面试时间，并按要求准时参加。\n\n谢谢。"
 } satisfies CandidateEmailTemplate;
 
+export const appointmentConfirmedEmailTemplate = {
+  key: "appointment_confirmed",
+  label: "已定面试通知",
+  subject: "{groupName} 面试安排通知",
+  body: "你好 {name}，\n\n这里是 {groupName} 的面试安排通知。\n\n你的面试时间（中国时间）：{appointmentTime}\n会议地点/链接：{meetingLocation}\n\n{candidateMessage}\n\n请按要求准时参加。\n\n谢谢。"
+} satisfies CandidateEmailTemplate;
+
 export const candidateEmailTemplates = [
   defaultCandidateEmailTemplate,
+  appointmentConfirmedEmailTemplate,
   {
     key: "appointment_reminder",
     label: "面试提醒",

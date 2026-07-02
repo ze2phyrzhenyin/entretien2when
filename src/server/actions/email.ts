@@ -3,14 +3,14 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { AuditActorType, CandidateEmailDeliveryStatus } from "@prisma/client";
-import { renderCandidateEmailTemplate } from "@/lib/mail/render-template";
-import { sendMailatoEmail } from "@/lib/mail/mailato";
+import { AuditActorType } from "@prisma/client";
+import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { requireGroupPermission } from "@/lib/permissions/admin";
 import { formValue, formValues } from "@/lib/validation/common";
 import { candidateEmailActionSchema, retryCandidateEmailSchema } from "@/lib/validation/email";
+import { attemptCandidateEmailDelivery } from "@/server/services/candidate-email";
 
 function sanitizeReturnTo(value: string | undefined, groupId: string) {
   const fallback = `/admin/groups/${groupId}/candidates`;
@@ -50,108 +50,6 @@ function redirectWithMailStatus(
   redirect(`${url.pathname}${url.search}`);
 }
 
-function safeErrorMessage(error: unknown) {
-  if (error instanceof Error) {
-    return error.message.split("\n")[0]?.slice(0, 240) || "发送失败";
-  }
-  return "发送失败";
-}
-
-type EmailGroup = {
-  id: string;
-  name: string;
-};
-
-type EmailCandidate = {
-  id: string;
-  name: string;
-  email: string;
-};
-
-async function attemptCandidateEmailDelivery(input: {
-  adminId: string;
-  group: EmailGroup;
-  candidate: EmailCandidate;
-  batchId: string;
-  templateKey?: string | null;
-  subject: string;
-  bodyTemplate: string;
-  retriedFromId?: string | null;
-}) {
-  try {
-    const result = await sendMailatoEmail({
-      recipient: {
-        email: input.candidate.email,
-        name: input.candidate.name
-      },
-      subject: renderCandidateEmailTemplate(input.subject, {
-        candidateName: input.candidate.name,
-        candidateEmail: input.candidate.email,
-        groupName: input.group.name
-      }),
-      body: renderCandidateEmailTemplate(input.bodyTemplate, {
-        candidateName: input.candidate.name,
-        candidateEmail: input.candidate.email,
-        groupName: input.group.name
-      }),
-      auditId: `${input.batchId}:${input.candidate.id}`
-    });
-    const delivery = await prisma.candidateEmailDelivery.create({
-      data: {
-        groupId: input.group.id,
-        candidateId: input.candidate.id,
-        sentByAdminId: input.adminId,
-        batchId: input.batchId,
-        templateKey: input.templateKey || null,
-        subject: input.subject,
-        bodyTemplate: input.bodyTemplate,
-        candidateNameSnapshot: input.candidate.name,
-        recipientEmailSnapshot: input.candidate.email,
-        status:
-          result.status === "sent"
-            ? CandidateEmailDeliveryStatus.SENT
-            : CandidateEmailDeliveryStatus.PREVIEW,
-        providerMessageId: result.emailId ?? null,
-        retriedFromId: input.retriedFromId || null
-      }
-    });
-
-    return {
-      deliveryId: delivery.id,
-      candidateId: input.candidate.id,
-      status: result.status,
-      emailId: result.emailId ?? null,
-      error: null
-    };
-  } catch (error) {
-    const errorMessage = safeErrorMessage(error);
-    const delivery = await prisma.candidateEmailDelivery.create({
-      data: {
-        groupId: input.group.id,
-        candidateId: input.candidate.id,
-        sentByAdminId: input.adminId,
-        batchId: input.batchId,
-        templateKey: input.templateKey || null,
-        subject: input.subject,
-        bodyTemplate: input.bodyTemplate,
-        candidateNameSnapshot: input.candidate.name,
-        recipientEmailSnapshot: input.candidate.email,
-        status: CandidateEmailDeliveryStatus.FAILED,
-        errorMessage,
-        retriedFromId: input.retriedFromId || null
-      }
-    });
-
-    return {
-      deliveryId: delivery.id,
-      candidateId: input.candidate.id,
-      status: "failure" as const,
-      emailId: null,
-      error: errorMessage
-    };
-  }
-}
-
 export async function sendCandidateEmailAction(groupId: string, formData: FormData) {
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, "canViewCandidates");
@@ -184,7 +82,18 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
     select: {
       id: true,
       name: true,
-      email: true
+      email: true,
+      appointments: {
+        where: { status: "SCHEDULED" },
+        orderBy: { startAt: "desc" },
+        take: 1,
+        select: {
+          startAt: true,
+          endAt: true,
+          meetingLocation: true,
+          candidateVisibleMessage: true
+        }
+      }
     },
     orderBy: { updatedAt: "desc" }
   });
@@ -210,7 +119,8 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
       batchId,
       templateKey: input.templateKey,
       subject: input.subject,
-      bodyTemplate: input.body
+      bodyTemplate: input.body,
+      templateValues: buildAppointmentEmailContext(candidate.appointments[0])
     });
     results.push(result);
   }
@@ -279,7 +189,22 @@ export async function retryCandidateEmailDeliveryAction(
         select: { id: true, name: true }
       },
       candidate: {
-        select: { id: true, name: true, email: true }
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          appointments: {
+            where: { status: "SCHEDULED" },
+            orderBy: { startAt: "desc" },
+            take: 1,
+            select: {
+              startAt: true,
+              endAt: true,
+              meetingLocation: true,
+              candidateVisibleMessage: true
+            }
+          }
+        }
       }
     }
   });
@@ -297,6 +222,7 @@ export async function retryCandidateEmailDeliveryAction(
     templateKey: original.templateKey,
     subject: original.subject,
     bodyTemplate: original.bodyTemplate,
+    templateValues: buildAppointmentEmailContext(original.candidate.appointments[0]),
     retriedFromId: original.id
   });
   const failed = result.status === "failure" ? 1 : 0;

@@ -22,7 +22,11 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { candidateEmailTemplates, defaultCandidateEmailTemplate } from "@/lib/mail/email-templates";
+import {
+  appointmentConfirmedEmailTemplate,
+  candidateEmailTemplates,
+  defaultCandidateEmailTemplate
+} from "@/lib/mail/email-templates";
 import { renderCandidateEmailTemplate } from "@/lib/mail/render-template";
 import { sendCandidateEmailAction } from "@/server/actions/email";
 
@@ -31,6 +35,9 @@ type CandidateEmailTarget = {
   name: string;
   email: string;
   status?: CandidateStatus;
+  appointmentTime?: string;
+  meetingLocation?: string;
+  candidateMessage?: string;
 };
 
 type CandidateEmailComposerProps = {
@@ -49,9 +56,16 @@ export function CandidateEmailComposer({
   mode = "table"
 }: CandidateEmailComposerProps) {
   const isSingle = mode === "single";
-  const [templateKey, setTemplateKey] = useState(defaultCandidateEmailTemplate.key);
-  const [subject, setSubject] = useState(defaultCandidateEmailTemplate.subject);
-  const [body, setBody] = useState(defaultCandidateEmailTemplate.body);
+  const hasConfirmedAppointment = candidates.some(
+    (candidate) => candidate.appointmentTime && candidate.appointmentTime !== "尚未安排"
+  );
+  const initialTemplate =
+    isSingle && hasConfirmedAppointment
+      ? appointmentConfirmedEmailTemplate
+      : defaultCandidateEmailTemplate;
+  const [templateKey, setTemplateKey] = useState(initialTemplate.key);
+  const [subject, setSubject] = useState(initialTemplate.subject);
+  const [body, setBody] = useState(initialTemplate.body);
   const [selectedIds, setSelectedIds] = useState(() =>
     isSingle ? candidates.map((candidate) => candidate.id) : []
   );
@@ -64,7 +78,10 @@ export function CandidateEmailComposer({
   const previewValues = {
     candidateName: previewCandidate?.name ?? "候选人",
     candidateEmail: previewCandidate?.email ?? "candidate@example.com",
-    groupName
+    groupName,
+    appointmentTime: previewCandidate?.appointmentTime ?? "尚未安排",
+    meetingLocation: previewCandidate?.meetingLocation ?? "未填写",
+    candidateMessage: previewCandidate?.candidateMessage ?? ""
   };
   const previewSubject = renderCandidateEmailTemplate(subject, previewValues);
   const previewBody = renderCandidateEmailTemplate(body, previewValues);
@@ -101,7 +118,8 @@ export function CandidateEmailComposer({
         </div>
       </div>
       <InlineNotice tone="info" className="mb-4">
-        可在主题和正文中使用 {"{name}"}、{"{email}"}、{"{groupName}"} 自动替换候选人信息。
+        可在主题和正文中使用 {"{name}"}、{"{email}"}、{"{groupName}"}、{"{appointmentTime}"}、
+        {"{meetingLocation}"}、{"{candidateMessage}"} 自动替换候选人信息。
       </InlineNotice>
       <form action={sendCandidateEmailAction.bind(null, groupId)} className="space-y-4">
         <input type="hidden" name="returnTo" value={returnTo} />
@@ -224,6 +242,11 @@ export function CandidateEmailComposer({
           <div className="rounded-lg border border-border bg-surface-subtle px-3 py-2 text-sm">
             <p className="font-medium">{candidates[0]?.name}</p>
             <p className="text-muted-foreground">{candidates[0]?.email}</p>
+            {hasConfirmedAppointment ? (
+              <p className="mt-2 text-muted-foreground">
+                面试时间：{candidates[0]?.appointmentTime}
+              </p>
+            ) : null}
           </div>
         )}
 

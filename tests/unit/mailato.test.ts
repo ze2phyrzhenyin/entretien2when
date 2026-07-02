@@ -53,4 +53,22 @@ describe("mailato adapter", () => {
       })
     ).toBe("你好 李四，请查看 产品一面。你的邮箱：lisi@example.com");
   });
+
+  it("renders appointment placeholders for confirmed interview emails", () => {
+    expect(
+      renderCandidateEmailTemplate(
+        "时间：{appointmentTime}\n地点：{meetingLocation}\n说明：{candidateMessage}",
+        {
+          candidateName: "李四",
+          candidateEmail: "lisi@example.com",
+          groupName: "产品一面",
+          appointmentTime: "2026/08/03 10:00-11:00（中国时间）",
+          meetingLocation: "腾讯会议 100-200-300",
+          candidateMessage: "请提前 5 分钟进入会议。"
+        }
+      )
+    ).toBe(
+      "时间：2026/08/03 10:00-11:00（中国时间）\n地点：腾讯会议 100-200-300\n说明：请提前 5 分钟进入会议。"
+    );
+  });
 });

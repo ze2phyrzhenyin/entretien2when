@@ -20,6 +20,8 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
+import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
+import { appointmentConfirmedEmailTemplate } from "@/lib/mail/email-templates";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
 import { candidateSubmissionStatusLabel, candidateSubmissionTypeLabel } from "@/lib/status-labels";
 import { scheduleAppointmentAction } from "@/server/actions/appointment";
@@ -120,6 +122,7 @@ export default async function CandidateDetailPage({
   const scheduledAppointment = candidate.appointments.find(
     (appointment) => appointment.status === AppointmentStatus.SCHEDULED
   );
+  const scheduledAppointmentEmailContext = buildAppointmentEmailContext(scheduledAppointment);
   const schedulableSlots =
     candidate.activeSubmission?.slots.filter(
       ({ slot }) => slot.status === "OPEN" && !slot.activeLock
@@ -265,6 +268,33 @@ export default async function CandidateDetailPage({
                 <FormField id="internalNote" label="内部备注">
                   <Textarea id="internalNote" name="internalNote" />
                 </FormField>
+                <div className="space-y-4 rounded-lg border border-border bg-surface-subtle p-4">
+                  <label className="flex items-start gap-2 text-sm font-medium">
+                    <Checkbox name="sendEmail" value="yes" defaultChecked />
+                    <span>安排后发送邮件通知候选人</span>
+                  </label>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    可使用 {"{name}"}、{"{email}"}、{"{groupName}"}、{"{appointmentTime}"}、
+                    {"{meetingLocation}"}、{"{candidateMessage}"}。发送时会把 {"{appointmentTime}"}{" "}
+                    替换为你本次选择的中国时间。
+                  </p>
+                  <FormField id="appointmentEmailSubject" label="邮件主题">
+                    <Input
+                      id="appointmentEmailSubject"
+                      name="emailSubject"
+                      defaultValue={appointmentConfirmedEmailTemplate.subject}
+                      maxLength={160}
+                    />
+                  </FormField>
+                  <FormField id="appointmentEmailBody" label="邮件正文">
+                    <Textarea
+                      id="appointmentEmailBody"
+                      name="emailBody"
+                      defaultValue={appointmentConfirmedEmailTemplate.body}
+                      rows={9}
+                    />
+                  </FormField>
+                </div>
                 <SubmitButton>安排并锁定时间</SubmitButton>
               </form>
             )}
@@ -322,7 +352,10 @@ export default async function CandidateDetailPage({
                 id: candidate.id,
                 name: candidate.name,
                 email: candidate.email,
-                status: candidate.status
+                status: candidate.status,
+                appointmentTime: scheduledAppointmentEmailContext.appointmentTime,
+                meetingLocation: scheduledAppointmentEmailContext.meetingLocation,
+                candidateMessage: scheduledAppointmentEmailContext.candidateMessage
               }
             ]}
           />

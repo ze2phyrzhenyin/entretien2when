@@ -89,6 +89,7 @@ const auditActionLabel: Record<string, string> = {
   "admin.cancel_appointment": "管理员取消预约",
   "admin.upsert_candidate_admin_note": "保存管理员私有备注",
   "admin.send_candidate_email": "发送候选人邮件",
+  "admin.send_appointment_email": "发送面试安排邮件",
   "admin.retry_candidate_email": "重试候选人邮件"
 };
 

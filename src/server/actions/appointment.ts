@@ -1,6 +1,8 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { AppointmentStatus, AuditActorType, CandidateStatus } from "@prisma/client";
 import { buildAppointmentLockRows } from "@/lib/business/appointment-lock";
 import {
@@ -10,9 +12,32 @@ import {
 } from "@/lib/business/slot-selection";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
+import { appointmentConfirmedEmailTemplate } from "@/lib/mail/email-templates";
+import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
 import { requireGroupPermission } from "@/lib/permissions/admin";
 import { formValue, formValues } from "@/lib/validation/common";
 import { scheduleAppointmentSchema } from "@/lib/validation/appointment";
+import { attemptCandidateEmailDelivery } from "@/server/services/candidate-email";
+
+function redirectWithScheduleMailStatus(
+  groupId: string,
+  candidateId: string,
+  params: { mail: "sent" | "error"; dryRun?: boolean; batchId?: string }
+): never {
+  const url = new URL(`http://local/admin/groups/${groupId}/candidates/${candidateId}`);
+  url.searchParams.set("mail", params.mail);
+  url.searchParams.set("mailCount", params.mail === "sent" ? "1" : "0");
+  if (params.mail === "error") {
+    url.searchParams.set("mailFailed", "1");
+  }
+  if (params.dryRun) {
+    url.searchParams.set("mailDryRun", "1");
+  }
+  if (params.batchId) {
+    url.searchParams.set("mailBatch", params.batchId);
+  }
+  redirect(`${url.pathname}${url.search}`);
+}
 
 export async function scheduleAppointmentAction(
   groupId: string,
@@ -26,13 +51,19 @@ export async function scheduleAppointmentAction(
     slotIds: formValues(formData, "slotIds"),
     meetingLocation: formValue(formData, "meetingLocation"),
     candidateVisibleMessage: formValue(formData, "candidateVisibleMessage"),
-    internalNote: formValue(formData, "internalNote")
+    internalNote: formValue(formData, "internalNote"),
+    sendEmail: formValue(formData, "sendEmail") === "yes",
+    emailSubject: formValue(formData, "emailSubject"),
+    emailBody: formValue(formData, "emailBody")
   });
   const slotIds = uniqueSlotIds(input.slotIds);
 
   const candidate = await prisma.candidate.findFirst({
     where: { id: candidateId, groupId },
     include: {
+      group: {
+        select: { id: true, name: true }
+      },
       activeSubmission: {
         include: {
           slots: true
@@ -75,7 +106,7 @@ export async function scheduleAppointmentAction(
     throw new Error("请选择预约时间。");
   }
 
-  await prisma.$transaction(async (tx) => {
+  const appointment = await prisma.$transaction(async (tx) => {
     const appointment = await tx.appointment.create({
       data: {
         groupId,
@@ -119,11 +150,68 @@ export async function scheduleAppointmentAction(
         afterData: { slotIds }
       }
     });
+
+    return appointment;
   });
 
   revalidatePath(`/admin/groups/${groupId}/candidates/${candidateId}`);
   revalidatePath(`/admin/groups/${groupId}/appointments`);
   revalidatePath(`/admin/groups/${groupId}/overview`);
+
+  if (input.sendEmail) {
+    const batchId = randomUUID();
+    const result = await attemptCandidateEmailDelivery({
+      adminId: admin.id,
+      group: candidate.group,
+      candidate: {
+        id: candidate.id,
+        name: candidate.name,
+        email: candidate.email
+      },
+      batchId,
+      templateKey: appointmentConfirmedEmailTemplate.key,
+      subject: input.emailSubject ?? appointmentConfirmedEmailTemplate.subject,
+      bodyTemplate: input.emailBody ?? appointmentConfirmedEmailTemplate.body,
+      templateValues: buildAppointmentEmailContext({
+        startAt: appointment.startAt,
+        endAt: appointment.endAt,
+        meetingLocation: appointment.meetingLocation,
+        candidateVisibleMessage: appointment.candidateVisibleMessage
+      })
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorType: AuditActorType.ADMIN,
+        actorAdminId: admin.id,
+        groupId,
+        action: "admin.send_appointment_email",
+        entityType: "CandidateEmailDelivery",
+        entityId: result.deliveryId,
+        afterData: {
+          appointmentId: appointment.id,
+          candidateId: candidate.id,
+          deliveryId: result.deliveryId,
+          status: result.status,
+          emailId: result.emailId,
+          error: result.error
+        }
+      }
+    });
+
+    revalidatePath(`/admin/groups/${groupId}/candidates/${candidateId}`);
+    if (result.status === "failure") {
+      redirectWithScheduleMailStatus(groupId, candidateId, {
+        mail: "error",
+        batchId
+      });
+    }
+    redirectWithScheduleMailStatus(groupId, candidateId, {
+      mail: "sent",
+      dryRun: result.status === "preview",
+      batchId
+    });
+  }
 }
 
 export async function cancelAppointmentAction(groupId: string, appointmentId: string) {

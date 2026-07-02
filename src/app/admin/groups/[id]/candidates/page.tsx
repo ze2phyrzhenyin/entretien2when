@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
+import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
 
 type CandidatesPageProps = {
@@ -85,7 +86,15 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
       },
       appointments: {
         where: { status: "SCHEDULED" },
-        select: { id: true }
+        orderBy: { startAt: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          startAt: true,
+          endAt: true,
+          meetingLocation: true,
+          candidateVisibleMessage: true
+        }
       },
       adminNotes: {
         select: { id: true }
@@ -184,7 +193,8 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
               id: candidate.id,
               name: candidate.name,
               email: candidate.email,
-              status: candidate.status
+              status: candidate.status,
+              ...buildAppointmentEmailContext(candidate.appointments[0])
             }))}
           />
           <TableContainer>

@@ -243,9 +243,18 @@ test.describe("P0 business flow", () => {
     await page.getByLabel("会议地点或链接").fill(meetingLocation);
     await page.getByLabel("候选人可见说明").fill(candidateVisibleMessage);
     await page.getByLabel("内部备注").fill(internalNote);
+    const scheduleForm = page.locator("form").filter({
+      has: page.getByRole("button", { name: "安排并锁定时间" })
+    });
+    await expect(scheduleForm.getByLabel("安排后发送邮件通知候选人")).toBeChecked();
+    await expect(scheduleForm.getByLabel("邮件正文")).toContainText(
+      "你的面试时间（中国时间）：{appointmentTime}"
+    );
     await page.getByRole("button", { name: "安排并锁定时间" }).click();
     await expect(page.getByText(/已预约：/)).toBeVisible();
-    await expect(page.getByText("2026/08/03 10:00-11:00")).toBeVisible();
+    await expect(page.getByText("已发送 1 封候选人邮件（dry-run 预览）")).toBeVisible();
+    await expect(page.getByText("2026/08/03 10:00-11:00", { exact: true })).toBeVisible();
+    await expect(page.getByText("面试时间：2026/08/03 10:00-11:00（中国时间）")).toBeVisible();
 
     const candidate = await prisma.candidate.findUnique({
       where: {
@@ -272,6 +281,18 @@ test.describe("P0 business flow", () => {
     expect(sorted(scheduledAppointment.locks.map((lock) => lock.slotId))).toEqual(
       sorted(modifiedSlotIds)
     );
+
+    const appointmentEmailDelivery = await prisma.candidateEmailDelivery.findFirst({
+      where: {
+        groupId: group.id,
+        candidateId: candidate.id,
+        templateKey: "appointment_confirmed"
+      },
+      orderBy: { createdAt: "desc" }
+    });
+    assertFound(appointmentEmailDelivery, "Expected appointment email delivery.");
+    expect(appointmentEmailDelivery.status).toBe("PREVIEW");
+    expect(appointmentEmailDelivery.bodyTemplate).toContain("{appointmentTime}");
 
     await page.getByPlaceholder("填写内部跟进信息").fill(adminPrivateNote);
     await page.getByRole("button", { name: "保存私有备注" }).click();
@@ -334,6 +355,7 @@ test.describe("P0 business flow", () => {
     await expect(page.getByText("候选人申请修改").first()).toBeVisible();
     await expect(page.getByText("管理员通过修改申请").first()).toBeVisible();
     await expect(page.getByText("管理员安排面试").first()).toBeVisible();
+    await expect(page.getByText("发送面试安排邮件").first()).toBeVisible();
     await expect(page.getByText("保存管理员私有备注").first()).toBeVisible();
     await expect(page.getByText("管理员取消预约").first()).toBeVisible();
   });
