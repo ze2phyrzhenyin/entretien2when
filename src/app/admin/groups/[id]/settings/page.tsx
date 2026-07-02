@@ -1,27 +1,21 @@
 import Link from "next/link";
-import { AdminRole } from "@prisma/client";
-import { FormField } from "@/components/design-system/form-field";
 import { InlineNotice } from "@/components/design-system/inline-notice";
 import { PageHeader } from "@/components/design-system/page-header";
 import { SectionHeader } from "@/components/design-system/section-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { GroupAdminNav } from "@/components/layout/group-admin-nav";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { CopyButton } from "@/components/ui/copy-button";
-import { Input } from "@/components/ui/input";
 import { requireAdmin } from "@/lib/auth/session";
 import { timezoneOptionsWith } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup } from "@/lib/permissions/admin";
-import { grantGroupAdminAction, revokeGroupAdminAction } from "@/server/actions/group";
 import { GroupSettingsForm } from "./group-settings-form";
 
 type SettingsPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string; error?: string }>;
+  searchParams: Promise<{ created?: string }>;
 };
 
 export default async function GroupSettingsPage({ params, searchParams }: SettingsPageProps) {
@@ -34,17 +28,7 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
   }
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
-    where: { id: groupId },
-    include: {
-      groupAdmins: {
-        include: {
-          admin: {
-            select: { email: true, displayName: true }
-          }
-        },
-        orderBy: { createdAt: "desc" }
-      }
-    }
+    where: { id: groupId }
   });
   const candidateLink = `${process.env.APP_URL ?? "http://localhost:3000"}/candidate/${group.groupCode}`;
 
@@ -58,7 +42,7 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
             <StatusBadge kind="group" status={group.status} />
           </span>
         }
-        description="设置公开说明、时间规则、候选人入口和普通管理员授权。"
+        description="设置公开说明、时间规则和候选人入口。"
         action={
           <Link className="text-sm font-medium text-primary" href="/admin">
             返回工作台
@@ -71,12 +55,6 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
           面试组已创建。请复制组编号或候选人链接发送给候选人。
         </InlineNotice>
       ) : null}
-      {query.error ? (
-        <InlineNotice tone="danger" className="mb-5">
-          {query.error === "admin-not-found" ? "未找到该管理员邮箱。" : "该授权操作无法完成。"}
-        </InlineNotice>
-      ) : null}
-
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="p-6">
           <SectionHeader
@@ -99,75 +77,24 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
           />
         </Card>
 
-        <div className="space-y-6">
-          <Card className="p-5">
-            <SectionHeader title="候选人入口" description="复制给候选人，不要公开到无关渠道。" />
-            <div className="mt-4 space-y-3">
-              <div>
-                <p className="text-xs text-muted-foreground">组编号</p>
-                <p className="mt-1 break-all font-mono text-sm font-semibold">{group.groupCode}</p>
-              </div>
-              <CopyButton value={group.groupCode} label="复制组编号" />
-              <CopyButton value={candidateLink} label="复制候选人链接" />
+        <Card className="p-5">
+          <SectionHeader
+            title="候选人入口"
+            description="候选人打开链接后提交姓名、邮箱和可用时间，不会看到管理员设置。"
+          />
+          <div className="mt-4 space-y-3">
+            <div>
+              <p className="text-xs text-muted-foreground">组编号</p>
+              <p className="mt-1 break-all font-mono text-sm font-semibold">{group.groupCode}</p>
             </div>
-          </Card>
-
-          <Card className="p-5">
-            <SectionHeader
-              title="普通管理员授权"
-              description="普通管理员只会看到被授权的面试组和对应操作。"
-            />
-            <form action={grantGroupAdminAction.bind(null, groupId)} className="mt-4 space-y-4">
-              <FormField id="adminEmail" label="管理员邮箱">
-                <Input
-                  id="adminEmail"
-                  name="adminEmail"
-                  type="email"
-                  placeholder="admin@example.com"
-                />
-              </FormField>
-              <div className="space-y-2 text-sm">
-                {[
-                  ["canViewCandidates", "查看候选人"],
-                  ["canEditGroup", "编辑组"],
-                  ["canReviewModifications", "审核修改"],
-                  ["canScheduleInterview", "安排面试"]
-                ].map(([name, label]) => (
-                  <label key={name} className="flex items-center gap-2">
-                    <Checkbox name={name} defaultChecked={name === "canViewCandidates"} />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              <Button type="submit" variant="secondary" className="w-full">
-                保存授权
-              </Button>
-            </form>
-            <div className="mt-5 space-y-3">
-              {group.groupAdmins.length === 0 ? (
-                <p className="text-sm text-muted-foreground">暂无普通管理员授权。</p>
-              ) : (
-                group.groupAdmins.map((grant) => (
-                  <div key={grant.id} className="rounded-md border border-border p-3 text-sm">
-                    <p className="font-medium">{grant.admin.displayName}</p>
-                    <p className="text-muted-foreground">{grant.admin.email}</p>
-                    <form
-                      action={revokeGroupAdminAction.bind(null, groupId, grant.id)}
-                      className="mt-2"
-                    >
-                      <Button type="submit" variant="ghost" className="h-8 px-2 text-red-700">
-                        移除
-                      </Button>
-                    </form>
-                  </div>
-                ))
-              )}
+            <div>
+              <p className="text-xs text-muted-foreground">候选人链接</p>
+              <p className="mt-1 break-all font-mono text-sm font-semibold">{candidateLink}</p>
             </div>
-          </Card>
-          {admin.role === AdminRole.SUPER_ADMIN ? null : (
-            <p className="text-xs text-muted-foreground">普通管理员只能看到自己被授权的能力。</p>
-          )}
-        </div>
+            <CopyButton value={group.groupCode} label="复制组编号" />
+            <CopyButton value={candidateLink} label="复制候选人链接" />
+          </div>
+        </Card>
       </div>
     </AdminShell>
   );

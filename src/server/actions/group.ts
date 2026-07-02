@@ -184,11 +184,11 @@ export async function grantGroupAdminAction(groupId: string, formData: FormData)
   });
 
   if (!targetAdmin) {
-    redirect(`/admin/groups/${groupId}/settings?error=admin-not-found`);
+    redirect(`/admin/groups/${groupId}/admins?error=admin-not-found`);
   }
 
   if (targetAdmin.role === AdminRole.SUPER_ADMIN) {
-    redirect(`/admin/groups/${groupId}/settings?error=super-admin-no-grant-needed`);
+    redirect(`/admin/groups/${groupId}/admins?error=super-admin-no-grant-needed`);
   }
 
   await prisma.$transaction(async (tx) => {
@@ -245,7 +245,7 @@ export async function grantGroupAdminAction(groupId: string, formData: FormData)
     });
   });
 
-  revalidatePath(`/admin/groups/${groupId}/settings`);
+  revalidatePath(`/admin/groups/${groupId}/admins`);
 }
 
 export async function revokeGroupAdminAction(groupId: string, grantId: string) {
@@ -302,5 +302,5 @@ export async function revokeGroupAdminAction(groupId: string, grantId: string) {
     });
   }
 
-  revalidatePath(`/admin/groups/${groupId}/settings`);
+  revalidatePath(`/admin/groups/${groupId}/admins`);
 }
