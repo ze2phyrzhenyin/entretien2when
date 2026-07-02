@@ -104,16 +104,13 @@ export function GroupSettingsForm({
         <FormField
           id="slotDurationMinutes"
           label="时间粒度（分钟）"
-          description="候选人每次可选的时间段长度，支持 5 分钟倍数。"
+          description="候选人每次可选的时间段长度，可自定义分钟数。"
           error={errors.slotDurationMinutes}
         >
           <Input
             id="slotDurationMinutes"
             name="slotDurationMinutes"
             type="number"
-            min={10}
-            max={180}
-            step={5}
             defaultValue={group.slotDurationMinutes}
             aria-invalid={Boolean(errors.slotDurationMinutes)}
           />
@@ -121,16 +118,13 @@ export function GroupSettingsForm({
         <FormField
           id="interviewDurationMinutes"
           label="面试时长（分钟）"
-          description="实际面试占用时长，必须短于时间粒度。"
+          description="实际面试占用时长，可自定义分钟数，必须短于时间粒度。"
           error={errors.interviewDurationMinutes}
         >
           <Input
             id="interviewDurationMinutes"
             name="interviewDurationMinutes"
             type="number"
-            min={5}
-            max={175}
-            step={5}
             defaultValue={group.interviewDurationMinutes}
             aria-invalid={Boolean(errors.interviewDurationMinutes)}
           />
