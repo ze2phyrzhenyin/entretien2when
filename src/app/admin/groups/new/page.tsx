@@ -53,29 +53,57 @@ export default async function NewGroupPage() {
             </FormField>
           </div>
           <div className="grid gap-5 md:grid-cols-2">
-            <FormField id="slotDurationMinutes" label="时间粒度（分钟）">
+            <FormField
+              id="slotDurationMinutes"
+              label="时间粒度（分钟）"
+              description="支持 5 分钟倍数，例如 5、10、15、30。"
+            >
               <Input
                 id="slotDurationMinutes"
                 name="slotDurationMinutes"
                 type="number"
+                min={5}
+                max={180}
+                step={5}
                 defaultValue={30}
               />
             </FormField>
-            <FormField id="interviewDurationMinutes" label="面试时长（分钟）">
+            <FormField
+              id="interviewDurationMinutes"
+              label="面试时长（分钟）"
+              description="支持 5 分钟倍数，最长 240 分钟。"
+            >
               <Input
                 id="interviewDurationMinutes"
                 name="interviewDurationMinutes"
                 type="number"
+                min={5}
+                max={240}
+                step={5}
                 defaultValue={60}
               />
             </FormField>
           </div>
           <div className="grid gap-5 md:grid-cols-2">
             <FormField id="minSelectSlots" label="候选人最少选择">
-              <Input id="minSelectSlots" name="minSelectSlots" type="number" defaultValue={1} />
+              <Input
+                id="minSelectSlots"
+                name="minSelectSlots"
+                type="number"
+                min={1}
+                max={100}
+                defaultValue={1}
+              />
             </FormField>
             <FormField id="maxSelectSlots" label="候选人最多选择">
-              <Input id="maxSelectSlots" name="maxSelectSlots" type="number" defaultValue={6} />
+              <Input
+                id="maxSelectSlots"
+                name="maxSelectSlots"
+                type="number"
+                min={1}
+                max={100}
+                defaultValue={6}
+              />
             </FormField>
           </div>
           <InlineNotice tone="info">

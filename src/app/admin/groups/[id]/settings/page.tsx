@@ -12,17 +12,12 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
 import { timezoneOptionsWith } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { canAccessGroup } from "@/lib/permissions/admin";
-import {
-  grantGroupAdminAction,
-  revokeGroupAdminAction,
-  updateGroupAction
-} from "@/server/actions/group";
+import { grantGroupAdminAction, revokeGroupAdminAction } from "@/server/actions/group";
+import { GroupSettingsForm } from "./group-settings-form";
 
 type SettingsPageProps = {
   params: Promise<{ id: string }>;
@@ -88,76 +83,20 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
             title="面试组信息"
             description="候选人会看到组名称和公开说明，不会看到管理员授权或内部设置。"
           />
-          <form action={updateGroupAction.bind(null, groupId)} className="grid gap-5">
-            <FormField id="name" label="组名称">
-              <Input id="name" name="name" defaultValue={group.name} required />
-            </FormField>
-            <FormField id="publicDescription" label="公开说明">
-              <Textarea
-                id="publicDescription"
-                name="publicDescription"
-                defaultValue={group.publicDescription ?? ""}
-              />
-            </FormField>
-            <div className="grid gap-5 md:grid-cols-2">
-              <FormField id="timezone" label="时区">
-                <Select id="timezone" name="timezone" defaultValue={group.timezone}>
-                  {timezoneOptionsWith(group.timezone).map((timezone) => (
-                    <option key={timezone.value} value={timezone.value}>
-                      {timezone.label}
-                    </option>
-                  ))}
-                </Select>
-              </FormField>
-              <FormField id="status" label="状态">
-                <Select id="status" name="status" defaultValue={group.status}>
-                  <option value="DRAFT">草稿</option>
-                  <option value="OPEN">开放</option>
-                  <option value="CLOSED">关闭</option>
-                  <option value="ARCHIVED">归档</option>
-                </Select>
-              </FormField>
-            </div>
-            <div className="grid gap-5 md:grid-cols-2">
-              <FormField id="slotDurationMinutes" label="时间粒度（分钟）">
-                <Input
-                  id="slotDurationMinutes"
-                  name="slotDurationMinutes"
-                  type="number"
-                  defaultValue={group.slotDurationMinutes}
-                />
-              </FormField>
-              <FormField id="interviewDurationMinutes" label="面试时长（分钟）">
-                <Input
-                  id="interviewDurationMinutes"
-                  name="interviewDurationMinutes"
-                  type="number"
-                  defaultValue={group.interviewDurationMinutes}
-                />
-              </FormField>
-            </div>
-            <div className="grid gap-5 md:grid-cols-2">
-              <FormField id="minSelectSlots" label="候选人最少选择">
-                <Input
-                  id="minSelectSlots"
-                  name="minSelectSlots"
-                  type="number"
-                  defaultValue={group.minSelectSlots}
-                />
-              </FormField>
-              <FormField id="maxSelectSlots" label="候选人最多选择">
-                <Input
-                  id="maxSelectSlots"
-                  name="maxSelectSlots"
-                  type="number"
-                  defaultValue={group.maxSelectSlots}
-                />
-              </FormField>
-            </div>
-            <Button type="submit" className="w-full md:w-auto">
-              保存设置
-            </Button>
-          </form>
+          <GroupSettingsForm
+            groupId={groupId}
+            group={{
+              name: group.name,
+              publicDescription: group.publicDescription ?? "",
+              timezone: group.timezone,
+              status: group.status,
+              slotDurationMinutes: group.slotDurationMinutes,
+              interviewDurationMinutes: group.interviewDurationMinutes,
+              minSelectSlots: group.minSelectSlots,
+              maxSelectSlots: group.maxSelectSlots
+            }}
+            timezoneOptions={timezoneOptionsWith(group.timezone)}
+          />
         </Card>
 
         <div className="space-y-6">

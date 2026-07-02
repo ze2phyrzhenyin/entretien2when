@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AdminRole, AuditActorType } from "@prisma/client";
+import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { requireGroupPermission } from "@/lib/permissions/admin";
@@ -21,9 +22,28 @@ const groupAuditSelect = {
   maxSelectSlots: true
 } as const;
 
-export async function createGroupAction(formData: FormData) {
-  const admin = await requireAdmin();
-  const input = groupFormSchema.parse({
+const groupFormFields = [
+  "name",
+  "publicDescription",
+  "timezone",
+  "status",
+  "slotDurationMinutes",
+  "interviewDurationMinutes",
+  "minSelectSlots",
+  "maxSelectSlots"
+] as const;
+
+type GroupFormField = (typeof groupFormFields)[number];
+type GroupFormFieldErrors = Partial<Record<GroupFormField, string>>;
+
+export type GroupFormState = {
+  status?: "success" | "error";
+  message?: string;
+  fieldErrors?: GroupFormFieldErrors;
+};
+
+function readGroupFormValues(formData: FormData) {
+  return {
     name: formValue(formData, "name"),
     publicDescription: formValue(formData, "publicDescription"),
     timezone: formValue(formData, "timezone") || "Asia/Shanghai",
@@ -32,7 +52,30 @@ export async function createGroupAction(formData: FormData) {
     interviewDurationMinutes: formValue(formData, "interviewDurationMinutes"),
     minSelectSlots: formValue(formData, "minSelectSlots"),
     maxSelectSlots: formValue(formData, "maxSelectSlots")
-  });
+  };
+}
+
+function getGroupFormStateFromError(error: z.ZodError): GroupFormState {
+  const flattenedErrors = error.flatten().fieldErrors;
+  const fieldErrors: GroupFormFieldErrors = {};
+
+  for (const field of groupFormFields) {
+    const message = flattenedErrors[field]?.[0];
+    if (message) {
+      fieldErrors[field] = message;
+    }
+  }
+
+  return {
+    status: "error",
+    message: "保存失败，请检查表单中的设置。",
+    fieldErrors
+  };
+}
+
+export async function createGroupAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const input = groupFormSchema.parse(readGroupFormValues(formData));
 
   const groupCode = await generateUniqueGroupCode();
   const group = await prisma.$transaction(async (tx) => {
@@ -69,20 +112,19 @@ export async function createGroupAction(formData: FormData) {
   redirect(`/admin/groups/${group.id}/settings?created=1`);
 }
 
-export async function updateGroupAction(groupId: string, formData: FormData) {
+export async function updateGroupAction(
+  groupId: string,
+  _previousState: GroupFormState,
+  formData: FormData
+): Promise<GroupFormState> {
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, "canEditGroup");
 
-  const input = groupFormSchema.parse({
-    name: formValue(formData, "name"),
-    publicDescription: formValue(formData, "publicDescription"),
-    timezone: formValue(formData, "timezone") || "Asia/Shanghai",
-    status: formValue(formData, "status") || "OPEN",
-    slotDurationMinutes: formValue(formData, "slotDurationMinutes"),
-    interviewDurationMinutes: formValue(formData, "interviewDurationMinutes"),
-    minSelectSlots: formValue(formData, "minSelectSlots"),
-    maxSelectSlots: formValue(formData, "maxSelectSlots")
-  });
+  const parsed = groupFormSchema.safeParse(readGroupFormValues(formData));
+  if (!parsed.success) {
+    return getGroupFormStateFromError(parsed.error);
+  }
+  const input = parsed.data;
 
   const beforeGroup = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
@@ -114,6 +156,7 @@ export async function updateGroupAction(groupId: string, formData: FormData) {
   });
 
   revalidatePath(`/admin/groups/${groupId}/settings`);
+  return { status: "success", message: "设置已保存。" };
 }
 
 export async function grantGroupAdminAction(groupId: string, formData: FormData) {
