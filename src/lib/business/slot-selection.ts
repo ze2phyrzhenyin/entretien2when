@@ -5,6 +5,13 @@ export type SlotForSelection = Pick<GroupTimeSlot, "id" | "startAt" | "endAt" | 
   activeLock?: { id: string } | null;
 };
 
+export type SlotForAppointmentSelection = Pick<
+  GroupTimeSlot,
+  "id" | "startAt" | "endAt" | "status"
+> & {
+  activeLock?: { id: string; appointmentId: string | null } | null;
+};
+
 export function uniqueSlotIds(slotIds: string[]) {
   return [...new Set(slotIds.map((slotId) => slotId.trim()).filter(Boolean))];
 }
@@ -28,6 +35,28 @@ export function assertSlotsSelectable(slots: SlotForSelection[], slotIds: string
   );
   if (unavailable) {
     throw new Error("所选时间包含不可选时间段，请刷新后重试。");
+  }
+}
+
+export function assertSlotsSelectableForAppointment(
+  slots: SlotForAppointmentSelection[],
+  slotIds: string[],
+  appointmentId: string
+) {
+  if (slots.length !== slotIds.length) {
+    throw new Error("包含无效时间段，请刷新后重试。");
+  }
+
+  const unavailable = slots.find((slot) => {
+    const lockedBySameAppointment = slot.activeLock?.appointmentId === appointmentId;
+    if (slot.status !== GroupTimeSlotStatus.OPEN && !lockedBySameAppointment) {
+      return true;
+    }
+    return Boolean(slot.activeLock && !lockedBySameAppointment);
+  });
+
+  if (unavailable) {
+    throw new Error("所选时间包含已关闭或被其他预约锁定的时间段，请刷新后重试。");
   }
 }
 

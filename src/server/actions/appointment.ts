@@ -7,6 +7,7 @@ import { AppointmentStatus, AuditActorType, CandidateStatus } from "@prisma/clie
 import { buildAppointmentLockRows } from "@/lib/business/appointment-lock";
 import {
   assertContinuousSlots,
+  assertSlotsSelectableForAppointment,
   assertSlotsSelectable,
   uniqueSlotIds
 } from "@/lib/business/slot-selection";
@@ -38,6 +39,83 @@ function redirectWithScheduleMailStatus(
     url.searchParams.set("mailBatch", params.batchId);
   }
   redirect(`${url.pathname}${url.search}`);
+}
+
+async function sendAppointmentCandidateEmailAndRedirect({
+  adminId,
+  groupId,
+  group,
+  candidate,
+  appointment,
+  input
+}: {
+  adminId: string;
+  groupId: string;
+  group: { id: string; name: string };
+  candidate: { id: string; name: string; email: string };
+  appointment: {
+    id: string;
+    startAt: Date;
+    endAt: Date;
+    meetingLocation: string | null;
+    candidateVisibleMessage: string | null;
+  };
+  input: {
+    emailSubject?: string;
+    emailBody?: string;
+    ccEmails?: string[];
+  };
+}) {
+  const batchId = randomUUID();
+  const result = await attemptCandidateEmailDelivery({
+    adminId,
+    group,
+    candidate,
+    batchId,
+    templateKey: appointmentConfirmedEmailTemplate.key,
+    subject: input.emailSubject ?? appointmentConfirmedEmailTemplate.subject,
+    bodyTemplate: input.emailBody ?? appointmentConfirmedEmailTemplate.body,
+    ccEmails: input.ccEmails,
+    templateValues: buildAppointmentEmailContext({
+      startAt: appointment.startAt,
+      endAt: appointment.endAt,
+      meetingLocation: appointment.meetingLocation,
+      candidateVisibleMessage: appointment.candidateVisibleMessage
+    })
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorType: AuditActorType.ADMIN,
+      actorAdminId: adminId,
+      groupId,
+      action: "admin.send_appointment_email",
+      entityType: "CandidateEmailDelivery",
+      entityId: result.deliveryId,
+      afterData: {
+        appointmentId: appointment.id,
+        candidateId: candidate.id,
+        deliveryId: result.deliveryId,
+        ccEmails: input.ccEmails,
+        status: result.status,
+        emailId: result.emailId,
+        error: result.error
+      }
+    }
+  });
+
+  revalidatePath(`/admin/groups/${groupId}/candidates/${candidate.id}`);
+  if (result.status === "failure") {
+    redirectWithScheduleMailStatus(groupId, candidate.id, {
+      mail: "error",
+      batchId
+    });
+  }
+  redirectWithScheduleMailStatus(groupId, candidate.id, {
+    mail: "sent",
+    dryRun: result.status === "preview",
+    batchId
+  });
 }
 
 export async function scheduleAppointmentAction(
@@ -177,59 +255,205 @@ export async function scheduleAppointmentAction(
   });
 
   if (input.sendEmail) {
-    const batchId = randomUUID();
-    const result = await attemptCandidateEmailDelivery({
+    await sendAppointmentCandidateEmailAndRedirect({
       adminId: admin.id,
+      groupId,
       group: candidate.group,
       candidate: {
         id: candidate.id,
         name: candidate.name,
         email: candidate.email
       },
-      batchId,
-      templateKey: appointmentConfirmedEmailTemplate.key,
-      subject: input.emailSubject ?? appointmentConfirmedEmailTemplate.subject,
-      bodyTemplate: input.emailBody ?? appointmentConfirmedEmailTemplate.body,
-      ccEmails: input.ccEmails,
-      templateValues: buildAppointmentEmailContext({
-        startAt: appointment.startAt,
-        endAt: appointment.endAt,
-        meetingLocation: appointment.meetingLocation,
-        candidateVisibleMessage: appointment.candidateVisibleMessage
-      })
+      appointment,
+      input
+    });
+  }
+}
+
+export async function rescheduleAppointmentAction(
+  groupId: string,
+  candidateId: string,
+  appointmentId: string,
+  formData: FormData
+) {
+  const admin = await requireAdmin();
+  await requireGroupPermission(admin, groupId, "canScheduleInterview");
+
+  const input = scheduleAppointmentSchema.parse({
+    slotIds: formValues(formData, "slotIds"),
+    meetingLocation: formValue(formData, "meetingLocation"),
+    candidateVisibleMessage: formValue(formData, "candidateVisibleMessage"),
+    internalNote: formValue(formData, "internalNote"),
+    sendEmail: formValue(formData, "sendEmail") === "yes",
+    emailSubject: formValue(formData, "emailSubject"),
+    emailBody: formValue(formData, "emailBody"),
+    ccEmails: formValue(formData, "ccEmails")
+  });
+  const slotIds = uniqueSlotIds(input.slotIds);
+
+  const candidate = await prisma.candidate.findFirst({
+    where: { id: candidateId, groupId },
+    include: {
+      group: {
+        select: { id: true, name: true, groupCode: true, timezone: true }
+      }
+    }
+  });
+
+  if (!candidate) {
+    throw new Error("未找到候选人。");
+  }
+
+  const existingAppointment = await prisma.appointment.findFirst({
+    where: {
+      id: appointmentId,
+      groupId,
+      candidateId,
+      status: AppointmentStatus.SCHEDULED
+    },
+    include: {
+      slots: {
+        select: { slotId: true }
+      }
+    }
+  });
+
+  if (!existingAppointment) {
+    throw new Error("未找到可更改的预约。");
+  }
+
+  const slots = await prisma.groupTimeSlot.findMany({
+    where: {
+      groupId,
+      id: { in: slotIds }
+    },
+    include: {
+      activeLock: {
+        select: { id: true, appointmentId: true }
+      }
+    }
+  });
+
+  assertSlotsSelectableForAppointment(slots, slotIds, existingAppointment.id);
+  assertContinuousSlots(slots);
+
+  const sortedSlots = slots.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+  const firstSlot = sortedSlots[0];
+  const lastSlot = sortedSlots[sortedSlots.length - 1];
+
+  if (!firstSlot || !lastSlot) {
+    throw new Error("请选择预约时间。");
+  }
+
+  const previousSlotIds = existingAppointment.slots.map((slot) => slot.slotId);
+  const appointment = await prisma.$transaction(async (tx) => {
+    const releasedAt = new Date();
+
+    await tx.timeSlotLock.updateMany({
+      where: {
+        appointmentId: existingAppointment.id,
+        releasedAt: null
+      },
+      data: {
+        activeSlotId: null,
+        releasedAt
+      }
     });
 
-    await prisma.auditLog.create({
+    await tx.appointmentSlot.deleteMany({
+      where: { appointmentId: existingAppointment.id }
+    });
+
+    const updatedAppointment = await tx.appointment.update({
+      where: { id: existingAppointment.id },
       data: {
-        actorType: AuditActorType.ADMIN,
-        actorAdminId: admin.id,
-        groupId,
-        action: "admin.send_appointment_email",
-        entityType: "CandidateEmailDelivery",
-        entityId: result.deliveryId,
-        afterData: {
-          appointmentId: appointment.id,
-          candidateId: candidate.id,
-          deliveryId: result.deliveryId,
-          ccEmails: input.ccEmails,
-          status: result.status,
-          emailId: result.emailId,
-          error: result.error
+        startAt: firstSlot.startAt,
+        endAt: lastSlot.endAt,
+        status: AppointmentStatus.SCHEDULED,
+        candidateVisibleMessage: input.candidateVisibleMessage || null,
+        meetingLocation: input.meetingLocation || null,
+        internalNote: input.internalNote || null,
+        scheduledByAdminId: admin.id,
+        cancelledByAdminId: null,
+        cancelledAt: null,
+        slots: {
+          create: slotIds.map((slotId) => ({ slotId }))
         }
       }
     });
 
-    revalidatePath(`/admin/groups/${groupId}/candidates/${candidateId}`);
-    if (result.status === "failure") {
-      redirectWithScheduleMailStatus(groupId, candidateId, {
-        mail: "error",
-        batchId
-      });
-    }
-    redirectWithScheduleMailStatus(groupId, candidateId, {
-      mail: "sent",
-      dryRun: result.status === "preview",
-      batchId
+    await tx.timeSlotLock.createMany({
+      data: buildAppointmentLockRows({
+        groupId,
+        appointmentId: updatedAppointment.id,
+        slotIds,
+        candidateName: candidate.name,
+        lockedByAdminId: admin.id
+      })
+    });
+
+    await tx.candidate.update({
+      where: { id: candidateId },
+      data: { status: CandidateStatus.SCHEDULED }
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorType: AuditActorType.ADMIN,
+        actorAdminId: admin.id,
+        groupId,
+        action: "admin.reschedule_appointment",
+        entityType: "Appointment",
+        entityId: updatedAppointment.id,
+        beforeData: {
+          slotIds: previousSlotIds,
+          startAt: existingAppointment.startAt,
+          endAt: existingAppointment.endAt
+        },
+        afterData: {
+          slotIds,
+          startAt: updatedAppointment.startAt,
+          endAt: updatedAppointment.endAt
+        }
+      }
+    });
+
+    return updatedAppointment;
+  });
+
+  revalidatePath(`/admin/groups/${groupId}/candidates/${candidateId}`);
+  revalidatePath(`/admin/groups/${groupId}/appointments`);
+  revalidatePath("/admin/appointments");
+  revalidatePath(`/admin/groups/${groupId}/overview`);
+
+  await notifyOwnerAboutAppointment({
+    kind: "rescheduled",
+    group: candidate.group,
+    candidate: {
+      id: candidate.id,
+      name: candidate.name,
+      email: candidate.email
+    },
+    appointmentId: appointment.id,
+    startAt: appointment.startAt,
+    endAt: appointment.endAt,
+    meetingLocation: appointment.meetingLocation,
+    candidateVisibleMessage: appointment.candidateVisibleMessage,
+    scheduledByEmail: admin.email
+  });
+
+  if (input.sendEmail) {
+    await sendAppointmentCandidateEmailAndRedirect({
+      adminId: admin.id,
+      groupId,
+      group: candidate.group,
+      candidate: {
+        id: candidate.id,
+        name: candidate.name,
+        email: candidate.email
+      },
+      appointment,
+      input
     });
   }
 }
@@ -240,7 +464,14 @@ export async function cancelAppointmentAction(groupId: string, appointmentId: st
 
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, groupId },
-    select: { id: true, candidateId: true }
+    include: {
+      group: {
+        select: { id: true, name: true, groupCode: true, timezone: true }
+      },
+      candidate: {
+        select: { id: true, name: true, email: true }
+      }
+    }
   });
 
   if (!appointment) {
@@ -289,4 +520,16 @@ export async function cancelAppointmentAction(groupId: string, appointmentId: st
   revalidatePath("/admin/appointments");
   revalidatePath(`/admin/groups/${groupId}/candidates/${appointment.candidateId}`);
   revalidatePath(`/admin/groups/${groupId}/overview`);
+
+  await notifyOwnerAboutAppointment({
+    kind: "cancelled",
+    group: appointment.group,
+    candidate: appointment.candidate,
+    appointmentId: appointment.id,
+    startAt: appointment.startAt,
+    endAt: appointment.endAt,
+    meetingLocation: appointment.meetingLocation,
+    candidateVisibleMessage: appointment.candidateVisibleMessage,
+    scheduledByEmail: admin.email
+  });
 }

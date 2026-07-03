@@ -71,4 +71,30 @@ describe("owner notification emails", () => {
     expect(email.body).toContain("腾讯会议 999-591-4078");
     expect(email.body).toContain("admin@example.com");
   });
+
+  it("builds appointment change notifications", () => {
+    const rescheduled = buildOwnerAppointmentNotificationEmail({
+      kind: "rescheduled",
+      group,
+      candidate,
+      appointmentId: "appointment_1",
+      startAt: new Date("2026-07-02T03:00:00.000Z"),
+      endAt: new Date("2026-07-02T03:35:00.000Z"),
+      scheduledByEmail: "admin@example.com"
+    });
+    const cancelled = buildOwnerAppointmentNotificationEmail({
+      kind: "cancelled",
+      group,
+      candidate,
+      appointmentId: "appointment_1",
+      startAt: new Date("2026-07-02T03:00:00.000Z"),
+      endAt: new Date("2026-07-02T03:35:00.000Z"),
+      scheduledByEmail: "admin@example.com"
+    });
+
+    expect(rescheduled.subject).toContain("面试时间已调整");
+    expect(rescheduled.body).toContain("管理员调整了正式面试预约");
+    expect(cancelled.subject).toContain("面试预约已取消");
+    expect(cancelled.body).toContain("管理员取消了正式面试预约");
+  });
 });

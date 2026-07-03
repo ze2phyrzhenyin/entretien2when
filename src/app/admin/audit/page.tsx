@@ -86,6 +86,7 @@ const auditActionLabel: Record<string, string> = {
   "admin.approve_submission_modification": "管理员通过修改申请",
   "admin.reject_submission_modification": "管理员拒绝修改申请",
   "admin.schedule_appointment": "管理员安排面试",
+  "admin.reschedule_appointment": "管理员更改预约",
   "admin.cancel_appointment": "管理员取消预约",
   "admin.upsert_candidate_admin_note": "保存管理员私有备注",
   "admin.send_candidate_email": "发送候选人邮件",

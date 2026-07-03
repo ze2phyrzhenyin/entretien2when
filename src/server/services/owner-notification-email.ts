@@ -24,6 +24,7 @@ type NotificationSlot = {
 };
 
 type SubmissionNotificationKind = "initial" | "modification";
+type AppointmentNotificationKind = "scheduled" | "rescheduled" | "cancelled";
 
 type OwnerNotificationEmail = {
   subject: string;
@@ -114,6 +115,7 @@ export function buildOwnerSubmissionNotificationEmail({
 }
 
 export function buildOwnerAppointmentNotificationEmail({
+  kind = "scheduled",
   group,
   candidate,
   appointmentId,
@@ -124,6 +126,7 @@ export function buildOwnerAppointmentNotificationEmail({
   scheduledByEmail,
   occurredAt = new Date()
 }: {
+  kind?: AppointmentNotificationKind;
   group: NotificationGroup;
   candidate: NotificationCandidate;
   appointmentId: string;
@@ -134,11 +137,27 @@ export function buildOwnerAppointmentNotificationEmail({
   scheduledByEmail?: string | null;
   occurredAt?: Date;
 }): OwnerNotificationEmail {
+  const statusLabel: Record<AppointmentNotificationKind, string> = {
+    scheduled: "已安排面试",
+    rescheduled: "面试时间已调整",
+    cancelled: "面试预约已取消"
+  };
+  const eventLabel: Record<AppointmentNotificationKind, string> = {
+    scheduled: "管理员安排了正式面试预约",
+    rescheduled: "管理员调整了正式面试预约",
+    cancelled: "管理员取消了正式面试预约"
+  };
+  const occurredAtLabel: Record<AppointmentNotificationKind, string> = {
+    scheduled: "安排时间",
+    rescheduled: "调整时间",
+    cancelled: "取消时间"
+  };
+
   return {
-    subject: `【预约通知】${candidate.name} 已安排面试 - ${group.name}`,
+    subject: `【预约通知】${candidate.name} ${statusLabel[kind]} - ${group.name}`,
     body: [
-      "事件：管理员安排了正式面试预约",
-      `安排时间：${formatDateTime(occurredAt, group.timezone)}`,
+      `事件：${eventLabel[kind]}`,
+      `${occurredAtLabel[kind]}：${formatDateTime(occurredAt, group.timezone)}`,
       "",
       `面试组：${group.name}`,
       `面试组编号：${group.groupCode}`,
@@ -147,7 +166,7 @@ export function buildOwnerAppointmentNotificationEmail({
       `预约时间：${formatDateTimeRange(new Date(startAt), new Date(endAt), group.timezone)}`,
       `地点/链接：${meetingLocation?.trim() || "未填写"}`,
       `候选人可见说明：${candidateVisibleMessage?.trim() || "未填写"}`,
-      `安排管理员：${scheduledByEmail || "未知"}`,
+      `操作管理员：${scheduledByEmail || "未知"}`,
       "",
       `后台查看：${adminCandidateUrl(group.id, candidate.id)}`
     ].join("\n")
@@ -267,6 +286,7 @@ export async function notifyOwnerAboutSubmission(input: {
 }
 
 export async function notifyOwnerAboutAppointment(input: {
+  kind?: AppointmentNotificationKind;
   group: NotificationGroup;
   candidate: NotificationCandidate;
   appointmentId: string;
@@ -276,11 +296,18 @@ export async function notifyOwnerAboutAppointment(input: {
   candidateVisibleMessage?: string | null;
   scheduledByEmail?: string | null;
 }) {
+  const kind = input.kind ?? "scheduled";
+  const event: Record<AppointmentNotificationKind, string> = {
+    scheduled: "admin.schedule_appointment",
+    rescheduled: "admin.reschedule_appointment",
+    cancelled: "admin.cancel_appointment"
+  };
+
   await sendOwnerNotificationEmail({
     groupId: input.group.id,
     entityType: "Appointment",
     entityId: input.appointmentId,
-    event: "admin.schedule_appointment",
-    email: buildOwnerAppointmentNotificationEmail(input)
+    event: event[kind],
+    email: buildOwnerAppointmentNotificationEmail({ ...input, kind })
   });
 }

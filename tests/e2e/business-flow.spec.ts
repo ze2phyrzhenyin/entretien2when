@@ -169,6 +169,7 @@ test.describe("P0 business flow", () => {
     const candidateNote = "E2E 首次提交备注";
     const modifiedNote = "E2E 修改后的备注";
     const meetingLocation = "E2E 会议室 / 腾讯会议 100-200-300";
+    const rescheduledMeetingLocation = `${meetingLocation} · 改约`;
     const candidateVisibleMessage = "E2E 候选人可见说明";
     const internalNote = "E2E 内部备注不能给候选人看";
     const adminPrivateNote = "E2E 管理员私有备注不能给候选人看";
@@ -179,6 +180,7 @@ test.describe("P0 business flow", () => {
     const slots = await generateSlotsThroughUi(page, group.id);
     const initialSlotIds = slots.slice(0, 2).map((slot) => slot.id);
     const modifiedSlotIds = slots.slice(2, 4).map((slot) => slot.id);
+    const rescheduledSlotIds = slots.slice(4, 6).map((slot) => slot.id);
 
     await enterCandidateFromJoin(page, group.groupCode, candidateAName, candidateAEmail, groupName);
     await page.getByRole("button", { name: "09:00-09:30" }).click();
@@ -295,6 +297,51 @@ test.describe("P0 business flow", () => {
     expect(appointmentEmailDelivery.bodyTemplate).toContain("{appointmentTime}");
     expect(appointmentEmailDelivery.ccEmailSnapshots).toEqual([appointmentCcEmail]);
 
+    const rescheduleForm = page.locator("form").filter({
+      has: page.getByRole("button", { name: "保存更改并锁定时间" })
+    });
+    await rescheduleForm
+      .locator("label")
+      .filter({ hasText: "2026/08/03 10:00-10:30" })
+      .getByRole("checkbox")
+      .uncheck();
+    await rescheduleForm
+      .locator("label")
+      .filter({ hasText: "2026/08/03 10:30-11:00" })
+      .getByRole("checkbox")
+      .uncheck();
+    await rescheduleForm
+      .locator("label")
+      .filter({ hasText: "2026/08/03 11:00-11:30" })
+      .getByRole("checkbox")
+      .check();
+    await rescheduleForm
+      .locator("label")
+      .filter({ hasText: "2026/08/03 11:30-12:00" })
+      .getByRole("checkbox")
+      .check();
+    await rescheduleForm.getByLabel("保存后发送邮件通知候选人").uncheck();
+    await rescheduleForm.getByLabel("会议地点或链接").fill(rescheduledMeetingLocation);
+    await rescheduleForm.getByRole("button", { name: "保存更改并锁定时间" }).click();
+    await expect(page.getByText("2026/08/03 11:00-12:00", { exact: true })).toBeVisible();
+
+    const rescheduledAppointment = await prisma.appointment.findUnique({
+      where: { id: scheduledAppointment.id },
+      include: { locks: true, slots: true }
+    });
+    assertFound(rescheduledAppointment, "Expected rescheduled appointment.");
+    expect(sorted(rescheduledAppointment.slots.map((slot) => slot.slotId))).toEqual(
+      sorted(rescheduledSlotIds)
+    );
+    const activeLocks = rescheduledAppointment.locks.filter((lock) => lock.releasedAt === null);
+    expect(activeLocks).toHaveLength(2);
+    expect(sorted(activeLocks.map((lock) => lock.slotId))).toEqual(sorted(rescheduledSlotIds));
+    expect(
+      rescheduledAppointment.locks
+        .filter((lock) => modifiedSlotIds.includes(lock.slotId))
+        .every((lock) => lock.activeSlotId === null && lock.releasedAt !== null)
+    ).toBe(true);
+
     await page.getByPlaceholder("填写内部跟进信息").fill(adminPrivateNote);
     await page.getByRole("button", { name: "保存私有备注" }).click();
     await expect(page.getByText(adminPrivateNote).first()).toBeVisible();
@@ -303,7 +350,7 @@ test.describe("P0 business flow", () => {
       `/candidate/${group.groupCode}?name=${encodeURIComponent(candidateAName)}&email=${encodeURIComponent(candidateAEmail)}`
     );
     await expect(page.getByRole("heading", { name: "面试已安排" })).toBeVisible();
-    await expect(page.getByText(meetingLocation)).toBeVisible();
+    await expect(page.getByText(rescheduledMeetingLocation)).toBeVisible();
     await expect(page.getByText(candidateVisibleMessage)).toBeVisible();
     await expect(page.locator("body")).not.toContainText(internalNote);
     await expect(page.locator("body")).not.toContainText(adminPrivateNote);
@@ -345,8 +392,8 @@ test.describe("P0 business flow", () => {
       `/candidate/${group.groupCode}?name=${encodeURIComponent(candidateBName)}&email=${encodeURIComponent(candidateBEmail)}`
     );
     await expect(page.getByRole("button", { name: "不可选" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "10:00-10:30" })).toBeEnabled();
-    await expect(page.getByRole("button", { name: "10:30-11:00" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "11:00-11:30" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "11:30-12:00" })).toBeEnabled();
 
     await page.goto(`/admin/audit?q=${encodeURIComponent(groupName)}`);
     await expect(page.getByRole("heading", { level: 2, name: "操作日志" })).toBeVisible();
@@ -356,6 +403,7 @@ test.describe("P0 business flow", () => {
     await expect(page.getByText("候选人申请修改").first()).toBeVisible();
     await expect(page.getByText("管理员通过修改申请").first()).toBeVisible();
     await expect(page.getByText("管理员安排面试").first()).toBeVisible();
+    await expect(page.getByText("管理员更改预约").first()).toBeVisible();
     await expect(page.getByText("发送面试安排邮件").first()).toBeVisible();
     await expect(page.getByText("保存管理员私有备注").first()).toBeVisible();
     await expect(page.getByText("管理员取消预约").first()).toBeVisible();
