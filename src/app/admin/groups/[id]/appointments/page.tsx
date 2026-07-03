@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/design-system/page-header";
 import { SectionHeader } from "@/components/design-system/section-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
-import { GroupAdminNav } from "@/components/layout/group-admin-nav";
+import { GroupNav } from "@/components/layout/group-nav";
 import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { ZonedDateTimeRange } from "@/components/timezone/zoned-time";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
   if (!allowed) {
     throw new Error("没有权限访问该面试组。");
   }
-  await requireGroupPermission(admin, groupId, "canScheduleInterview");
+  await requireGroupPermission(admin, groupId);
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
@@ -82,7 +82,7 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
 
   return (
     <AdminShell admin={admin}>
-      <GroupAdminNav groupId={groupId} active="appointments" />
+      <GroupNav groupId={groupId} active="appointments" />
       <PageHeader
         title={`${group.name} · 预约`}
         description="预览谁预约了什么时间。取消预约会自动释放对应时间锁。"

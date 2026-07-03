@@ -7,7 +7,6 @@
 - `Admin`：管理员账号，邮箱唯一，密码以 scrypt hash 存储。
 - `AdminSession`：管理员 httpOnly cookie 对应的 token hash。
 - `InterviewGroup`：面试组，包含复杂随机 groupCode、timezone、规则配置。
-- `GroupAdmin`：历史组级管理员授权表，当前超级管理员-only 模式不再使用。
 - `GroupTimeSlot`：组内开放时间段，UTC 存储。
 - `TimeSlotLock`：时间锁。`activeSlotId @unique` 表示同一 slot 未释放时只能有一个活动锁；释放时置空并写 `releasedAt`。
 - `Candidate`：组内候选人，`groupId + normalizedEmail` 唯一。
@@ -29,7 +28,6 @@
 
 - groupCode 数据库唯一。
 - `GroupTimeSlot` 在 `groupId + startAt + endAt` 唯一。
-- `GroupAdmin` 在 `groupId + adminId` 唯一。
 - `Candidate` 在 `groupId + normalizedEmail` 唯一。
 - `CandidateSubmissionSlot` 在 `submissionId + slotId` 唯一。
 - `AppointmentSlot` 在 `appointmentId + slotId` 唯一。

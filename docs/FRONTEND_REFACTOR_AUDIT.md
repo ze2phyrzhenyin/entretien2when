@@ -72,10 +72,10 @@
 
 ### 已有布局组件
 
-| 组件            | 文件                                        | 现状判断                                                                   | 后续动作                                             |
-| --------------- | ------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `AdminShell`    | `src/components/layout/admin-shell.tsx`     | sidebar/topbar 可用，但移动端只隐藏 sidebar，无 mobile nav；仍有占位导航。 | 拆成 `AdminSidebar`、`AdminTopbar`、`AdminContent`。 |
-| `GroupAdminNav` | `src/components/layout/group-admin-nav.tsx` | 横向 tab 可用。                                                            | 保留并升级为统一 tabs/nav。                          |
+| 组件         | 文件                                    | 现状判断                                                                   | 后续动作                                             |
+| ------------ | --------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `AdminShell` | `src/components/layout/admin-shell.tsx` | sidebar/topbar 可用，但移动端只隐藏 sidebar，无 mobile nav；仍有占位导航。 | 拆成 `AdminSidebar`、`AdminTopbar`、`AdminContent`。 |
+| `GroupNav`   | `src/components/layout/group-nav.tsx`   | 横向 tab 可用。                                                            | 保留并升级为统一 tabs/nav。                          |
 
 ### 缺失但本次重构需要的新组件
 

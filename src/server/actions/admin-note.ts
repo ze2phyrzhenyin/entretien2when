@@ -14,7 +14,7 @@ export async function upsertCandidateAdminNoteAction(
   formData: FormData
 ) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canViewCandidates");
+  await requireGroupPermission(admin, groupId);
 
   const input = candidateAdminNoteSchema.parse({
     body: formValue(formData, "body")

@@ -60,7 +60,7 @@ function redirectWithSlotGenerateStatus(
 
 export async function batchGenerateSlotsAction(groupId: string, formData: FormData) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canEditGroup");
+  await requireGroupPermission(admin, groupId);
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
@@ -151,7 +151,7 @@ export async function updateSlotStatusAction(
   status: GroupTimeSlotStatus
 ) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canEditGroup");
+  await requireGroupPermission(admin, groupId);
 
   const slot = await prisma.groupTimeSlot.findFirst({
     where: {
@@ -200,7 +200,7 @@ export async function updateSlotStatusAction(
 
 export async function deleteSlotsAction(groupId: string, formData: FormData) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canEditGroup");
+  await requireGroupPermission(admin, groupId);
 
   const mode = formValue(formData, "deleteMode") === "clearAll" ? "clearAll" : "selected";
   let targetSlotIds: string[] | null = null;

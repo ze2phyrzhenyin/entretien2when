@@ -6,7 +6,7 @@ import { InlineNotice } from "@/components/design-system/inline-notice";
 import { PageHeader } from "@/components/design-system/page-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
-import { GroupAdminNav } from "@/components/layout/group-admin-nav";
+import { GroupNav } from "@/components/layout/group-nav";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -55,7 +55,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
   if (!allowed) {
     throw new Error("没有权限访问该面试组。");
   }
-  await requireGroupPermission(admin, groupId, "canViewCandidates");
+  await requireGroupPermission(admin, groupId);
 
   const q = query.q?.trim() ?? "";
   const status =
@@ -135,7 +135,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
 
   return (
     <AdminShell admin={admin}>
-      <GroupAdminNav groupId={groupId} active="candidates" />
+      <GroupNav groupId={groupId} active="candidates" />
       <PageHeader
         title={`${group.name} · 候选人`}
         description="搜索候选人，查看备注状态、修改待审和预约状态。"

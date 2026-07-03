@@ -1,8 +1,5 @@
 import { AdminRole, type Admin } from "@prisma/client";
 
-export type GroupPermission =
-  "canViewCandidates" | "canEditGroup" | "canReviewModifications" | "canScheduleInterview";
-
 class PermissionDeniedError extends Error {
   constructor(message = "没有权限执行该操作") {
     super(message);
@@ -18,11 +15,7 @@ export async function canAccessGroup(admin: Pick<Admin, "role">, _groupId: strin
   return isSuperAdmin(admin);
 }
 
-export async function requireGroupPermission(
-  admin: Pick<Admin, "role">,
-  _groupId: string,
-  _permission: GroupPermission
-) {
+export async function requireGroupPermission(admin: Pick<Admin, "role">, _groupId: string) {
   if (isSuperAdmin(admin)) {
     return;
   }

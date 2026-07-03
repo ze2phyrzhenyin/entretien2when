@@ -3,7 +3,7 @@ import { ReviewComparison, type ReviewSlotChange } from "@/components/admin/revi
 import { PageHeader } from "@/components/design-system/page-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
-import { GroupAdminNav } from "@/components/layout/group-admin-nav";
+import { GroupNav } from "@/components/layout/group-nav";
 import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
   if (!allowed) {
     throw new Error("没有权限访问该面试组。");
   }
-  await requireGroupPermission(admin, groupId, "canReviewModifications");
+  await requireGroupPermission(admin, groupId);
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId }
@@ -103,7 +103,7 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
 
   return (
     <AdminShell admin={admin}>
-      <GroupAdminNav groupId={groupId} active="reviews" />
+      <GroupNav groupId={groupId} active="reviews" />
       <PageHeader
         title="审核修改申请"
         description={`${submission.candidate.name} · 版本 ${submission.versionNo}`}

@@ -124,7 +124,7 @@ export async function scheduleAppointmentAction(
   formData: FormData
 ) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canScheduleInterview");
+  await requireGroupPermission(admin, groupId);
 
   const input = scheduleAppointmentSchema.parse({
     slotIds: formValues(formData, "slotIds"),
@@ -277,7 +277,7 @@ export async function rescheduleAppointmentAction(
   formData: FormData
 ) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canScheduleInterview");
+  await requireGroupPermission(admin, groupId);
 
   const input = scheduleAppointmentSchema.parse({
     slotIds: formValues(formData, "slotIds"),
@@ -460,7 +460,7 @@ export async function rescheduleAppointmentAction(
 
 export async function cancelAppointmentAction(groupId: string, appointmentId: string) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canScheduleInterview");
+  await requireGroupPermission(admin, groupId);
 
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, groupId },

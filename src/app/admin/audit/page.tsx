@@ -75,8 +75,6 @@ const actorTone: Record<AuditActorType, BadgeTone> = {
 const auditActionLabel: Record<string, string> = {
   "admin.create_group": "创建面试组",
   "admin.update_group": "更新面试组设置",
-  "admin.grant_group_admin": "授权组管理员",
-  "admin.revoke_group_admin": "撤销组管理员",
   "admin.batch_generate_slots": "批量生成时间段",
   "admin.update_slot_status": "更新时间段状态",
   "admin.batch_delete_slots": "批量删除时间段",
@@ -97,7 +95,6 @@ const auditActionLabel: Record<string, string> = {
 
 const entityTypeLabel: Record<string, string> = {
   InterviewGroup: "面试组",
-  GroupAdmin: "组管理员授权",
   GroupTimeSlot: "时间段",
   CandidateSubmission: "候选人提交",
   Appointment: "预约",

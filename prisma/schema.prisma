@@ -100,18 +100,16 @@ model Admin {
   updatedAt    DateTime    @updatedAt
   lastLoginAt  DateTime?
 
-  sessions                 AdminSession[]
-  createdGroups            InterviewGroup[]         @relation("GroupCreator")
-  groupGrants              GroupAdmin[]             @relation("GroupAdminAdmin")
-  grantedGroupAdminRecords GroupAdmin[]             @relation("GroupAdminGranter")
-  reviewedSubmissions      CandidateSubmission[]    @relation("SubmissionReviewer")
-  scheduledAppointments    Appointment[]            @relation("AppointmentScheduler")
-  cancelledAppointments    Appointment[]            @relation("AppointmentCanceller")
-  writtenCandidateNotes    CandidateAdminNote[]     @relation("CandidateAdminNoteAuthor")
-  notifications            AdminNotification[]      @relation("AdminNotificationRecipient")
-  lockedSlots              TimeSlotLock[]           @relation("SlotLocker")
-  adminAuditLogs           AuditLog[]               @relation("AuditAdminActor")
-  sentCandidateEmails      CandidateEmailDelivery[] @relation("CandidateEmailSender")
+  sessions              AdminSession[]
+  createdGroups         InterviewGroup[]         @relation("GroupCreator")
+  reviewedSubmissions   CandidateSubmission[]    @relation("SubmissionReviewer")
+  scheduledAppointments Appointment[]            @relation("AppointmentScheduler")
+  cancelledAppointments Appointment[]            @relation("AppointmentCanceller")
+  writtenCandidateNotes CandidateAdminNote[]     @relation("CandidateAdminNoteAuthor")
+  notifications         AdminNotification[]      @relation("AdminNotificationRecipient")
+  lockedSlots           TimeSlotLock[]           @relation("SlotLocker")
+  adminAuditLogs        AuditLog[]               @relation("AuditAdminActor")
+  sentCandidateEmails   CandidateEmailDelivery[] @relation("CandidateEmailSender")
 
   @@index([role, status])
 }
@@ -148,7 +146,6 @@ model InterviewGroup {
   updatedAt                  DateTime             @updatedAt
 
   createdByAdmin  Admin                    @relation("GroupCreator", fields: [createdByAdminId], references: [id])
-  groupAdmins     GroupAdmin[]
   timeSlots       GroupTimeSlot[]
   locks           TimeSlotLock[]
   candidates      Candidate[]
@@ -161,25 +158,6 @@ model InterviewGroup {
 
   @@index([createdByAdminId])
   @@index([status])
-}
-
-model GroupAdmin {
-  id                     String   @id @default(cuid())
-  groupId                String
-  adminId                String
-  canViewCandidates      Boolean  @default(true)
-  canEditGroup           Boolean  @default(false)
-  canReviewModifications Boolean  @default(false)
-  canScheduleInterview   Boolean  @default(false)
-  grantedByAdminId       String
-  createdAt              DateTime @default(now())
-
-  group     InterviewGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  admin     Admin          @relation("GroupAdminAdmin", fields: [adminId], references: [id], onDelete: Cascade)
-  grantedBy Admin          @relation("GroupAdminGranter", fields: [grantedByAdminId], references: [id])
-
-  @@unique([groupId, adminId])
-  @@index([adminId])
 }
 
 model GroupTimeSlot {

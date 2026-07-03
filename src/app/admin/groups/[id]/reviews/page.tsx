@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CandidateSubmissionStatus } from "@prisma/client";
 import { PageHeader } from "@/components/design-system/page-header";
 import { AdminShell } from "@/components/layout/admin-shell";
-import { GroupAdminNav } from "@/components/layout/group-admin-nav";
+import { GroupNav } from "@/components/layout/group-nav";
 import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { ZonedDateTime } from "@/components/timezone/zoned-time";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +32,7 @@ export default async function ReviewsPage({ params }: ReviewsPageProps) {
   if (!allowed) {
     throw new Error("没有权限访问该面试组。");
   }
-  await requireGroupPermission(admin, groupId, "canReviewModifications");
+  await requireGroupPermission(admin, groupId);
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
@@ -52,7 +52,7 @@ export default async function ReviewsPage({ params }: ReviewsPageProps) {
 
   return (
     <AdminShell admin={admin}>
-      <GroupAdminNav groupId={groupId} active="reviews" />
+      <GroupNav groupId={groupId} active="reviews" />
       <PageHeader
         title={`${group.name} · 修改审核`}
         description="审核通过后，新版本才会替换候选人当前有效版本。"

@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/design-system/page-header";
 import { AdminShell } from "@/components/layout/admin-shell";
-import { GroupAdminNav } from "@/components/layout/group-admin-nav";
+import { GroupNav } from "@/components/layout/group-nav";
 import { AdminTimeGrid } from "@/components/scheduling/admin-time-grid";
 import { AdminSlotLegend } from "@/components/scheduling/slot-legend";
 import type { AdminSlotView } from "@/components/scheduling/types";
@@ -22,7 +22,7 @@ export default async function OverviewPage({ params }: OverviewPageProps) {
   if (!allowed) {
     throw new Error("没有权限访问该面试组。");
   }
-  await requireGroupPermission(admin, groupId, "canViewCandidates");
+  await requireGroupPermission(admin, groupId);
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
@@ -57,7 +57,7 @@ export default async function OverviewPage({ params }: OverviewPageProps) {
 
   return (
     <AdminShell admin={admin}>
-      <GroupAdminNav groupId={groupId} active="overview" />
+      <GroupNav groupId={groupId} active="overview" />
       <PageHeader
         title="时间总览"
         description="管理员端显示可用候选人人数、关闭和锁定原因。候选人端不会看到这些信息。"

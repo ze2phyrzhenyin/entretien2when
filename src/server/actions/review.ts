@@ -21,7 +21,7 @@ export async function approveSubmissionAction(
   formData: FormData
 ) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canReviewModifications");
+  await requireGroupPermission(admin, groupId);
 
   const input = reviewSubmissionSchema.parse({
     reviewComment: formValue(formData, "reviewComment")
@@ -139,7 +139,7 @@ export async function rejectSubmissionAction(
   formData: FormData
 ) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canReviewModifications");
+  await requireGroupPermission(admin, groupId);
 
   const input = reviewSubmissionSchema.parse({
     reviewComment: formValue(formData, "reviewComment")

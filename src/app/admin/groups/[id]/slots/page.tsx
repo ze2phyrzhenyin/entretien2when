@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/design-system/page-header";
 import { SectionHeader } from "@/components/design-system/section-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
-import { GroupAdminNav } from "@/components/layout/group-admin-nav";
+import { GroupNav } from "@/components/layout/group-nav";
 import { AdminSlotLegend } from "@/components/scheduling/slot-legend";
 import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { ZonedDateTimeRange } from "@/components/timezone/zoned-time";
@@ -88,7 +88,7 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
 
   return (
     <AdminShell admin={admin}>
-      <GroupAdminNav groupId={groupId} active="slots" />
+      <GroupNav groupId={groupId} active="slots" />
       <PageHeader
         title="开放时间配置"
         description="按面试组时区生成时间段。管理员端可见关闭、锁定和内部原因；候选人端只会看到不可选。"
@@ -255,15 +255,16 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                               <StatusBadge kind="custom" label="未锁定" tone="neutral" />
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="min-w-[150px]">
                             {canDelete ? (
                               <StatusBadge kind="custom" label="可删除" tone="success" />
                             ) : (
-                              <StatusBadge
-                                kind="custom"
-                                label={`保留：${blockedReasons.join("、")}`}
-                                tone="warning"
-                              />
+                              <div className="space-y-1">
+                                <StatusBadge kind="custom" label="保留" tone="warning" />
+                                <p className="text-xs leading-5 text-warning">
+                                  {blockedReasons.join("、")}
+                                </p>
+                              </div>
                             )}
                           </TableCell>
                           <TableCell className="max-w-xs text-muted-foreground">

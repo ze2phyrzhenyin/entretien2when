@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppointmentStatus } from "@prisma/client";
+import { AppointmentEmailFields } from "@/components/admin/appointment-email-fields";
 import { CandidateAdminNoteEditor } from "@/components/admin/candidate-admin-note-editor";
 import { CandidateEmailBatchSummary } from "@/components/admin/candidate-email-batch-summary";
 import { CandidateEmailComposer } from "@/components/admin/candidate-email-composer";
@@ -9,7 +10,7 @@ import { InlineNotice } from "@/components/design-system/inline-notice";
 import { PageHeader } from "@/components/design-system/page-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
-import { GroupAdminNav } from "@/components/layout/group-admin-nav";
+import { GroupNav } from "@/components/layout/group-nav";
 import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { ZonedDateTimeRange } from "@/components/timezone/zoned-time";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,6 @@ import { requireAdmin } from "@/lib/auth/session";
 import { formatDate } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
-import { appointmentConfirmedEmailTemplate } from "@/lib/mail/email-templates";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
 import { candidateSubmissionStatusLabel, candidateSubmissionTypeLabel } from "@/lib/status-labels";
 import { cn } from "@/lib/utils";
@@ -56,7 +56,7 @@ export default async function CandidateDetailPage({
   if (!allowed) {
     throw new Error("没有权限访问该面试组。");
   }
-  await requireGroupPermission(admin, groupId, "canViewCandidates");
+  await requireGroupPermission(admin, groupId);
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId }
@@ -170,7 +170,7 @@ export default async function CandidateDetailPage({
 
   return (
     <AdminShell admin={admin}>
-      <GroupAdminNav groupId={groupId} active="candidates" />
+      <GroupNav groupId={groupId} active="candidates" />
       <PageHeader
         title={candidate.name}
         description={candidate.email}
@@ -356,44 +356,10 @@ export default async function CandidateDetailPage({
                       defaultValue={scheduledAppointment.internalNote ?? ""}
                     />
                   </FormField>
-                  <div className="space-y-4 rounded-lg border border-border bg-surface-subtle p-4">
-                    <label className="flex items-start gap-2 text-sm font-medium">
-                      <Checkbox name="sendEmail" value="yes" defaultChecked />
-                      <span>保存后发送邮件通知候选人</span>
-                    </label>
-                    <p className="text-sm leading-6 text-muted-foreground">
-                      可使用 {"{name}"}、{"{email}"}、{"{groupName}"}、{"{appointmentTime}"}、
-                      {"{meetingLocation}"}、{"{candidateMessage}"}。
-                    </p>
-                    <FormField id="rescheduleAppointmentEmailSubject" label="邮件主题">
-                      <Input
-                        id="rescheduleAppointmentEmailSubject"
-                        name="emailSubject"
-                        defaultValue={appointmentConfirmedEmailTemplate.subject}
-                        maxLength={160}
-                      />
-                    </FormField>
-                    <FormField
-                      id="rescheduleAppointmentEmailCc"
-                      label="抄送（可选）"
-                      description="多个邮箱可用逗号、分号、空格或换行分隔。"
-                    >
-                      <Textarea
-                        id="rescheduleAppointmentEmailCc"
-                        name="ccEmails"
-                        rows={2}
-                        placeholder="hr@example.com；manager@example.com"
-                      />
-                    </FormField>
-                    <FormField id="rescheduleAppointmentEmailBody" label="邮件正文">
-                      <Textarea
-                        id="rescheduleAppointmentEmailBody"
-                        name="emailBody"
-                        defaultValue={appointmentConfirmedEmailTemplate.body}
-                        rows={8}
-                      />
-                    </FormField>
-                  </div>
+                  <AppointmentEmailFields
+                    idPrefix="rescheduleAppointmentEmail"
+                    checkboxLabel="保存后发送邮件通知候选人"
+                  />
                   <div className="flex flex-wrap items-center gap-3">
                     <SubmitButton pendingText="正在保存">保存更改并锁定时间</SubmitButton>
                   </div>
@@ -441,45 +407,11 @@ export default async function CandidateDetailPage({
                 <FormField id="internalNote" label="内部备注">
                   <Textarea id="internalNote" name="internalNote" />
                 </FormField>
-                <div className="space-y-4 rounded-lg border border-border bg-surface-subtle p-4">
-                  <label className="flex items-start gap-2 text-sm font-medium">
-                    <Checkbox name="sendEmail" value="yes" defaultChecked />
-                    <span>安排后发送邮件通知候选人</span>
-                  </label>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    可使用 {"{name}"}、{"{email}"}、{"{groupName}"}、{"{appointmentTime}"}、
-                    {"{meetingLocation}"}、{"{candidateMessage}"}。发送时会把 {"{appointmentTime}"}{" "}
-                    替换为你本次选择的北京时间。
-                  </p>
-                  <FormField id="appointmentEmailSubject" label="邮件主题">
-                    <Input
-                      id="appointmentEmailSubject"
-                      name="emailSubject"
-                      defaultValue={appointmentConfirmedEmailTemplate.subject}
-                      maxLength={160}
-                    />
-                  </FormField>
-                  <FormField
-                    id="appointmentEmailCc"
-                    label="抄送（可选）"
-                    description="多个邮箱可用逗号、分号、空格或换行分隔。"
-                  >
-                    <Textarea
-                      id="appointmentEmailCc"
-                      name="ccEmails"
-                      rows={2}
-                      placeholder="hr@example.com；manager@example.com"
-                    />
-                  </FormField>
-                  <FormField id="appointmentEmailBody" label="邮件正文">
-                    <Textarea
-                      id="appointmentEmailBody"
-                      name="emailBody"
-                      defaultValue={appointmentConfirmedEmailTemplate.body}
-                      rows={9}
-                    />
-                  </FormField>
-                </div>
+                <AppointmentEmailFields
+                  idPrefix="appointmentEmail"
+                  checkboxLabel="安排后发送邮件通知候选人"
+                  bodyRows={9}
+                />
                 <SubmitButton>安排并锁定时间</SubmitButton>
               </form>
             )}

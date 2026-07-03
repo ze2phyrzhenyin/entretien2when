@@ -52,7 +52,7 @@ function redirectWithMailStatus(
 
 export async function sendCandidateEmailAction(groupId: string, formData: FormData) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canViewCandidates");
+  await requireGroupPermission(admin, groupId);
 
   const returnTo = sanitizeReturnTo(formValue(formData, "returnTo"), groupId);
   const parsed = candidateEmailActionSchema.safeParse({
@@ -179,7 +179,7 @@ export async function retryCandidateEmailDeliveryAction(
   formData: FormData
 ) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canViewCandidates");
+  await requireGroupPermission(admin, groupId);
 
   const input = retryCandidateEmailSchema.parse({
     returnTo: formValue(formData, "returnTo")

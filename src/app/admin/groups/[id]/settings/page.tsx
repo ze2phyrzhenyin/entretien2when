@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/design-system/page-header";
 import { SectionHeader } from "@/components/design-system/section-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
-import { GroupAdminNav } from "@/components/layout/group-admin-nav";
+import { GroupNav } from "@/components/layout/group-nav";
 import { Card } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
 import { requireAdmin } from "@/lib/auth/session";
@@ -34,7 +34,7 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
 
   return (
     <AdminShell admin={admin}>
-      <GroupAdminNav groupId={groupId} active="settings" />
+      <GroupNav groupId={groupId} active="settings" />
       <PageHeader
         title={
           <span className="inline-flex flex-wrap items-center gap-2">
@@ -59,7 +59,7 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
         <Card className="p-6">
           <SectionHeader
             title="面试组信息"
-            description="候选人会看到组名称和公开说明，不会看到管理员授权或内部设置。"
+            description="候选人会看到组名称和公开说明，不会看到内部设置。"
           />
           <GroupSettingsForm
             groupId={groupId}

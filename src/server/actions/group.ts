@@ -125,7 +125,7 @@ export async function updateGroupAction(
   formData: FormData
 ): Promise<GroupFormState> {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canEditGroup");
+  await requireGroupPermission(admin, groupId);
 
   const parsed = groupFormSchema.safeParse(readGroupFormValues(formData));
   if (!parsed.success) {

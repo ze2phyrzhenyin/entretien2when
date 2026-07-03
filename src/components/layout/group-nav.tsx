@@ -9,7 +9,7 @@ const groupNavItems = [
   ["appointments", "预约"]
 ] as const;
 
-export function GroupAdminNav({ groupId, active }: { groupId: string; active: string }) {
+export function GroupNav({ groupId, active }: { groupId: string; active: string }) {
   return (
     <Tabs className="mb-6">
       <TabsList>
