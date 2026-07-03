@@ -7,7 +7,8 @@ const shellTitle: Record<AdminShellActive, string> = {
   groups: "面试组工作台",
   audit: "操作日志",
   reviews: "审核中心",
-  appointments: "预约管理"
+  appointments: "预约管理",
+  mailato: "Mailato 邮件"
 };
 
 export function AdminShell({

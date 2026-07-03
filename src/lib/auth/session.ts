@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Admin } from "@prisma/client";
-import { AdminStatus } from "@prisma/client";
+import { AdminRole, AdminStatus } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 
 const ADMIN_SESSION_COOKIE_NAME = "interview_admin_session";
@@ -76,7 +76,8 @@ export async function getCurrentAdmin(): Promise<Admin | null> {
   if (
     !session ||
     session.expiresAt.getTime() <= Date.now() ||
-    session.admin.status !== AdminStatus.ACTIVE
+    session.admin.status !== AdminStatus.ACTIVE ||
+    session.admin.role !== AdminRole.SUPER_ADMIN
   ) {
     return null;
   }

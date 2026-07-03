@@ -81,7 +81,7 @@ sudo systemctl status when2entretien-web.service --no-pager
 管理员端：
 
 - `/admin/login`：使用线上测试管理员登录，确认错误密码不能登录。
-- `/admin`：查看面试组列表，确认普通管理员不会看到未授权组。
+- `/admin`：查看面试组列表，确认超级管理员可以看到全部面试组。
 - `/admin/groups/new`：创建一个验收面试组，记录组编号。
 - `/admin/groups/[id]/settings`：确认组名称、公开说明、候选人最多选择数量可保存。
 - `/admin/groups/[id]/slots`：生成并查看时间段。
@@ -109,7 +109,7 @@ sudo systemctl status when2entretien-web.service --no-pager
 - 候选人页面不得出现管理员私有备注。
 - 候选人页面不得展示已锁定时间属于谁或锁定原因。
 - 候选人页面不得出现邮件发送 UI、mailato 配置、SMTP/Resend 信息。
-- 普通管理员不得访问未授权面试组。
+- 非超级管理员账号不得进入后台。
 
 ## 验收记录
 

@@ -38,7 +38,7 @@
 - `/admin`：管理员工作台和面试组列表。
 - `/admin/audit`：操作日志页。
 - `/admin/groups/new`：创建面试组。
-- `/admin/groups/[id]/settings`：面试组设置、候选人入口、普通管理员授权。
+- `/admin/groups/[id]/settings`：面试组设置、候选人入口。
 - `/admin/groups/[id]/slots`：批量生成时间段、时间段列表、开放/关闭操作。
 - `/admin/groups/[id]/candidates`：候选人列表、搜索、状态筛选。
 - `/admin/groups/[id]/candidates/[candidateId]`：候选人详情、当前可用时间、安排面试、提交历史、管理员私有备注。

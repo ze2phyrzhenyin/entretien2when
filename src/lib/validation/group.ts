@@ -35,15 +35,3 @@ export const groupFormSchema = z
     path: ["maxSelectSlots"],
     message: "最多可选数量不能小于最少可选数量"
   });
-
-export const grantGroupAdminSchema = z.object({
-  adminEmail: z
-    .string()
-    .trim()
-    .email("请输入管理员邮箱")
-    .transform((value) => value.toLowerCase()),
-  canViewCandidates: z.boolean().default(true),
-  canEditGroup: z.boolean().default(false),
-  canReviewModifications: z.boolean().default(false),
-  canScheduleInterview: z.boolean().default(false)
-});

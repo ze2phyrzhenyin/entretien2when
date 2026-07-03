@@ -38,10 +38,9 @@
 - `scheduleAppointment()`
 - `cancelAppointment()`
 - `listAppointments()`
-- `grantGroupAdmin()`
-- `revokeGroupAdmin()`
+- `sendMailatoEmail()`
 
-所有 admin 接口必须 `requireAdmin`。所有 group admin 接口必须 `requireGroupPermission`。
+所有 admin 接口必须 `requireAdmin`。当前 `requireAdmin` 只允许超级管理员进入后台；候选人接口不复用管理员 session。
 
 ## DTO 分离
 

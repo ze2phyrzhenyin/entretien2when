@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ClipboardCheck, Search } from "lucide-react";
-import { AdminRole, CandidateSubmissionStatus, type Prisma } from "@prisma/client";
+import { CandidateSubmissionStatus, type Prisma } from "@prisma/client";
 import { PageHeader } from "@/components/design-system/page-header";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { ZonedDateTime } from "@/components/timezone/zoned-time";
@@ -28,19 +28,6 @@ export default async function AdminReviewsPage({ searchParams }: AdminReviewsPag
   const [admin, query] = await Promise.all([requireAdmin(), searchParams]);
   const q = query.q?.trim() ?? "";
 
-  const accessWhere: Prisma.CandidateSubmissionWhereInput =
-    admin.role === AdminRole.SUPER_ADMIN
-      ? {}
-      : {
-          group: {
-            groupAdmins: {
-              some: {
-                adminId: admin.id,
-                canReviewModifications: true
-              }
-            }
-          }
-        };
   const searchWhere: Prisma.CandidateSubmissionWhereInput = q
     ? {
         OR: [
@@ -55,7 +42,6 @@ export default async function AdminReviewsPage({ searchParams }: AdminReviewsPag
   const submissions = await prisma.candidateSubmission.findMany({
     where: {
       status: CandidateSubmissionStatus.PENDING_REVIEW,
-      ...accessWhere,
       ...searchWhere
     },
     orderBy: { submittedAt: "asc" },

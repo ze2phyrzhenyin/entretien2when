@@ -2,13 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { AdminRole, AuditActorType } from "@prisma/client";
+import { AuditActorType } from "@prisma/client";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { requireGroupPermission } from "@/lib/permissions/admin";
 import { formValue } from "@/lib/validation/common";
-import { grantGroupAdminSchema, groupFormSchema } from "@/lib/validation/group";
+import { groupFormSchema } from "@/lib/validation/group";
 import { generateUniqueGroupCode } from "@/server/services/group-code";
 
 const groupAuditSelect = {
@@ -164,143 +164,4 @@ export async function updateGroupAction(
 
   revalidatePath(`/admin/groups/${groupId}/settings`);
   return { status: "success", message: "设置已保存。" };
-}
-
-export async function grantGroupAdminAction(groupId: string, formData: FormData) {
-  const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canEditGroup");
-
-  const input = grantGroupAdminSchema.parse({
-    adminEmail: formValue(formData, "adminEmail"),
-    canViewCandidates: formData.get("canViewCandidates") === "on",
-    canEditGroup: formData.get("canEditGroup") === "on",
-    canReviewModifications: formData.get("canReviewModifications") === "on",
-    canScheduleInterview: formData.get("canScheduleInterview") === "on"
-  });
-
-  const targetAdmin = await prisma.admin.findUnique({
-    where: { email: input.adminEmail },
-    select: { id: true, role: true }
-  });
-
-  if (!targetAdmin) {
-    redirect(`/admin/groups/${groupId}/admins?error=admin-not-found`);
-  }
-
-  if (targetAdmin.role === AdminRole.SUPER_ADMIN) {
-    redirect(`/admin/groups/${groupId}/admins?error=super-admin-no-grant-needed`);
-  }
-
-  await prisma.$transaction(async (tx) => {
-    const grant = await tx.groupAdmin.upsert({
-      where: {
-        groupId_adminId: {
-          groupId,
-          adminId: targetAdmin.id
-        }
-      },
-      update: {
-        canViewCandidates: input.canViewCandidates,
-        canEditGroup: input.canEditGroup,
-        canReviewModifications: input.canReviewModifications,
-        canScheduleInterview: input.canScheduleInterview,
-        grantedByAdminId: admin.id
-      },
-      create: {
-        groupId,
-        adminId: targetAdmin.id,
-        canViewCandidates: input.canViewCandidates,
-        canEditGroup: input.canEditGroup,
-        canReviewModifications: input.canReviewModifications,
-        canScheduleInterview: input.canScheduleInterview,
-        grantedByAdminId: admin.id
-      },
-      select: {
-        id: true,
-        adminId: true,
-        canViewCandidates: true,
-        canEditGroup: true,
-        canReviewModifications: true,
-        canScheduleInterview: true
-      }
-    });
-
-    await tx.auditLog.create({
-      data: {
-        actorType: AuditActorType.ADMIN,
-        actorAdminId: admin.id,
-        groupId,
-        action: "admin.grant_group_admin",
-        entityType: "GroupAdmin",
-        entityId: grant.id,
-        afterData: {
-          targetAdminId: grant.adminId,
-          targetAdminEmail: input.adminEmail,
-          canViewCandidates: grant.canViewCandidates,
-          canEditGroup: grant.canEditGroup,
-          canReviewModifications: grant.canReviewModifications,
-          canScheduleInterview: grant.canScheduleInterview
-        }
-      }
-    });
-  });
-
-  revalidatePath(`/admin/groups/${groupId}/admins`);
-}
-
-export async function revokeGroupAdminAction(groupId: string, grantId: string) {
-  const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId, "canEditGroup");
-
-  const grant = await prisma.groupAdmin.findFirst({
-    where: {
-      id: grantId,
-      groupId
-    },
-    select: {
-      id: true,
-      adminId: true,
-      canViewCandidates: true,
-      canEditGroup: true,
-      canReviewModifications: true,
-      canScheduleInterview: true,
-      admin: {
-        select: {
-          email: true
-        }
-      }
-    }
-  });
-
-  if (grant) {
-    await prisma.$transaction(async (tx) => {
-      await tx.groupAdmin.deleteMany({
-        where: {
-          id: grantId,
-          groupId
-        }
-      });
-
-      await tx.auditLog.create({
-        data: {
-          actorType: AuditActorType.ADMIN,
-          actorAdminId: admin.id,
-          groupId,
-          action: "admin.revoke_group_admin",
-          entityType: "GroupAdmin",
-          entityId: grant.id,
-          beforeData: {
-            targetAdminId: grant.adminId,
-            targetAdminEmail: grant.admin.email,
-            canViewCandidates: grant.canViewCandidates,
-            canEditGroup: grant.canEditGroup,
-            canReviewModifications: grant.canReviewModifications,
-            canScheduleInterview: grant.canScheduleInterview
-          }
-        }
-      });
-    });
-  }
-
-  revalidatePath(`/admin/groups/${groupId}/admins`);
 }

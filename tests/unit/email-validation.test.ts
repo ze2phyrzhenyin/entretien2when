@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { candidateEmailActionSchema } from "@/lib/validation/email";
+import { candidateEmailActionSchema, mailatoEmailActionSchema } from "@/lib/validation/email";
 
 describe("candidate email validation", () => {
   it("requires explicit confirmation before sending", () => {
@@ -41,6 +41,37 @@ describe("candidate email validation", () => {
       ccEmails: "not-an-email",
       confirmSend: "yes",
       returnTo: "/admin/groups/group_1/candidates"
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("validates direct Mailato emails with cc and bcc", () => {
+    const result = mailatoEmailActionSchema.safeParse({
+      toEmails: "candidate@example.com; interviewer@example.com",
+      ccEmails: "hr@example.com",
+      bccEmails: "owner@example.com",
+      subject: "测试邮件",
+      body: "正文",
+      confirmSend: "yes"
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.toEmails).toEqual(["candidate@example.com", "interviewer@example.com"]);
+      expect(result.data.ccEmails).toEqual(["hr@example.com"]);
+      expect(result.data.bccEmails).toEqual(["owner@example.com"]);
+    }
+  });
+
+  it("requires at least one direct Mailato recipient", () => {
+    const result = mailatoEmailActionSchema.safeParse({
+      toEmails: "",
+      ccEmails: "",
+      bccEmails: "",
+      subject: "测试邮件",
+      body: "正文",
+      confirmSend: "yes"
     });
 
     expect(result.success).toBe(false);

@@ -5,10 +5,15 @@ import { renderCandidateEmailTemplate } from "@/lib/mail/render-template";
 describe("mailato adapter", () => {
   it("builds dry-run args for one recipient without shell interpolation", () => {
     const args = buildMailatoArgs({
-      recipient: {
-        name: "张三",
-        email: "zhangsan@example.com"
-      },
+      recipients: [
+        {
+          name: "张三",
+          email: "zhangsan@example.com"
+        },
+        {
+          email: "lisi@example.com"
+        }
+      ],
       cc: [
         {
           email: "hr@example.com"
@@ -18,6 +23,7 @@ describe("mailato adapter", () => {
           email: "interviewer@example.com"
         }
       ],
+      bcc: [{ email: "owner@example.com" }],
       subject: "面试通知",
       bodyFile: "/tmp/body.txt",
       auditId: "audit-1",
@@ -28,6 +34,8 @@ describe("mailato adapter", () => {
       "send",
       "--to",
       "张三 <zhangsan@example.com>",
+      "--to",
+      "lisi@example.com",
       "--subject",
       "面试通知",
       "--body-file",
@@ -36,6 +44,8 @@ describe("mailato adapter", () => {
       "hr@example.com",
       "--cc",
       "面试官 <interviewer@example.com>",
+      "--bcc",
+      "owner@example.com",
       "--audit-id",
       "audit-1",
       "--dry-run-json"

@@ -94,7 +94,7 @@ model Admin {
   email        String      @unique
   passwordHash String
   displayName  String
-  role         AdminRole   @default(ADMIN)
+  role         AdminRole   @default(SUPER_ADMIN)
   status       AdminStatus @default(ACTIVE)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt

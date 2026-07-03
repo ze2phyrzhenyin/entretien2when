@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { AdminStatus } from "@prisma/client";
+import { AdminRole, AdminStatus } from "@prisma/client";
 import { createAdminSession, destroyCurrentAdminSession } from "@/lib/auth/session";
 import { verifyPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/db/prisma";
@@ -33,6 +33,7 @@ export async function adminLoginAction(
   const isValid =
     admin &&
     admin.status === AdminStatus.ACTIVE &&
+    admin.role === AdminRole.SUPER_ADMIN &&
     (await verifyPassword(parsed.data.password, admin.passwordHash));
 
   if (!isValid) {

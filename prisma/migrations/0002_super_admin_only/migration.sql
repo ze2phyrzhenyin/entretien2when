@@ -1,0 +1,5 @@
+ALTER TABLE "Admin" ALTER COLUMN "role" SET DEFAULT 'SUPER_ADMIN';
+
+UPDATE "Admin"
+SET "status" = 'DISABLED'
+WHERE "role" = 'ADMIN';

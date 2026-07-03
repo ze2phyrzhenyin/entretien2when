@@ -23,7 +23,7 @@ export function AdminTopbar({
         </div>
         <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
           <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-          {admin.role === "SUPER_ADMIN" ? "超级管理员" : "管理员"}
+          超级管理员
         </span>
         <form action={adminLogoutAction}>
           <Button variant="ghost" size="icon" type="submit" aria-label="退出登录">

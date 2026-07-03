@@ -2,13 +2,14 @@ import Link from "next/link";
 import { CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type AdminShellActive = "groups" | "audit" | "reviews" | "appointments";
+export type AdminShellActive = "groups" | "audit" | "reviews" | "appointments" | "mailato";
 
 const navItems: Array<{ key: AdminShellActive; label: string; href: string }> = [
   { key: "groups", label: "面试组", href: "/admin" },
   { key: "audit", label: "操作日志", href: "/admin/audit" },
   { key: "reviews", label: "审核中心", href: "/admin/reviews" },
-  { key: "appointments", label: "预约管理", href: "/admin/appointments" }
+  { key: "appointments", label: "预约管理", href: "/admin/appointments" },
+  { key: "mailato", label: "Mailato 邮件", href: "/admin/mailato" }
 ];
 
 export function AdminSidebar({ active = "groups" }: { active?: AdminShellActive }) {

@@ -35,13 +35,13 @@
 
 1. 邮箱密码登录，创建 httpOnly session。
 2. 所有后台入口 `requireAdmin`。
-3. 超级管理员访问全部组，普通管理员通过 GroupAdmin 授权访问。
-4. 组级操作必须 `requireGroupPermission`。
+3. `requireAdmin` 只允许超级管理员进入后台。
+4. 组级操作仍通过 `requireGroupPermission` 二次校验，但当前实现等价于超级管理员校验。
 
 ## 关键风险
 
 - 候选人响应中泄露 `CandidateAdminNote`、`internalNote`、`reasonInternal`。
-- 普通管理员越权访问未授权组。
+- 非超级管理员进入后台。
 - 预约锁并发导致 double-booking。
 - 修改审核通过时未重新校验 slot 状态。
 - 前端隐藏按钮但服务端未二次校验。

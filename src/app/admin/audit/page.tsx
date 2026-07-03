@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { AdminRole, AuditActorType, type Prisma } from "@prisma/client";
+import { AuditActorType, type Prisma } from "@prisma/client";
 import { PageHeader } from "@/components/design-system/page-header";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
@@ -91,7 +91,8 @@ const auditActionLabel: Record<string, string> = {
   "admin.upsert_candidate_admin_note": "保存管理员私有备注",
   "admin.send_candidate_email": "发送候选人邮件",
   "admin.send_appointment_email": "发送面试安排邮件",
-  "admin.retry_candidate_email": "重试候选人邮件"
+  "admin.retry_candidate_email": "重试候选人邮件",
+  "admin.send_mailato_email": "发送 Mailato 邮件"
 };
 
 const entityTypeLabel: Record<string, string> = {
@@ -102,7 +103,8 @@ const entityTypeLabel: Record<string, string> = {
   Appointment: "预约",
   CandidateAdminNote: "管理员私有备注",
   CandidateEmailBatch: "候选人邮件批次",
-  CandidateEmailDelivery: "候选人邮件记录"
+  CandidateEmailDelivery: "候选人邮件记录",
+  MailatoEmail: "Mailato 邮件"
 };
 
 function parseActorType(value: string | undefined) {
@@ -161,18 +163,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
   const actorType = parseActorType(query.actor);
   const selectedGroupId = query.groupId?.trim() ?? "";
 
-  const groupAccessWhere: Prisma.InterviewGroupWhereInput =
-    admin.role === AdminRole.SUPER_ADMIN
-      ? {}
-      : {
-          groupAdmins: {
-            some: {
-              adminId: admin.id
-            }
-          }
-        };
   const accessibleGroups = await prisma.interviewGroup.findMany({
-    where: groupAccessWhere,
     orderBy: { createdAt: "desc" },
     take: 100,
     select: {
@@ -181,28 +172,8 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
       groupCode: true
     }
   });
-  const accessibleGroupIds = new Set(accessibleGroups.map((group) => group.id));
 
   const filters: Prisma.AuditLogWhereInput[] = [];
-
-  if (admin.role !== AdminRole.SUPER_ADMIN) {
-    filters.push({
-      OR: [
-        { actorAdminId: admin.id },
-        {
-          group: {
-            is: {
-              groupAdmins: {
-                some: {
-                  adminId: admin.id
-                }
-              }
-            }
-          }
-        }
-      ]
-    });
-  }
 
   if (actorType) {
     filters.push({ actorType });
@@ -267,7 +238,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
     <AdminShell admin={admin} active="audit">
       <PageHeader
         title="操作日志"
-        description="超级管理员可查看全部日志；普通管理员可查看已授权面试组日志和自己发起的操作。"
+        description="超级管理员可查看全部日志。"
         action={
           <p className="text-sm text-muted-foreground">
             显示最近 {logs.length} 条，共 {totalCount} 条
@@ -362,9 +333,6 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                 const group = getGroupDisplay(log);
                 const beforeData = formatJson(log.beforeData);
                 const afterData = formatJson(log.afterData);
-                const canLinkGroup =
-                  Boolean(group) &&
-                  (admin.role === AdminRole.SUPER_ADMIN || accessibleGroupIds.has(group?.id ?? ""));
 
                 return (
                   <TableRow key={log.id} className="align-top">
@@ -391,24 +359,15 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                     </TableCell>
                     <TableCell>
                       {group ? (
-                        canLinkGroup ? (
-                          <Link
-                            className="font-medium text-primary"
-                            href={`/admin/groups/${group.id}/settings`}
-                          >
-                            {group.name}
-                            <span className="block font-mono text-xs text-muted-foreground">
-                              {group.groupCode}
-                            </span>
-                          </Link>
-                        ) : (
-                          <span>
-                            {group.name}
-                            <span className="block font-mono text-xs text-muted-foreground">
-                              {group.groupCode}
-                            </span>
+                        <Link
+                          className="font-medium text-primary"
+                          href={`/admin/groups/${group.id}/settings`}
+                        >
+                          {group.name}
+                          <span className="block font-mono text-xs text-muted-foreground">
+                            {group.groupCode}
                           </span>
-                        )
+                        </Link>
                       ) : (
                         "-"
                       )}

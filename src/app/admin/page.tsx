@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CalendarDays, ClipboardList, Plus, Search, Users } from "lucide-react";
-import { AdminRole, type Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { MetricCard } from "@/components/design-system/metric-card";
 import { PageHeader } from "@/components/design-system/page-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
@@ -28,16 +28,6 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
   const query = await searchParams;
   const q = query.q?.trim() ?? "";
   const admin = await requireAdmin();
-  const accessWhere: Prisma.InterviewGroupWhereInput =
-    admin.role === AdminRole.SUPER_ADMIN
-      ? {}
-      : {
-          groupAdmins: {
-            some: {
-              adminId: admin.id
-            }
-          }
-        };
   const searchWhere: Prisma.InterviewGroupWhereInput = q
     ? {
         OR: [
@@ -47,10 +37,7 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
       }
     : {};
   const groups = await prisma.interviewGroup.findMany({
-    where: {
-      ...accessWhere,
-      ...searchWhere
-    },
+    where: searchWhere,
     orderBy: {
       createdAt: "desc"
     },
@@ -73,7 +60,7 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
     <AdminShell admin={admin}>
       <PageHeader
         title="面试组"
-        description="超级管理员可查看全部组；普通管理员只会看到被授权的面试组。"
+        description="超级管理员可查看和管理全部面试组。"
         action={
           <Link
             href="/admin/groups/new"

@@ -6,8 +6,7 @@ const groupNavItems = [
   ["candidates", "候选人"],
   ["reviews", "修改审核"],
   ["overview", "时间总览"],
-  ["appointments", "预约"],
-  ["admins", "管理员授权"]
+  ["appointments", "预约"]
 ] as const;
 
 export function GroupAdminNav({ groupId, active }: { groupId: string; active: string }) {

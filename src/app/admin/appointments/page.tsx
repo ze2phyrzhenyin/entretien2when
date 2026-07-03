@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CalendarClock, Search } from "lucide-react";
-import { AdminRole, AppointmentStatus, type Prisma } from "@prisma/client";
+import { AppointmentStatus, type Prisma } from "@prisma/client";
 import { PageHeader } from "@/components/design-system/page-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
@@ -41,19 +41,6 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
   const q = query.q?.trim() ?? "";
   const status = parseAppointmentStatus(query.status);
 
-  const accessWhere: Prisma.AppointmentWhereInput =
-    admin.role === AdminRole.SUPER_ADMIN
-      ? {}
-      : {
-          group: {
-            groupAdmins: {
-              some: {
-                adminId: admin.id,
-                canScheduleInterview: true
-              }
-            }
-          }
-        };
   const searchWhere: Prisma.AppointmentWhereInput = q
     ? {
         OR: [
@@ -67,7 +54,6 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
 
   const appointments = await prisma.appointment.findMany({
     where: {
-      ...accessWhere,
       ...searchWhere,
       ...(status ? { status } : {})
     },
@@ -99,7 +85,7 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
     <AdminShell admin={admin} active="appointments">
       <PageHeader
         title="预约管理"
-        description="集中查看所有有权限面试组的正式预约记录。"
+        description="集中查看全部面试组的正式预约记录。"
         action={
           <Badge tone={scheduledCount > 0 ? "scheduled" : "neutral"}>
             {scheduledCount} 个已预约

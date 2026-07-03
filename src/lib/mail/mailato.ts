@@ -12,8 +12,10 @@ export type MailatoRecipient = {
 };
 
 export type MailatoSendInput = {
-  recipient: MailatoRecipient;
+  recipient?: MailatoRecipient;
+  recipients?: MailatoRecipient[];
   cc?: MailatoRecipient[];
+  bcc?: MailatoRecipient[];
   subject: string;
   body: string;
   auditId?: string;
@@ -57,33 +59,50 @@ function getMailatoCommand() {
 
 export function buildMailatoArgs({
   recipient,
+  recipients,
   cc,
+  bcc,
   subject,
   bodyFile,
   auditId,
   dryRun
 }: {
-  recipient: MailatoRecipient;
+  recipient?: MailatoRecipient;
+  recipients?: MailatoRecipient[];
   cc?: MailatoRecipient[];
+  bcc?: MailatoRecipient[];
   subject: string;
   bodyFile: string;
   auditId?: string;
   dryRun: boolean;
 }) {
-  const args = [
-    "send",
-    "--to",
-    recipient.name ? `${recipient.name} <${recipient.email}>` : recipient.email,
-    "--subject",
-    subject,
-    "--body-file",
-    bodyFile
-  ];
+  const toRecipients = recipients?.length ? recipients : recipient ? [recipient] : [];
+  if (toRecipients.length === 0) {
+    throw new Error("Mailato requires at least one recipient.");
+  }
+
+  const args = ["send"];
+
+  for (const toRecipient of toRecipients) {
+    args.push(
+      "--to",
+      toRecipient.name ? `${toRecipient.name} <${toRecipient.email}>` : toRecipient.email
+    );
+  }
+
+  args.push("--subject", subject, "--body-file", bodyFile);
 
   for (const ccRecipient of cc ?? []) {
     args.push(
       "--cc",
       ccRecipient.name ? `${ccRecipient.name} <${ccRecipient.email}>` : ccRecipient.email
+    );
+  }
+
+  for (const bccRecipient of bcc ?? []) {
+    args.push(
+      "--bcc",
+      bccRecipient.name ? `${bccRecipient.name} <${bccRecipient.email}>` : bccRecipient.email
     );
   }
 
@@ -113,7 +132,9 @@ export async function sendMailatoEmail(input: MailatoSendInput): Promise<Mailato
         getMailatoCommand(),
         buildMailatoArgs({
           recipient: input.recipient,
+          recipients: input.recipients,
           cc: input.cc,
+          bcc: input.bcc,
           subject: input.subject,
           bodyFile,
           auditId: input.auditId,

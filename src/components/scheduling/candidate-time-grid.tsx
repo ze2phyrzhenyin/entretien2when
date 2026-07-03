@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, MousePointerClick, X } from "lucide-react";
 import { CandidateTimeCell } from "@/components/scheduling/time-cell";
 import type { CandidateSlotView } from "@/components/scheduling/types";
@@ -56,6 +56,22 @@ export function CandidateTimeGrid({
     }
     return [...groups.entries()];
   }, [zonedSlots]);
+  const firstDateWithSelection = useMemo(() => {
+    const selectedGroup = groupedSlots.find(([, daySlots]) =>
+      daySlots.some((slot) => selectedSlotIdSet.has(slot.id))
+    );
+    return selectedGroup?.[0] ?? groupedSlots[0]?.[0] ?? "";
+  }, [groupedSlots, selectedSlotIdSet]);
+  const [activeDateLabel, setActiveDateLabel] = useState(firstDateWithSelection);
+
+  useEffect(() => {
+    if (!groupedSlots.some(([dateLabel]) => dateLabel === activeDateLabel)) {
+      setActiveDateLabel(firstDateWithSelection);
+    }
+  }, [activeDateLabel, firstDateWithSelection, groupedSlots]);
+
+  const activeGroup =
+    groupedSlots.find(([dateLabel]) => dateLabel === activeDateLabel) ?? groupedSlots[0];
 
   if (groupedSlots.length === 0) {
     return (
@@ -67,6 +83,34 @@ export function CandidateTimeGrid({
 
   return (
     <div className="space-y-5">
+      <div className="rounded-lg border border-border bg-surface-subtle p-2">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {groupedSlots.map(([dateLabel, daySlots]) => {
+            const selectedCount = daySlots.filter((slot) => selectedSlotIdSet.has(slot.id)).length;
+            const openCount = daySlots.filter((slot) => !slot.disabled).length;
+            const active = dateLabel === activeGroup?.[0];
+
+            return (
+              <button
+                key={dateLabel}
+                type="button"
+                onClick={() => setActiveDateLabel(dateLabel)}
+                className={[
+                  "min-w-36 rounded-md border px-3 py-2 text-left text-sm transition-colors duration-fast",
+                  active
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-surface text-foreground hover:border-primary hover:bg-primary-soft"
+                ].join(" ")}
+              >
+                <span className="block font-semibold">{dateLabel}</span>
+                <span className={active ? "text-primary-foreground/80" : "text-muted-foreground"}>
+                  已选 {selectedCount} / 可选 {openCount}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-subtle p-2">
         <Button
           type="button"
@@ -85,10 +129,10 @@ export function CandidateTimeGrid({
           </Button>
         ) : null}
       </div>
-      {groupedSlots.map(([dateLabel, daySlots]) => (
-        <section key={dateLabel} className="space-y-3">
+      {activeGroup ? (
+        <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold">{dateLabel}</h3>
+            <h3 className="text-sm font-semibold">{activeGroup[0]}</h3>
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -96,11 +140,11 @@ export function CandidateTimeGrid({
                 variant="secondary"
                 disabled={
                   selectedSlotIds.length >= maxSelectSlots ||
-                  daySlots
+                  activeGroup[1]
                     .filter((slot) => !slot.disabled)
                     .every((slot) => selectedSlotIdSet.has(slot.id))
                 }
-                onClick={() => onSelectSlots(daySlots)}
+                onClick={() => onSelectSlots(activeGroup[1])}
               >
                 <Check className="h-4 w-4" aria-hidden="true" />
                 选本日
@@ -109,28 +153,28 @@ export function CandidateTimeGrid({
                 type="button"
                 size="sm"
                 variant="ghost"
-                disabled={!daySlots.some((slot) => selectedSlotIdSet.has(slot.id))}
-                onClick={() => onClearSlots(daySlots)}
+                disabled={!activeGroup[1].some((slot) => selectedSlotIdSet.has(slot.id))}
+                onClick={() => onClearSlots(activeGroup[1])}
               >
                 <X className="h-4 w-4" aria-hidden="true" />
                 清空
               </Button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-            {daySlots.map((slot) => (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+            {activeGroup[1].map((slot) => (
               <CandidateTimeCell
                 key={slot.id}
                 label={slot.timeLabel}
                 disabled={slot.disabled}
                 selected={selectedSlotIdSet.has(slot.id)}
                 active={rangeStartSlotId === slot.id}
-                onClick={() => onToggleSlot(slot, daySlots)}
+                onClick={() => onToggleSlot(slot, activeGroup[1])}
               />
             ))}
           </div>
         </section>
-      ))}
+      ) : null}
     </div>
   );
 }

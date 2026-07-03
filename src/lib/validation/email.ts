@@ -12,6 +12,46 @@ function parseEmailList(value: string) {
   ];
 }
 
+function emailListSchema({
+  label,
+  maxCount,
+  requireOne = false
+}: {
+  label: string;
+  maxCount: number;
+  requireOne?: boolean;
+}) {
+  return z
+    .string()
+    .max(2000, `${label}最多 2000 个字符`)
+    .transform((value) => parseEmailList(value))
+    .superRefine((emails, context) => {
+      if (requireOne && emails.length === 0) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `请填写${label}`
+        });
+        return;
+      }
+      if (emails.length > maxCount) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `一次最多填写 ${maxCount} 个${label}`
+        });
+        return;
+      }
+
+      for (const email of emails) {
+        if (!z.string().email().safeParse(email).success) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${label}格式无效：${email}`
+          });
+        }
+      }
+    });
+}
+
 export const ccEmailListSchema = z
   .string()
   .max(1000, "抄送最多 1000 个字符")
@@ -52,4 +92,15 @@ export const candidateEmailActionSchema = z.object({
 
 export const retryCandidateEmailSchema = z.object({
   returnTo: z.string().optional()
+});
+
+export const mailatoEmailActionSchema = z.object({
+  toEmails: emailListSchema({ label: "收件人", maxCount: 50, requireOne: true }),
+  ccEmails: emailListSchema({ label: "抄送", maxCount: 50 }),
+  bccEmails: emailListSchema({ label: "密送", maxCount: 50 }),
+  subject: requiredTextSchema("请输入邮件主题", 160),
+  body: requiredTextSchema("请输入邮件正文", 10000),
+  confirmSend: z.literal("yes", {
+    errorMap: () => ({ message: "发送前请确认收件人和正文" })
+  })
 });
