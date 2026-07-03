@@ -31,6 +31,21 @@ type MailatoJsonResponse = {
   email_id?: string | null;
 };
 
+function commandOutput(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function toMailatoError(error: unknown) {
+  if (error && typeof error === "object") {
+    const maybeOutput = error as { stderr?: unknown; stdout?: unknown; message?: unknown };
+    const stderr = commandOutput(maybeOutput.stderr);
+    const stdout = commandOutput(maybeOutput.stdout);
+    const message = commandOutput(maybeOutput.message);
+    return new Error(stderr || stdout || message || "Mailato command failed.");
+  }
+  return error;
+}
+
 function isMailatoDryRun() {
   const value = process.env.MAILATO_DRY_RUN?.toLowerCase();
   return value === "1" || value === "true" || value === "yes";
@@ -92,21 +107,26 @@ export async function sendMailatoEmail(input: MailatoSendInput): Promise<Mailato
 
   try {
     await writeFile(bodyFile, input.body, "utf8");
-    const { stdout } = await execFileAsync(
-      getMailatoCommand(),
-      buildMailatoArgs({
-        recipient: input.recipient,
-        cc: input.cc,
-        subject: input.subject,
-        bodyFile,
-        auditId: input.auditId,
-        dryRun
-      }),
-      {
-        timeout: input.timeoutMs ?? 90_000,
-        maxBuffer: 1024 * 1024
-      }
-    );
+    let stdout: string;
+    try {
+      ({ stdout } = await execFileAsync(
+        getMailatoCommand(),
+        buildMailatoArgs({
+          recipient: input.recipient,
+          cc: input.cc,
+          subject: input.subject,
+          bodyFile,
+          auditId: input.auditId,
+          dryRun
+        }),
+        {
+          timeout: input.timeoutMs ?? 90_000,
+          maxBuffer: 1024 * 1024
+        }
+      ));
+    } catch (error) {
+      throw toMailatoError(error);
+    }
 
     const parsed = JSON.parse(stdout) as MailatoJsonResponse;
     return {

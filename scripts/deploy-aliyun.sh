@@ -145,6 +145,10 @@ if ! id "$SERVICE_USER" >/dev/null 2>&1; then
 fi
 chown -R "$SERVICE_USER:$SERVICE_USER" "$RUNTIME_ROOT"
 chmod 750 "$RUNTIME_ROOT"
+if [[ -f /etc/mailato/mailato.env ]]; then
+  chgrp "$SERVICE_USER" /etc/mailato/mailato.env
+  chmod 640 /etc/mailato/mailato.env
+fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
   DB_PASSWORD="$(openssl rand -hex 24)"
