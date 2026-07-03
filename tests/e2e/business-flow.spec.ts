@@ -232,6 +232,10 @@ test.describe("P0 business flow", () => {
     await expect(page.getByText("10:30-11:00")).toBeVisible();
     await page.getByRole("link", { name: new RegExp(candidateAName) }).click();
 
+    await page.getByRole("button", { name: "确认安排并锁定时间" }).click();
+    await expect(
+      page.getByText("请选择候选人当前有效可用时间中的连续开放时间后再确认安排。")
+    ).toBeVisible();
     await page.getByLabel("选择 2026/08/03 10:00-10:30").check();
     await page.getByLabel("选择 2026/08/03 10:30-11:00").check();
     await page.getByLabel("会议地点或链接").fill(meetingLocation);

@@ -41,6 +41,16 @@ function redirectWithScheduleMailStatus(
   redirect(`${url.pathname}${url.search}`);
 }
 
+function redirectWithAppointmentStatus(
+  groupId: string,
+  candidateId: string,
+  appointment: "scheduled" | "rescheduled" | "invalid"
+): never {
+  const url = new URL(`http://local/admin/groups/${groupId}/candidates/${candidateId}`);
+  url.searchParams.set("appointment", appointment);
+  redirect(`${url.pathname}${url.search}`);
+}
+
 async function sendAppointmentCandidateEmailAndRedirect({
   adminId,
   groupId,
@@ -127,7 +137,7 @@ export async function scheduleAppointmentAction(
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId);
 
-  const input = scheduleAppointmentSchema.parse({
+  const parsed = scheduleAppointmentSchema.safeParse({
     slotIds: formValues(formData, "slotIds"),
     meetingLocation: formValue(formData, "meetingLocation"),
     candidateVisibleMessage: formValue(formData, "candidateVisibleMessage"),
@@ -137,6 +147,10 @@ export async function scheduleAppointmentAction(
     emailBody: formValue(formData, "emailBody"),
     ccEmails: formValue(formData, "ccEmails")
   });
+  if (!parsed.success) {
+    redirectWithAppointmentStatus(groupId, candidateId, "invalid");
+  }
+  const input = parsed.data;
   const slotIds = uniqueSlotIds(input.slotIds);
 
   const candidate = await prisma.candidate.findFirst({
@@ -154,14 +168,14 @@ export async function scheduleAppointmentAction(
   });
 
   if (!candidate?.activeSubmission) {
-    throw new Error("候选人暂无有效提交，不能确认面试安排。");
+    redirectWithAppointmentStatus(groupId, candidateId, "invalid");
   }
 
   const activeSubmissionSlotIds = new Set(
     candidate.activeSubmission.slots.map((slot) => slot.slotId)
   );
   if (slotIds.some((slotId) => !activeSubmissionSlotIds.has(slotId))) {
-    throw new Error("面试时间必须来自候选人当前有效的可用时间。");
+    redirectWithAppointmentStatus(groupId, candidateId, "invalid");
   }
 
   const slots = await prisma.groupTimeSlot.findMany({
@@ -176,15 +190,19 @@ export async function scheduleAppointmentAction(
     }
   });
 
-  assertSlotsSelectable(slots, slotIds);
-  assertContinuousSlots(slots);
+  try {
+    assertSlotsSelectable(slots, slotIds);
+    assertContinuousSlots(slots);
+  } catch {
+    redirectWithAppointmentStatus(groupId, candidateId, "invalid");
+  }
 
   const sortedSlots = slots.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
   const firstSlot = sortedSlots[0];
   const lastSlot = sortedSlots[sortedSlots.length - 1];
 
   if (!firstSlot || !lastSlot) {
-    throw new Error("请选择面试时间。");
+    redirectWithAppointmentStatus(groupId, candidateId, "invalid");
   }
 
   const appointment = await prisma.$transaction(async (tx) => {
@@ -269,6 +287,7 @@ export async function scheduleAppointmentAction(
       input
     });
   }
+  redirectWithAppointmentStatus(groupId, candidateId, "scheduled");
 }
 
 export async function rescheduleAppointmentAction(
@@ -280,7 +299,7 @@ export async function rescheduleAppointmentAction(
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId);
 
-  const input = scheduleAppointmentSchema.parse({
+  const parsed = scheduleAppointmentSchema.safeParse({
     slotIds: formValues(formData, "slotIds"),
     meetingLocation: formValue(formData, "meetingLocation"),
     candidateVisibleMessage: formValue(formData, "candidateVisibleMessage"),
@@ -290,6 +309,10 @@ export async function rescheduleAppointmentAction(
     emailBody: formValue(formData, "emailBody"),
     ccEmails: formValue(formData, "ccEmails")
   });
+  if (!parsed.success) {
+    redirectWithAppointmentStatus(groupId, candidateId, "invalid");
+  }
+  const input = parsed.data;
   const slotIds = uniqueSlotIds(input.slotIds);
 
   const candidate = await prisma.candidate.findFirst({
@@ -302,7 +325,7 @@ export async function rescheduleAppointmentAction(
   });
 
   if (!candidate) {
-    throw new Error("未找到候选人。");
+    redirectWithAppointmentStatus(groupId, candidateId, "invalid");
   }
 
   const existingAppointment = await prisma.appointment.findFirst({
@@ -320,7 +343,7 @@ export async function rescheduleAppointmentAction(
   });
 
   if (!existingAppointment) {
-    throw new Error("未找到可调整的面试安排。");
+    redirectWithAppointmentStatus(groupId, candidateId, "invalid");
   }
 
   const slots = await prisma.groupTimeSlot.findMany({
@@ -335,15 +358,19 @@ export async function rescheduleAppointmentAction(
     }
   });
 
-  assertSlotsSelectableForAppointment(slots, slotIds, existingAppointment.id);
-  assertContinuousSlots(slots);
+  try {
+    assertSlotsSelectableForAppointment(slots, slotIds, existingAppointment.id);
+    assertContinuousSlots(slots);
+  } catch {
+    redirectWithAppointmentStatus(groupId, candidateId, "invalid");
+  }
 
   const sortedSlots = slots.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
   const firstSlot = sortedSlots[0];
   const lastSlot = sortedSlots[sortedSlots.length - 1];
 
   if (!firstSlot || !lastSlot) {
-    throw new Error("请选择面试时间。");
+    redirectWithAppointmentStatus(groupId, candidateId, "invalid");
   }
 
   const previousSlotIds = existingAppointment.slots.map((slot) => slot.slotId);
@@ -457,6 +484,7 @@ export async function rescheduleAppointmentAction(
       input
     });
   }
+  redirectWithAppointmentStatus(groupId, candidateId, "rescheduled");
 }
 
 export async function cancelAppointmentAction(groupId: string, appointmentId: string) {

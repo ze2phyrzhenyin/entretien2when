@@ -43,6 +43,7 @@ type CandidateDetailPageProps = {
     mailFailed?: string;
     mailDryRun?: string;
     mailBatch?: string;
+    appointment?: string;
   }>;
 };
 
@@ -185,6 +186,21 @@ export default async function CandidateDetailPage({
       {query.review ? (
         <InlineNotice tone="success" className="mb-5">
           审核操作已完成。
+        </InlineNotice>
+      ) : null}
+      {query.appointment === "scheduled" ? (
+        <InlineNotice tone="success" className="mb-5">
+          面试安排已确认。
+        </InlineNotice>
+      ) : null}
+      {query.appointment === "rescheduled" ? (
+        <InlineNotice tone="success" className="mb-5">
+          面试安排已调整。
+        </InlineNotice>
+      ) : null}
+      {query.appointment === "invalid" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          请选择候选人当前有效可用时间中的连续开放时间后再确认安排。
         </InlineNotice>
       ) : null}
       {query.mail === "sent" ? (
