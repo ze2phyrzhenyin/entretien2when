@@ -91,11 +91,15 @@ test("admin sends candidate email with preview, delivery history, and batch summ
   const candidate = group.candidates[0]!;
 
   await page.goto(`/admin/groups/${group.id}/candidates`);
-  await expect(page.getByText("发送候选人通知")).toBeVisible();
+  await expect(page.getByRole("heading", { name: `${group.name} · 候选人` })).toBeVisible();
+  await expect(page.getByText("发送候选人通知")).toHaveCount(0);
+  await expect(page.getByText("邮件测试候选人")).toBeVisible();
+
+  await page.goto(`/admin/groups/${group.id}/candidates/${candidate.id}`);
+  await expect(page.getByRole("heading", { name: "发送候选人通知" })).toBeVisible();
   await expect(page.getByText(`${group.name} 面试安排通知`).first()).toBeVisible();
-  await page.getByLabel("选择 邮件测试候选人").check();
   await page.getByLabel(/我已确认收件人/).check();
-  await page.getByRole("button", { name: "发送给选中候选人" }).click();
+  await page.getByRole("button", { name: "发送通知" }).click();
 
   await expect(page.getByText("已发送 1 封候选人通知（测试发送预览）")).toBeVisible();
   await expect(page.getByText("本次通知发送结果")).toBeVisible();
@@ -113,9 +117,8 @@ test("admin sends candidate email with preview, delivery history, and batch summ
   expect(delivery.subject).toBe("{groupName} 面试安排通知");
   expect(delivery.bodyTemplate).toContain("{name}");
 
-  await page.goto(`/admin/groups/${group.id}/candidates/${candidate.id}`);
   await expect(page.getByText("通知发送历史")).toBeVisible();
-  await expect(page.getByText("{groupName} 面试安排通知")).toBeVisible();
+  await expect(page.getByText("{groupName} 面试安排通知").first()).toBeVisible();
   await expect(page.getByText("测试发送预览").first()).toBeVisible();
 });
 
@@ -142,12 +145,11 @@ test("admin updates global candidate email template and send form uses it", asyn
   await templateForm.getByRole("button", { name: "保存模板" }).click();
   await expect(page.getByText("邮件模板已保存。")).toBeVisible();
 
-  await page.goto(`/admin/groups/${group.id}/candidates`);
+  await page.goto(`/admin/groups/${group.id}/candidates/${candidate.id}`);
   await expect(page.getByText(`${group.name} 全局自定义通知`).first()).toBeVisible();
   await expect(page.getByText("你好 邮件测试候选人，这是全局模板。").first()).toBeVisible();
-  await page.getByLabel("选择 邮件测试候选人").check();
   await page.getByLabel(/我已确认收件人/).check();
-  await page.getByRole("button", { name: "发送给选中候选人" }).click();
+  await page.getByRole("button", { name: "发送通知" }).click();
 
   await expect(page.getByText("已发送 1 封候选人通知（测试发送预览）")).toBeVisible();
   const delivery = await prisma.candidateEmailDelivery.findFirstOrThrow({
