@@ -16,7 +16,7 @@ export function AdminSlotLegend() {
       <StatusBadge kind="slot" status="OPEN" />
       <StatusBadge kind="slot" status="CLOSED" />
       <StatusBadge kind="slot" status="LOCKED" />
-      <StatusBadge kind="custom" label="已预约" tone="scheduled" />
+      <StatusBadge kind="custom" label="已安排" tone="scheduled" />
     </div>
   );
 }

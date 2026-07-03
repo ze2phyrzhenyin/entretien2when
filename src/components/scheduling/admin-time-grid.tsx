@@ -12,7 +12,7 @@ export function AdminTimeGrid({
   if (slots.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-surface-subtle p-6 text-sm text-muted-foreground">
-        当前还没有时间段。
+        暂无开放时间。
       </div>
     );
   }

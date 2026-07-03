@@ -2,11 +2,11 @@ import { TabLink, Tabs, TabsList } from "@/components/ui/tabs";
 
 const groupNavItems = [
   ["settings", "设置"],
-  ["slots", "时间段"],
+  ["slots", "开放时间"],
   ["candidates", "候选人"],
   ["reviews", "修改审核"],
   ["overview", "时间总览"],
-  ["appointments", "预约"]
+  ["appointments", "面试安排"]
 ] as const;
 
 export function GroupNav({ groupId, active }: { groupId: string; active: string }) {

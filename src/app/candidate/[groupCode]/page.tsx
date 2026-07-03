@@ -195,7 +195,7 @@ export default async function CandidateGroupPage({
             ) : (
               <Card className="p-6" variant="flat">
                 <h2 className="text-lg font-semibold">
-                  {isModifyMode ? "申请修改可用时间" : "选择你的可用时间"}
+                  {isModifyMode ? "申请修改可用时间" : "选择可用时间"}
                 </h2>
                 {candidate?.activeSubmission && isModifyMode ? (
                   <div className="mt-4 rounded-lg border border-border bg-surface-subtle p-4">

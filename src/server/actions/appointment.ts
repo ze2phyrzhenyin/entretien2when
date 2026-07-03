@@ -153,14 +153,14 @@ export async function scheduleAppointmentAction(
   });
 
   if (!candidate?.activeSubmission) {
-    throw new Error("候选人没有有效提交，不能安排面试。");
+    throw new Error("候选人暂无有效提交，不能确认面试安排。");
   }
 
   const activeSubmissionSlotIds = new Set(
     candidate.activeSubmission.slots.map((slot) => slot.slotId)
   );
   if (slotIds.some((slotId) => !activeSubmissionSlotIds.has(slotId))) {
-    throw new Error("预约时间必须来自候选人当前有效可用时间。");
+    throw new Error("面试时间必须来自候选人当前有效的可用时间。");
   }
 
   const slots = await prisma.groupTimeSlot.findMany({
@@ -183,7 +183,7 @@ export async function scheduleAppointmentAction(
   const lastSlot = sortedSlots[sortedSlots.length - 1];
 
   if (!firstSlot || !lastSlot) {
-    throw new Error("请选择预约时间。");
+    throw new Error("请选择面试时间。");
   }
 
   const appointment = await prisma.$transaction(async (tx) => {
@@ -319,7 +319,7 @@ export async function rescheduleAppointmentAction(
   });
 
   if (!existingAppointment) {
-    throw new Error("未找到可更改的预约。");
+    throw new Error("未找到可调整的面试安排。");
   }
 
   const slots = await prisma.groupTimeSlot.findMany({
@@ -342,7 +342,7 @@ export async function rescheduleAppointmentAction(
   const lastSlot = sortedSlots[sortedSlots.length - 1];
 
   if (!firstSlot || !lastSlot) {
-    throw new Error("请选择预约时间。");
+    throw new Error("请选择面试时间。");
   }
 
   const previousSlotIds = existingAppointment.slots.map((slot) => slot.slotId);
@@ -475,7 +475,7 @@ export async function cancelAppointmentAction(groupId: string, appointmentId: st
   });
 
   if (!appointment) {
-    throw new Error("未找到预约。");
+    throw new Error("未找到面试安排。");
   }
 
   await prisma.$transaction(async (tx) => {

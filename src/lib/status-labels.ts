@@ -16,7 +16,7 @@ export const interviewGroupStatusLabel: Record<InterviewGroupStatus, string> = {
 export const candidateStatusLabel: Record<CandidateStatus, string> = {
   SUBMITTED: "已提交",
   PENDING_REVIEW: "修改待审",
-  SCHEDULED: "已预约",
+  SCHEDULED: "已安排面试",
   COMPLETED: "已完成",
   CANCELLED: "已取消"
 };
@@ -35,7 +35,7 @@ export const candidateSubmissionTypeLabel: Record<CandidateSubmissionType, strin
 };
 
 export const appointmentStatusLabel: Record<AppointmentStatus, string> = {
-  SCHEDULED: "已预约",
+  SCHEDULED: "已安排",
   CANCELLED: "已取消",
   COMPLETED: "已完成",
   NO_SHOW: "未到场"

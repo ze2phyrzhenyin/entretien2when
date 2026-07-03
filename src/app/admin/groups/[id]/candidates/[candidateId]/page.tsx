@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppointmentStatus } from "@prisma/client";
 import { AppointmentEmailFields } from "@/components/admin/appointment-email-fields";
+import { AppointmentSlotPicker } from "@/components/admin/appointment-slot-picker";
 import { CandidateAdminNoteEditor } from "@/components/admin/candidate-admin-note-editor";
 import { CandidateEmailBatchSummary } from "@/components/admin/candidate-email-batch-summary";
 import { CandidateEmailComposer } from "@/components/admin/candidate-email-composer";
@@ -15,17 +16,14 @@ import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { ZonedDateTimeRange } from "@/components/timezone/zoned-time";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
-import { formatDate } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
 import { candidateSubmissionStatusLabel, candidateSubmissionTypeLabel } from "@/lib/status-labels";
-import { cn } from "@/lib/utils";
 import {
   cancelAppointmentAction,
   rescheduleAppointmentAction,
@@ -149,16 +147,6 @@ export default async function CandidateDetailPage({
         }
       })
     : [];
-  const groupedGroupSlots: Array<{ dateLabel: string; slots: typeof groupTimeSlots }> = [];
-  for (const slot of groupTimeSlots) {
-    const dateLabel = formatDate(slot.startAt, group.timezone);
-    const lastGroup = groupedGroupSlots[groupedGroupSlots.length - 1];
-    if (lastGroup?.dateLabel === dateLabel) {
-      lastGroup.slots.push(slot);
-    } else {
-      groupedGroupSlots.push({ dateLabel, slots: [slot] });
-    }
-  }
   const schedulableSlots =
     candidate.activeSubmission?.slots.filter(
       ({ slot }) => slot.status === "OPEN" && !slot.activeLock
@@ -194,17 +182,17 @@ export default async function CandidateDetailPage({
       ) : null}
       {query.mail === "sent" ? (
         <InlineNotice tone="success" className="mb-5">
-          已发送 {mailCount} 封候选人邮件{query.mailDryRun ? "（dry-run 预览）" : ""}。
+          已发送 {mailCount} 封候选人通知{query.mailDryRun ? "（测试发送预览）" : ""}。
         </InlineNotice>
       ) : null}
       {query.mail === "partial" ? (
         <InlineNotice tone="warning" className="mb-5">
-          已发送 {mailCount} 封，失败 {mailFailed} 封。请检查 mailato 配置或发送日志。
+          已发送 {mailCount} 封，失败 {mailFailed} 封。请检查 Mailato 配置或发送记录。
         </InlineNotice>
       ) : null}
       {query.mail === "error" ? (
         <InlineNotice tone="danger" className="mb-5">
-          邮件发送失败。请检查服务器 mailato 配置和发送日志。
+          通知发送失败。请检查服务器 Mailato 配置和发送记录。
         </InlineNotice>
       ) : null}
       {query.mail === "invalid" ? (
@@ -261,7 +249,7 @@ export default async function CandidateDetailPage({
             {scheduledAppointment ? (
               <div className="mt-4 space-y-5">
                 <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-                  已预约：
+                  已安排：
                   <ZonedDateTimeRange
                     startAt={scheduledAppointment.startAt.toISOString()}
                     endAt={scheduledAppointment.endAt.toISOString()}
@@ -278,60 +266,28 @@ export default async function CandidateDetailPage({
                   className="space-y-4"
                 >
                   <div>
-                    <h4 className="text-sm font-semibold">更改预约时间</h4>
-                    <div className="mt-3 max-h-[460px] space-y-4 overflow-y-auto rounded-lg border border-border bg-surface-subtle p-4">
-                      {groupedGroupSlots.map((slotGroup) => (
-                        <div key={slotGroup.dateLabel} className="space-y-2">
-                          <p className="text-sm font-semibold">{slotGroup.dateLabel}</p>
-                          <div className="grid gap-2 md:grid-cols-2">
-                            {slotGroup.slots.map((slot) => {
-                              const isCurrentAppointmentSlot = scheduledAppointmentSlotIds.has(
-                                slot.id
-                              );
-                              const lockedByOther = Boolean(
-                                slot.activeLock &&
-                                slot.activeLock.appointmentId !== scheduledAppointment.id
-                              );
-                              const selectable =
-                                !lockedByOther &&
-                                (slot.status === "OPEN" || isCurrentAppointmentSlot);
+                    <h4 className="text-sm font-semibold">调整面试时间</h4>
+                    <div className="mt-3">
+                      <AppointmentSlotPicker
+                        defaultTimezone={group.timezone}
+                        initiallySelectedSlotIds={[...scheduledAppointmentSlotIds]}
+                        slots={groupTimeSlots.map((slot) => {
+                          const isCurrentAppointmentSlot = scheduledAppointmentSlotIds.has(slot.id);
+                          const lockedByOther = Boolean(
+                            slot.activeLock &&
+                            slot.activeLock.appointmentId !== scheduledAppointment.id
+                          );
 
-                              return (
-                                <label
-                                  key={slot.id}
-                                  className={cn(
-                                    "flex min-h-12 items-center gap-2 rounded-md border p-2 text-sm",
-                                    selectable
-                                      ? "border-border bg-white"
-                                      : "border-border bg-muted text-muted-foreground"
-                                  )}
-                                >
-                                  <Checkbox
-                                    name="slotIds"
-                                    value={slot.id}
-                                    defaultChecked={isCurrentAppointmentSlot}
-                                    disabled={!selectable}
-                                  />
-                                  <span className="min-w-0 flex-1">
-                                    <ZonedDateTimeRange
-                                      startAt={slot.startAt.toISOString()}
-                                      endAt={slot.endAt.toISOString()}
-                                      defaultTimezone={group.timezone}
-                                    />
-                                  </span>
-                                  {isCurrentAppointmentSlot ? (
-                                    <Badge tone="scheduled">当前</Badge>
-                                  ) : lockedByOther ? (
-                                    <Badge tone="locked">已锁定</Badge>
-                                  ) : slot.status === "CLOSED" ? (
-                                    <Badge tone="neutral">关闭</Badge>
-                                  ) : null}
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
+                          return {
+                            id: slot.id,
+                            startAt: slot.startAt.toISOString(),
+                            endAt: slot.endAt.toISOString(),
+                            status: slot.status,
+                            isCurrent: isCurrentAppointmentSlot,
+                            lockedByOther
+                          };
+                        })}
+                      />
                     </div>
                   </div>
                   <FormField id="rescheduleMeetingLocation" label="会议地点或链接">
@@ -342,58 +298,49 @@ export default async function CandidateDetailPage({
                       placeholder="会议室 / 腾讯会议链接"
                     />
                   </FormField>
-                  <FormField id="rescheduleCandidateVisibleMessage" label="候选人可见说明">
+                  <FormField id="rescheduleCandidateVisibleMessage" label="给候选人的说明">
                     <Textarea
                       id="rescheduleCandidateVisibleMessage"
                       name="candidateVisibleMessage"
                       defaultValue={scheduledAppointment.candidateVisibleMessage ?? ""}
                     />
                   </FormField>
-                  <FormField id="rescheduleInternalNote" label="内部备注">
+                  <FormField id="rescheduleInternalNote" label="内部备注（仅管理员可见）">
                     <Textarea
                       id="rescheduleInternalNote"
                       name="internalNote"
                       defaultValue={scheduledAppointment.internalNote ?? ""}
                     />
                   </FormField>
-                  <AppointmentEmailFields
-                    idPrefix="rescheduleAppointmentEmail"
-                    checkboxLabel="保存后发送邮件通知候选人"
-                  />
+                  <AppointmentEmailFields checkboxLabel="保存后发送标准面试安排通知" />
                   <div className="flex flex-wrap items-center gap-3">
-                    <SubmitButton pendingText="正在保存">保存更改并锁定时间</SubmitButton>
+                    <SubmitButton pendingText="正在保存">保存调整并锁定时间</SubmitButton>
                   </div>
                 </form>
                 <form action={cancelAppointmentAction.bind(null, groupId, scheduledAppointment.id)}>
                   <SubmitButton variant="danger" pendingText="正在删除">
-                    删除预约并释放时间
+                    取消安排并释放时间
                   </SubmitButton>
                 </form>
               </div>
             ) : schedulableSlots.length === 0 ? (
               <p className="mt-3 text-sm text-muted-foreground">
-                当前没有可安排且未锁定的候选人可用时间。
+                当前没有可用于安排面试且未锁定的时间。
               </p>
             ) : (
               <form
                 action={scheduleAppointmentAction.bind(null, groupId, candidateId)}
                 className="mt-4 space-y-4"
               >
-                <div className="grid gap-2 md:grid-cols-2">
-                  {schedulableSlots.map(({ slot }) => (
-                    <label
-                      key={slot.id}
-                      className="flex items-center gap-2 rounded-md border border-border p-2 text-sm"
-                    >
-                      <Checkbox name="slotIds" value={slot.id} />
-                      <ZonedDateTimeRange
-                        startAt={slot.startAt.toISOString()}
-                        endAt={slot.endAt.toISOString()}
-                        defaultTimezone={group.timezone}
-                      />
-                    </label>
-                  ))}
-                </div>
+                <AppointmentSlotPicker
+                  defaultTimezone={group.timezone}
+                  slots={schedulableSlots.map(({ slot }) => ({
+                    id: slot.id,
+                    startAt: slot.startAt.toISOString(),
+                    endAt: slot.endAt.toISOString(),
+                    status: slot.status
+                  }))}
+                />
                 <FormField id="meetingLocation" label="会议地点或链接">
                   <Input
                     id="meetingLocation"
@@ -401,18 +348,14 @@ export default async function CandidateDetailPage({
                     placeholder="会议室 / 腾讯会议链接"
                   />
                 </FormField>
-                <FormField id="candidateVisibleMessage" label="候选人可见说明">
+                <FormField id="candidateVisibleMessage" label="给候选人的说明">
                   <Textarea id="candidateVisibleMessage" name="candidateVisibleMessage" />
                 </FormField>
-                <FormField id="internalNote" label="内部备注">
+                <FormField id="internalNote" label="内部备注（仅管理员可见）">
                   <Textarea id="internalNote" name="internalNote" />
                 </FormField>
-                <AppointmentEmailFields
-                  idPrefix="appointmentEmail"
-                  checkboxLabel="安排后发送邮件通知候选人"
-                  bodyRows={9}
-                />
-                <SubmitButton>安排并锁定时间</SubmitButton>
+                <AppointmentEmailFields checkboxLabel="确认安排后发送标准面试安排通知" />
+                <SubmitButton>确认安排并锁定时间</SubmitButton>
               </form>
             )}
           </Card>

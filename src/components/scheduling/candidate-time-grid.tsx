@@ -76,7 +76,7 @@ export function CandidateTimeGrid({
   if (groupedSlots.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-surface-subtle p-6 text-sm text-muted-foreground">
-        当前面试组还没有开放时间，请联系招聘方。
+        当前面试组暂无开放时间，请联系招聘方确认。
       </div>
     );
   }
@@ -147,7 +147,7 @@ export function CandidateTimeGrid({
                 onClick={() => onSelectSlots(activeGroup[1])}
               >
                 <Check className="h-4 w-4" aria-hidden="true" />
-                选本日
+                选择本日
               </Button>
               <Button
                 type="button"

@@ -14,7 +14,10 @@ export const batchGenerateSlotsSchema = z
   });
 
 export const batchDeleteSlotsSchema = z.object({
-  slotIds: z.array(cuidSchema).min(1, "请选择至少一个时间段").max(200, "一次最多删除 200 个时间段"),
+  slotIds: z
+    .array(cuidSchema)
+    .min(1, "请选择至少一个开放时间")
+    .max(200, "一次最多删除 200 个开放时间"),
   confirmDelete: z.literal("yes", {
     errorMap: () => ({ message: "删除前请确认" })
   })

@@ -1,14 +1,15 @@
 import type { Admin } from "@prisma/client";
 import { AdminContent } from "@/components/layout/admin-content";
+import { AdminMobileNav } from "@/components/layout/admin-mobile-nav";
 import { AdminSidebar, type AdminShellActive } from "@/components/layout/admin-sidebar";
 import { AdminTopbar } from "@/components/layout/admin-topbar";
 
 const shellTitle: Record<AdminShellActive, string> = {
-  groups: "面试组工作台",
-  audit: "操作日志",
-  reviews: "审核中心",
-  appointments: "预约管理",
-  mailato: "Mailato 邮件"
+  groups: "面试组管理",
+  audit: "审计日志",
+  reviews: "修改审核",
+  appointments: "面试安排",
+  mailato: "邮件发送"
 };
 
 export function AdminShell({
@@ -25,6 +26,7 @@ export function AdminShell({
       <AdminSidebar active={active} />
       <div className="md:pl-64">
         <AdminTopbar admin={admin} title={shellTitle[active]} />
+        <AdminMobileNav active={active} />
         <AdminContent>{children}</AdminContent>
       </div>
     </div>

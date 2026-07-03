@@ -71,7 +71,7 @@ describe("slot selection rules", () => {
           endAt: new Date("2026-07-01T02:30:00.000Z")
         }
       ])
-    ).toThrow("连续时间段");
+    ).toThrow("连续开放时间");
   });
 
   it("allows rescheduling through the same appointment lock but rejects other locks", () => {
@@ -106,6 +106,6 @@ describe("slot selection rules", () => {
         ["slot_1"],
         "appointment_1"
       )
-    ).toThrow("其他预约锁定");
+    ).toThrow("其他面试安排锁定");
   });
 });

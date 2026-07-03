@@ -54,7 +54,7 @@ function emailListSchema({
 
 export const ccEmailListSchema = z
   .string()
-  .max(1000, "抄送最多 1000 个字符")
+  .max(1000, "抄送（CC）最多 1000 个字符")
   .transform((value) => parseEmailList(value))
   .superRefine((emails, context) => {
     if (emails.length > 20) {
@@ -69,7 +69,7 @@ export const ccEmailListSchema = z
       if (!z.string().email().safeParse(email).success) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `抄送邮箱格式无效：${email}`
+          message: `抄送（CC）邮箱格式无效：${email}`
         });
       }
     }
@@ -85,7 +85,7 @@ export const candidateEmailActionSchema = z.object({
   body: requiredTextSchema("请输入邮件正文", 5000),
   ccEmails: ccEmailListSchema,
   confirmSend: z.literal("yes", {
-    errorMap: () => ({ message: "发送前请确认收件人和正文" })
+    errorMap: () => ({ message: "发送前请确认收件人、主题和正文" })
   }),
   returnTo: z.string().optional()
 });
@@ -96,11 +96,11 @@ export const retryCandidateEmailSchema = z.object({
 
 export const mailatoEmailActionSchema = z.object({
   toEmails: emailListSchema({ label: "收件人", maxCount: 50, requireOne: true }),
-  ccEmails: emailListSchema({ label: "抄送", maxCount: 50 }),
-  bccEmails: emailListSchema({ label: "密送", maxCount: 50 }),
+  ccEmails: emailListSchema({ label: "抄送（CC）", maxCount: 50 }),
+  bccEmails: emailListSchema({ label: "密送（BCC）", maxCount: 50 }),
   subject: requiredTextSchema("请输入邮件主题", 160),
   body: requiredTextSchema("请输入邮件正文", 10000),
   confirmSend: z.literal("yes", {
-    errorMap: () => ({ message: "发送前请确认收件人和正文" })
+    errorMap: () => ({ message: "发送前请确认收件人、主题和正文" })
   })
 });

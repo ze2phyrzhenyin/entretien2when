@@ -17,7 +17,7 @@ function SubmitButton() {
   return (
     <Button type="submit" className="w-full" disabled={pending} isLoading={pending}>
       <LogIn className="mr-2 h-4 w-4" aria-hidden="true" />
-      {pending ? "正在登录" : "登录"}
+      {pending ? "正在登录" : "登录后台"}
     </Button>
   );
 }

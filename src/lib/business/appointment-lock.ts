@@ -19,7 +19,7 @@ export function buildAppointmentLockRows({
     activeSlotId: slotId,
     lockType: TimeSlotLockType.APPOINTMENT,
     appointmentId,
-    reasonInternal: `已预约给 ${candidateName}`,
+    reasonInternal: `已安排给 ${candidateName}`,
     lockedByAdminId
   }));
 }

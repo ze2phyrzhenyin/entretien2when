@@ -86,9 +86,9 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
           icon={<ClipboardList className="h-4 w-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="预约"
+          label="面试安排"
           value={appointmentCount}
-          description="当前可见面试组中的预约数量"
+          description="当前列表中的面试安排数量"
           icon={<CalendarDays className="h-4 w-4" aria-hidden="true" />}
         />
       </div>
@@ -106,7 +106,7 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
             id="groupSearch"
             name="q"
             defaultValue={q}
-            placeholder="搜索组名称或组编号"
+            placeholder="搜索面试组名称或编号"
             className="pl-9"
           />
         </div>
@@ -130,7 +130,7 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
           <p className="mt-2 text-sm text-muted-foreground">
             {q
               ? "换一个关键词，或清除搜索条件后查看全部面试组。"
-              : "创建面试组后，系统会自动生成复杂随机组编号并提供候选人链接。"}
+              : "创建面试组后，系统会自动生成高强度面试组编号并提供候选人链接。"}
           </p>
           {q ? null : (
             <Link
@@ -146,11 +146,11 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
           <Table>
             <TableHeader>
               <tr>
-                <TableHead>组名称</TableHead>
-                <TableHead>组编号</TableHead>
+                <TableHead>面试组名称</TableHead>
+                <TableHead>面试组编号</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead>候选人</TableHead>
-                <TableHead>预约</TableHead>
+                <TableHead>面试安排</TableHead>
                 <TableHead>操作</TableHead>
               </tr>
             </TableHeader>

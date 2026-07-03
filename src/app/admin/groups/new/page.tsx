@@ -12,7 +12,7 @@ export default async function NewGroupPage() {
     <AdminShell admin={admin}>
       <PageHeader
         title="创建面试组"
-        description="创建后系统会自动生成复杂随机组编号，候选人只能凭正确编号进入。"
+        description="创建后系统会自动生成高强度面试组编号，候选人只能凭正确编号进入。"
       />
 
       <Card className="max-w-3xl p-6">

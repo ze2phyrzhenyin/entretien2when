@@ -1,15 +1,28 @@
 import Link from "next/link";
-import { CalendarClock } from "lucide-react";
+import {
+  CalendarCheck,
+  CalendarClock,
+  ClipboardList,
+  History,
+  Inbox,
+  Send,
+  type LucideIcon
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type AdminShellActive = "groups" | "audit" | "reviews" | "appointments" | "mailato";
 
-const navItems: Array<{ key: AdminShellActive; label: string; href: string }> = [
-  { key: "groups", label: "面试组", href: "/admin" },
-  { key: "audit", label: "操作日志", href: "/admin/audit" },
-  { key: "reviews", label: "审核中心", href: "/admin/reviews" },
-  { key: "appointments", label: "预约管理", href: "/admin/appointments" },
-  { key: "mailato", label: "Mailato 邮件", href: "/admin/mailato" }
+export const adminNavItems: Array<{
+  key: AdminShellActive;
+  label: string;
+  href: string;
+  icon: LucideIcon;
+}> = [
+  { key: "groups", label: "面试组", href: "/admin", icon: ClipboardList },
+  { key: "audit", label: "审计日志", href: "/admin/audit", icon: History },
+  { key: "reviews", label: "修改审核", href: "/admin/reviews", icon: Inbox },
+  { key: "appointments", label: "面试安排", href: "/admin/appointments", icon: CalendarCheck },
+  { key: "mailato", label: "邮件发送", href: "/admin/mailato", icon: Send }
 ];
 
 export function AdminSidebar({ active = "groups" }: { active?: AdminShellActive }) {
@@ -20,17 +33,18 @@ export function AdminSidebar({ active = "groups" }: { active?: AdminShellActive 
         面试时间管理
       </Link>
       <nav className="mt-8 space-y-1 text-sm" aria-label="管理员主导航">
-        {navItems.map((item) => (
+        {adminNavItems.map((item) => (
           <Link
             key={item.key}
             className={cn(
-              "block rounded-md px-3 py-2 font-medium transition-colors duration-fast",
+              "flex items-center gap-2 rounded-md px-3 py-2 font-medium transition-colors duration-fast",
               active === item.key
                 ? "bg-muted text-foreground"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
             href={item.href}
           >
+            <item.icon className="h-4 w-4" aria-hidden="true" />
             {item.label}
           </Link>
         ))}

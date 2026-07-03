@@ -19,7 +19,7 @@ export function JoinForm() {
     const normalizedCode = normalizeGroupCode(String(formData.get("groupCode") ?? ""));
 
     if (!isValidGroupCode(normalizedCode)) {
-      setError("请输入完整且有效的面试组编号");
+      setError("请输入完整、有效的面试组编号");
       return;
     }
 
@@ -69,7 +69,7 @@ export function JoinForm() {
       {error ? <InlineNotice tone="danger">{error}</InlineNotice> : null}
 
       <Button type="submit" className="w-full">
-        进入时间选择
+        进入可用时间选择
       </Button>
     </form>
   );

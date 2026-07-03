@@ -42,7 +42,7 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
             <StatusBadge kind="group" status={group.status} />
           </span>
         }
-        description="设置公开说明、时间规则和候选人入口。"
+        description="配置公开说明、时间规则和候选人入口。"
         action={
           <Link className="text-sm font-medium text-primary" href="/admin">
             返回工作台
@@ -52,14 +52,14 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
 
       {query.created ? (
         <InlineNotice tone="success" className="mb-5">
-          面试组已创建。请复制组编号或候选人链接发送给候选人。
+          面试组已创建。请复制面试组编号或候选人链接发送给候选人。
         </InlineNotice>
       ) : null}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="p-6">
           <SectionHeader
             title="面试组信息"
-            description="候选人会看到组名称和公开说明，不会看到内部设置。"
+            description="候选人可看到面试组名称和公开说明，不会看到内部设置。"
           />
           <GroupSettingsForm
             groupId={groupId}
@@ -84,14 +84,14 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
           />
           <div className="mt-4 space-y-3">
             <div>
-              <p className="text-xs text-muted-foreground">组编号</p>
+              <p className="text-xs text-muted-foreground">面试组编号</p>
               <p className="mt-1 break-all font-mono text-sm font-semibold">{group.groupCode}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">候选人链接</p>
               <p className="mt-1 break-all font-mono text-sm font-semibold">{candidateLink}</p>
             </div>
-            <CopyButton value={group.groupCode} label="复制组编号" />
+            <CopyButton value={group.groupCode} label="复制面试组编号" />
             <CopyButton value={candidateLink} label="复制候选人链接" />
           </div>
         </Card>

@@ -84,15 +84,15 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
     <AdminShell admin={admin}>
       <GroupNav groupId={groupId} active="appointments" />
       <PageHeader
-        title={`${group.name} · 预约`}
-        description="预览谁预约了什么时间。取消预约会自动释放对应时间锁。"
+        title={`${group.name} · 面试安排`}
+        description="查看已确认的面试安排和候选人提交的可用时间。取消安排会自动释放对应时间锁。"
       />
       <div className="mb-5">
         <TimezoneSwitcher defaultTimezone={group.timezone} />
       </div>
 
       <section className="mb-6">
-        <SectionHeader title="预约预览" description="同时展示已安排面试和候选人提交的可选时间。" />
+        <SectionHeader title="安排预览" description="同时展示已安排面试和候选人提交的可用时间。" />
         <AppointmentPreview
           groupId={groupId}
           appointments={appointments.map((appointment) => ({
@@ -134,7 +134,7 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
 
       {appointments.length > 0 ? (
         <section>
-          <SectionHeader title="预约明细" description="包含已取消和已完成记录。" />
+          <SectionHeader title="安排明细" description="包含已取消和已完成记录。" />
           <TableContainer>
             <Table className="min-w-[1000px]">
               <TableHeader>
@@ -143,8 +143,8 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
                   <TableHead>时间</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>地点/链接</TableHead>
-                  <TableHead>候选人说明</TableHead>
-                  <TableHead>内部备注</TableHead>
+                  <TableHead>给候选人的说明</TableHead>
+                  <TableHead>内部备注（仅管理员可见）</TableHead>
                   <TableHead>操作</TableHead>
                 </tr>
               </TableHeader>

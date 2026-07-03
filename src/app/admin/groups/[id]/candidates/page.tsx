@@ -44,7 +44,7 @@ const filters = [
   ["", "全部"],
   [CandidateStatus.SUBMITTED, "已提交"],
   [CandidateStatus.PENDING_REVIEW, "修改待审"],
-  [CandidateStatus.SCHEDULED, "已预约"]
+  [CandidateStatus.SCHEDULED, "已安排面试"]
 ] as const;
 
 export default async function GroupCandidatesPage({ params, searchParams }: CandidatesPageProps) {
@@ -138,22 +138,22 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
       <GroupNav groupId={groupId} active="candidates" />
       <PageHeader
         title={`${group.name} · 候选人`}
-        description="搜索候选人，查看备注状态、修改待审和预约状态。"
+        description="搜索候选人，查看备注、修改审核和面试安排状态。"
       />
 
       {query.mail === "sent" ? (
         <InlineNotice tone="success" className="mb-5">
-          已发送 {mailCount} 封候选人邮件{query.mailDryRun ? "（dry-run 预览）" : ""}。
+          已发送 {mailCount} 封候选人通知{query.mailDryRun ? "（测试发送预览）" : ""}。
         </InlineNotice>
       ) : null}
       {query.mail === "partial" ? (
         <InlineNotice tone="warning" className="mb-5">
-          已发送 {mailCount} 封，失败 {mailFailed} 封。请检查 mailato 配置或发送日志。
+          已发送 {mailCount} 封，失败 {mailFailed} 封。请检查 Mailato 配置或发送记录。
         </InlineNotice>
       ) : null}
       {query.mail === "error" ? (
         <InlineNotice tone="danger" className="mb-5">
-          邮件发送失败。请检查服务器 mailato 配置和发送日志。
+          通知发送失败。请检查服务器 Mailato 配置和发送记录。
         </InlineNotice>
       ) : null}
       {query.mail === "invalid" ? (
@@ -182,7 +182,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
       {candidates.length === 0 ? (
         <EmptyState
           title="暂无候选人"
-          description="候选人通过组编号提交可用时间后，会出现在这里。"
+          description="候选人通过面试组编号提交可用时间后，会出现在这里。"
         />
       ) : (
         <div className="space-y-5">
@@ -205,7 +205,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
                   <TableHead>候选人</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>候选人备注</TableHead>
-                  <TableHead>管理员私有备注</TableHead>
+                  <TableHead>管理员跟进备注</TableHead>
                   <TableHead>最近邮件</TableHead>
                   <TableHead>操作</TableHead>
                 </tr>
@@ -224,7 +224,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
                           <Badge tone="warning">待审核</Badge>
                         ) : null}
                         {candidate.appointments.length > 0 ? (
-                          <Badge tone="primary">已预约</Badge>
+                          <Badge tone="primary">已安排</Badge>
                         ) : null}
                       </div>
                     </TableCell>
@@ -237,7 +237,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
                     </TableCell>
                     <TableCell>
                       {candidate.adminNotes.length > 0 ? (
-                        <Badge tone="warning">有私有备注</Badge>
+                        <Badge tone="warning">有跟进备注</Badge>
                       ) : (
                         "-"
                       )}

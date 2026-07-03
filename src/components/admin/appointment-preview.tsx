@@ -106,11 +106,11 @@ export function AppointmentPreview({
       <section className="space-y-3">
         <div>
           <h3 className="text-base font-semibold">已安排面试</h3>
-          <p className="text-sm text-muted-foreground">管理员已经确认并锁定的正式面试时间。</p>
+          <p className="text-sm text-muted-foreground">已确认并锁定的正式面试时间。</p>
         </div>
         {scheduledAppointments.length === 0 ? (
           <div className="rounded-lg border border-border bg-surface-subtle p-5 text-sm text-muted-foreground">
-            暂无已安排面试。安排面试后，这里会显示候选人和对应时间。
+            暂无已安排面试。确认面试安排后，这里会显示候选人和对应时间。
           </div>
         ) : (
           <div className="space-y-5">
@@ -162,12 +162,12 @@ export function AppointmentPreview({
         <div>
           <h3 className="text-base font-semibold">候选人已选时间</h3>
           <p className="text-sm text-muted-foreground">
-            候选人提交的可选时间，尚未等同于管理员安排的正式面试。
+            候选人提交的可用时间，尚未等同于已确认的正式面试安排。
           </p>
         </div>
         {formattedCandidateSelections.length === 0 ? (
           <div className="rounded-lg border border-border bg-surface-subtle p-5 text-sm text-muted-foreground">
-            暂无候选人提交时间。候选人提交后会显示在这里。
+            暂无候选人提交记录。候选人提交可用时间后会显示在这里。
           </div>
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">

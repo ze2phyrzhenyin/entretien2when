@@ -112,9 +112,9 @@ export function CandidateEmailComposer({
           <Send className="size-5" aria-hidden="true" />
         </div>
         <div>
-          <h3 className="font-semibold">发送候选人邮件</h3>
+          <h3 className="font-semibold">发送候选人通知</h3>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            系统会逐位候选人单独发送，批量发送时收件人之间互不可见。
+            系统会逐位候选人单独发送；批量发送时，候选人之间不会互相看到邮箱。
           </p>
         </div>
       </div>
@@ -158,7 +158,7 @@ export function CandidateEmailComposer({
         </FormField>
         <FormField
           id={isSingle ? "singleEmailCc" : "bulkEmailCc"}
-          label="抄送（可选）"
+          label="抄送（CC，可选）"
           description="多个邮箱可用逗号、分号、空格或换行分隔。"
         >
           <Textarea
@@ -189,7 +189,7 @@ export function CandidateEmailComposer({
 
         <div className="rounded-lg border border-border bg-surface-subtle p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold">发送前预览</p>
+            <p className="text-sm font-semibold">发送预览</p>
             <p className="text-xs text-muted-foreground">
               {isSingle ? "单独发送" : `已选择 ${selectedIds.length} 位候选人`}
             </p>
@@ -279,13 +279,13 @@ export function CandidateEmailComposer({
             onChange={(event) => setConfirmed(event.target.checked)}
           />
           <span>
-            我已确认收件人、主题和正文无误。批量发送会逐位候选人单独发送，不会互相暴露邮箱。
+            我已确认收件人、抄送、主题和正文无误。批量发送会逐位候选人单独发送，不会互相暴露邮箱。
           </span>
         </label>
 
         <div className="flex justify-end">
           <SubmitButton disabled={!confirmed || selectedIds.length === 0}>
-            {isSingle ? "发送邮件" : "发送给选中候选人"}
+            {isSingle ? "发送通知" : "发送给选中候选人"}
           </SubmitButton>
         </div>
       </form>

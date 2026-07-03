@@ -14,7 +14,7 @@ export default function CandidateError({
       <div className="mx-auto max-w-3xl">
         <ErrorState
           title="候选人页面加载失败"
-          description="请检查组编号是否正确，或稍后重试。"
+          description="请检查面试组编号是否正确，或稍后重试。"
           action={<Button onClick={reset}>重试</Button>}
         />
       </div>

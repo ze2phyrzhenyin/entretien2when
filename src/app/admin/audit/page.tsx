@@ -75,33 +75,33 @@ const actorTone: Record<AuditActorType, BadgeTone> = {
 const auditActionLabel: Record<string, string> = {
   "admin.create_group": "创建面试组",
   "admin.update_group": "更新面试组设置",
-  "admin.batch_generate_slots": "批量生成时间段",
-  "admin.update_slot_status": "更新时间段状态",
-  "admin.batch_delete_slots": "批量删除时间段",
-  "admin.clear_slots": "清空时间段",
+  "admin.batch_generate_slots": "批量生成开放时间",
+  "admin.update_slot_status": "更新开放时间状态",
+  "admin.batch_delete_slots": "批量删除开放时间",
+  "admin.clear_slots": "清空开放时间",
   "candidate.submit_initial_availability": "候选人首次提交",
   "candidate.request_submission_modification": "候选人申请修改",
   "admin.approve_submission_modification": "管理员通过修改申请",
   "admin.reject_submission_modification": "管理员拒绝修改申请",
-  "admin.schedule_appointment": "管理员安排面试",
-  "admin.reschedule_appointment": "管理员更改预约",
-  "admin.cancel_appointment": "管理员取消预约",
-  "admin.upsert_candidate_admin_note": "保存管理员私有备注",
-  "admin.send_candidate_email": "发送候选人邮件",
-  "admin.send_appointment_email": "发送面试安排邮件",
-  "admin.retry_candidate_email": "重试候选人邮件",
-  "admin.send_mailato_email": "发送 Mailato 邮件"
+  "admin.schedule_appointment": "确认面试安排",
+  "admin.reschedule_appointment": "调整面试安排",
+  "admin.cancel_appointment": "取消面试安排",
+  "admin.upsert_candidate_admin_note": "保存管理员跟进备注",
+  "admin.send_candidate_email": "发送候选人通知",
+  "admin.send_appointment_email": "发送面试安排通知",
+  "admin.retry_candidate_email": "重试候选人通知",
+  "admin.send_mailato_email": "发送邮件"
 };
 
 const entityTypeLabel: Record<string, string> = {
   InterviewGroup: "面试组",
-  GroupTimeSlot: "时间段",
+  GroupTimeSlot: "开放时间",
   CandidateSubmission: "候选人提交",
-  Appointment: "预约",
-  CandidateAdminNote: "管理员私有备注",
-  CandidateEmailBatch: "候选人邮件批次",
-  CandidateEmailDelivery: "候选人邮件记录",
-  MailatoEmail: "Mailato 邮件"
+  Appointment: "面试安排",
+  CandidateAdminNote: "管理员跟进备注",
+  CandidateEmailBatch: "候选人通知批次",
+  CandidateEmailDelivery: "候选人通知记录",
+  MailatoEmail: "邮件发送记录"
 };
 
 function parseActorType(value: string | undefined) {
@@ -234,8 +234,8 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
   return (
     <AdminShell admin={admin} active="audit">
       <PageHeader
-        title="操作日志"
-        description="超级管理员可查看全部日志。"
+        title="审计日志"
+        description="超级管理员可查看全部关键业务审计记录。"
         action={
           <p className="text-sm text-muted-foreground">
             显示最近 {logs.length} 条，共 {totalCount} 条
@@ -250,7 +250,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
         <form className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_240px_auto_auto]">
           <div className="relative">
             <label className="sr-only" htmlFor="auditSearch">
-              搜索操作日志
+              搜索审计日志
             </label>
             <Search
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -260,7 +260,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
               id="auditSearch"
               name="q"
               defaultValue={q}
-              placeholder="搜索操作、对象、人员或组编号"
+              placeholder="搜索动作、对象、人员或编号"
               className="pl-9"
             />
           </div>
@@ -308,8 +308,8 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
 
       {logs.length === 0 ? (
         <EmptyState
-          title="暂无操作日志"
-          description="当管理员或候选人完成提交、审核、预约、取消预约等动作后，这里会显示审计记录。"
+          title="暂无审计记录"
+          description="当管理员或候选人完成提交、审核、面试安排、取消安排等动作后，这里会显示审计记录。"
         />
       ) : (
         <TableContainer>

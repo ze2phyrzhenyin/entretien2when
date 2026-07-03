@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db/prisma";
 
 const adminEmail = "slot-clear-admin@example.com";
 const adminPassword = "Slot_Clear_StrongPassword_123!";
-const groupNamePrefix = "E2E 清空时间段 ";
+const groupNamePrefix = "E2E 清空开放时间 ";
 
 test.beforeEach(async () => {
   const admin = await prisma.admin.upsert({
@@ -15,14 +15,14 @@ test.beforeEach(async () => {
       passwordHash: await hashPassword(adminPassword),
       role: AdminRole.SUPER_ADMIN,
       status: AdminStatus.ACTIVE,
-      displayName: "清空时间段管理员"
+      displayName: "清空开放时间管理员"
     },
     create: {
       email: adminEmail,
       passwordHash: await hashPassword(adminPassword),
       role: AdminRole.SUPER_ADMIN,
       status: AdminStatus.ACTIVE,
-      displayName: "清空时间段管理员"
+      displayName: "清空开放时间管理员"
     }
   });
 
@@ -80,15 +80,15 @@ test("admin clears all deletable time slots", async ({ page }) => {
 
   await page.goto(`/admin/groups/${group.id}/slots`);
   await expect(
-    page.getByText("将删除当前面试组里 2 个未被提交、预约或锁定引用的时间段。")
+    page.getByText("将删除当前面试组里 2 个未被提交、面试安排或锁定引用的开放时间。")
   ).toBeVisible();
 
-  const clearForm = page.locator("form").filter({ hasText: "清空可删除时间段" });
+  const clearForm = page.locator("form").filter({ hasText: "清空可删除的开放时间" });
   await clearForm.getByRole("checkbox").check();
   await clearForm.getByRole("button", { name: "清空可删除" }).click();
 
-  await expect(page.getByText("已删除 2 个时间段。")).toBeVisible();
-  await expect(page.getByText("还没有开放时间")).toBeVisible();
+  await expect(page.getByText("已删除 2 个开放时间。")).toBeVisible();
+  await expect(page.getByText("暂无开放时间")).toBeVisible();
 
   await expect
     .poll(() =>

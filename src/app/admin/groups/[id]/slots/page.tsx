@@ -91,20 +91,20 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
       <GroupNav groupId={groupId} active="slots" />
       <PageHeader
         title="开放时间配置"
-        description="按面试组时区生成时间段。管理员端可见关闭、锁定和内部原因；候选人端只会看到不可选。"
+        description="按面试组时区生成开放时间。管理员可查看关闭、锁定和内部原因；候选人端仅显示是否可选。"
       />
       <div className="mb-5">
         <TimezoneSwitcher defaultTimezone={group.timezone} />
       </div>
       {query.slotGenerate === "generated" ? (
         <InlineNotice tone="success" className="mb-5">
-          已生成 {generatedCount} 个时间段
-          {skippedGenerateCount > 0 ? `，跳过 ${skippedGenerateCount} 个已存在的时间段` : ""}。
+          已生成 {generatedCount} 个开放时间
+          {skippedGenerateCount > 0 ? `，跳过 ${skippedGenerateCount} 个已存在的开放时间` : ""}。
         </InlineNotice>
       ) : null}
       {query.slotGenerate === "empty" ? (
         <InlineNotice tone="warning" className="mb-5">
-          没有生成新的时间段。请确认起止时间至少覆盖一个时间粒度，或这些时间段尚未存在。
+          没有生成新的开放时间。请确认起止时间至少覆盖一个时间粒度，或这些开放时间尚未存在。
         </InlineNotice>
       ) : null}
       {query.slotGenerate === "invalid" ? (
@@ -114,28 +114,28 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
       ) : null}
       {query.slotDelete === "deleted" ? (
         <InlineNotice tone="success" className="mb-5">
-          已删除 {deletedCount} 个时间段。
+          已删除 {deletedCount} 个开放时间。
         </InlineNotice>
       ) : null}
       {query.slotDelete === "partial" ? (
         <InlineNotice tone="warning" className="mb-5">
-          已删除 {deletedCount} 个时间段，跳过 {skippedCount} 个已有业务引用的时间段。
+          已删除 {deletedCount} 个开放时间，跳过 {skippedCount} 个已有业务引用的开放时间。
         </InlineNotice>
       ) : null}
       {query.slotDelete === "blocked" ? (
         <InlineNotice tone="warning" className="mb-5">
-          没有可删除的时间段。已被候选人提交、预约或锁定引用的时间段会被保留。
+          没有可删除的开放时间。已被候选人提交、面试安排或锁定引用的开放时间会被保留。
         </InlineNotice>
       ) : null}
       {query.slotDelete === "invalid" ? (
         <InlineNotice tone="warning" className="mb-5">
-          请先选择时间段并勾选删除确认。
+          请先选择开放时间并勾选删除确认。
         </InlineNotice>
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <Card className="p-5">
-          <SectionHeader title="批量生成时间段" description={`当前时区：${group.timezone}`} />
+          <SectionHeader title="批量生成开放时间" description={`当前时区：${group.timezone}`} />
           <form action={batchGenerateSlotsAction.bind(null, groupId)} className="mt-4 space-y-4">
             <FormField id="dateFrom" label="开始日期">
               <Input id="dateFrom" name="dateFrom" type="date" required />
@@ -152,7 +152,7 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
               </FormField>
             </div>
             <SubmitButton className="w-full" pendingText="正在生成">
-              生成时间段
+              生成开放时间
             </SubmitButton>
           </form>
         </Card>
@@ -163,8 +163,8 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
           </div>
           {group.timeSlots.length === 0 ? (
             <EmptyState
-              title="还没有开放时间"
-              description="先用左侧表单批量生成时间段。候选人只能在已开放且未锁定的时间中选择。"
+              title="暂无开放时间"
+              description="请先用左侧表单批量生成开放时间。候选人只能选择已开放且未锁定的时间。"
             />
           ) : (
             <div className="space-y-4">
@@ -176,10 +176,10 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                     className="space-y-3 rounded-lg border border-border bg-surface-subtle p-3"
                   >
                     <input type="hidden" name="deleteMode" value="selected" />
-                    <p className="text-sm font-semibold">删除选中时间段</p>
+                    <p className="text-sm font-semibold">删除选中的开放时间</p>
                     <label className="flex items-start gap-2 text-sm text-muted-foreground">
                       <Checkbox name="confirmDelete" value="yes" />
-                      <span>我确认删除选中且未被引用的时间段。</span>
+                      <span>我确认删除选中且未被引用的开放时间。</span>
                     </label>
                     <Button type="submit" variant="danger" size="sm">
                       删除选中
@@ -190,13 +190,14 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                     className="space-y-3 rounded-lg border border-red-200 bg-danger-soft p-3"
                   >
                     <input type="hidden" name="deleteMode" value="clearAll" />
-                    <p className="text-sm font-semibold text-danger">清空可删除时间段</p>
+                    <p className="text-sm font-semibold text-danger">清空可删除的开放时间</p>
                     <p className="text-sm leading-6 text-red-800">
-                      将删除当前面试组里 {deletableSlotCount} 个未被提交、预约或锁定引用的时间段。
+                      将删除当前面试组里 {deletableSlotCount}{" "}
+                      个未被提交、面试安排或锁定引用的开放时间。
                     </p>
                     <label className="flex items-start gap-2 text-sm text-red-800">
                       <Checkbox name="confirmDelete" value="yes" />
-                      <span>我确认清空所有可删除时间段。</span>
+                      <span>我确认清空所有可删除的开放时间。</span>
                     </label>
                     <Button type="submit" variant="danger" size="sm">
                       清空可删除
@@ -209,7 +210,7 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                   <TableHeader>
                     <tr>
                       <TableHead className="w-12">选择</TableHead>
-                      <TableHead>时间</TableHead>
+                      <TableHead>开放时间</TableHead>
                       <TableHead>状态</TableHead>
                       <TableHead>锁定</TableHead>
                       <TableHead>删除</TableHead>
@@ -221,7 +222,7 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                     {group.timeSlots.map((slot) => {
                       const blockedReasons = [
                         slot.submissionSlots.length > 0 ? "候选人提交" : null,
-                        slot.appointmentSlots.length > 0 ? "预约" : null,
+                        slot.appointmentSlots.length > 0 ? "面试安排" : null,
                         slot.activeLock ? "锁定" : null,
                         slot.locks.length > 0 ? "锁定记录" : null
                       ].filter(Boolean);
@@ -235,7 +236,7 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                               name="slotIds"
                               value={slot.id}
                               disabled={!canDelete}
-                              aria-label={`选择时间段 ${slot.id}`}
+                              aria-label={`选择开放时间 ${slot.id}`}
                             />
                           </TableCell>
                           <TableCell className="font-medium">

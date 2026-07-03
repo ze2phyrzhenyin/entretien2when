@@ -27,7 +27,7 @@ type CandidateEmailBatchSummaryProps = {
 
 const statusLabel: Record<CandidateEmailDeliveryStatus, string> = {
   SENT: "已发送",
-  PREVIEW: "预览",
+  PREVIEW: "测试发送预览",
   FAILED: "失败"
 };
 
@@ -46,12 +46,12 @@ export function CandidateEmailBatchSummary({ deliveries }: CandidateEmailBatchSu
     <Card className="mb-5 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="font-semibold">本次邮件发送结果</h3>
+          <h3 className="font-semibold">本次通知发送结果</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             结果仅管理员可见。邮件正文不写入审计日志，失败原因只用于排查。
           </p>
         </div>
-        <Badge tone="neutral">{deliveries.length} 封</Badge>
+        <Badge tone="neutral">{deliveries.length} 封通知</Badge>
       </div>
       <TableContainer>
         <Table>

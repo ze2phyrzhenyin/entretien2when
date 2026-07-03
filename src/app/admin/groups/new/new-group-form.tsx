@@ -35,7 +35,7 @@ export function NewGroupForm({ timezoneOptions }: { timezoneOptions: TimezoneOpt
 
   return (
     <form action={formAction} className="grid gap-5" noValidate>
-      <FormField id="name" label="组名称" error={errors.name}>
+      <FormField id="name" label="面试组名称" error={errors.name}>
         <Input
           id="name"
           name="name"
@@ -44,11 +44,11 @@ export function NewGroupForm({ timezoneOptions }: { timezoneOptions: TimezoneOpt
           aria-invalid={Boolean(errors.name)}
         />
       </FormField>
-      <FormField id="publicDescription" label="公开说明" error={errors.publicDescription}>
+      <FormField id="publicDescription" label="候选人可见说明" error={errors.publicDescription}>
         <Textarea
           id="publicDescription"
           name="publicDescription"
-          placeholder="候选人可见，例如面试形式、预计时长、注意事项"
+          placeholder="候选人可见，例如面试形式、预计时长、注意事项。"
           aria-invalid={Boolean(errors.publicDescription)}
         />
       </FormField>
@@ -85,7 +85,7 @@ export function NewGroupForm({ timezoneOptions }: { timezoneOptions: TimezoneOpt
         <FormField
           id="slotDurationMinutes"
           label="时间粒度（分钟）"
-          description="候选人每次可选的时间段长度，可自定义分钟数。"
+          description="候选人可选择的最小时间单位。"
           error={errors.slotDurationMinutes}
         >
           <Input
@@ -99,7 +99,7 @@ export function NewGroupForm({ timezoneOptions }: { timezoneOptions: TimezoneOpt
         <FormField
           id="interviewDurationMinutes"
           label="面试时长（分钟）"
-          description="实际面试占用时长，可自定义分钟数，必须短于时间粒度。"
+          description="正式面试预计占用时长，必须短于时间粒度。"
           error={errors.interviewDurationMinutes}
         >
           <Input
@@ -112,7 +112,7 @@ export function NewGroupForm({ timezoneOptions }: { timezoneOptions: TimezoneOpt
         </FormField>
       </div>
       <div className="grid gap-5 md:grid-cols-2">
-        <FormField id="minSelectSlots" label="候选人最少选择" error={errors.minSelectSlots}>
+        <FormField id="minSelectSlots" label="最少选择数量" error={errors.minSelectSlots}>
           <Input
             id="minSelectSlots"
             name="minSelectSlots"
@@ -123,7 +123,7 @@ export function NewGroupForm({ timezoneOptions }: { timezoneOptions: TimezoneOpt
             aria-invalid={Boolean(errors.minSelectSlots)}
           />
         </FormField>
-        <FormField id="maxSelectSlots" label="候选人最多选择" error={errors.maxSelectSlots}>
+        <FormField id="maxSelectSlots" label="最多选择数量" error={errors.maxSelectSlots}>
           <Input
             id="maxSelectSlots"
             name="maxSelectSlots"
@@ -137,7 +137,7 @@ export function NewGroupForm({ timezoneOptions }: { timezoneOptions: TimezoneOpt
       </div>
       <InlineNotice tone={state.status === "error" ? "danger" : "info"}>
         {state.message ??
-          "组编号不能手工输入弱编号。创建成功后，请在设置页复制组编号或候选人链接。"}
+          "系统会自动生成高强度面试组编号。创建成功后，请在设置页复制编号或候选人链接。"}
       </InlineNotice>
       <SubmitButton />
     </form>

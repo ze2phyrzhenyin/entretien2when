@@ -73,8 +73,8 @@ export default async function AdminReviewsPage({ searchParams }: AdminReviewsPag
   return (
     <AdminShell admin={admin} active="reviews">
       <PageHeader
-        title="审核中心"
-        description="集中查看所有有权限面试组的候选人修改申请。"
+        title="修改审核"
+        description="集中处理候选人提交的可用时间修改申请。"
         action={
           <Badge tone={submissions.length > 0 ? "warning" : "neutral"}>
             {submissions.length} 个待审核
@@ -95,7 +95,7 @@ export default async function AdminReviewsPage({ searchParams }: AdminReviewsPag
             id="reviewSearch"
             name="q"
             defaultValue={q}
-            placeholder="搜索候选人、邮箱、面试组或组编号"
+            placeholder="搜索候选人、邮箱、面试组或编号"
             className="pl-9"
           />
         </div>
@@ -115,10 +115,10 @@ export default async function AdminReviewsPage({ searchParams }: AdminReviewsPag
 
       {submissions.length === 0 ? (
         <EmptyState
-          title={q ? "没有匹配的待审核申请" : "没有待审核修改"}
+          title={q ? "没有匹配的修改申请" : "暂无待审核修改"}
           description={
             q
-              ? "换一个关键词，或清除搜索条件后查看全部待审核申请。"
+              ? "换一个关键词，或清除搜索条件后查看全部待审核修改。"
               : "候选人提交修改申请后，会集中显示在这里。"
           }
           icon={<ClipboardCheck className="h-6 w-6" aria-hidden="true" />}

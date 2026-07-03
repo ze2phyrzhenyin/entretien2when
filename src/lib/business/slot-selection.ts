@@ -18,23 +18,23 @@ export function uniqueSlotIds(slotIds: string[]) {
 
 export function assertSlotSelectionCount(slotIds: string[], min: number, max: number) {
   if (slotIds.length < min) {
-    throw new Error(`至少需要选择 ${min} 个时间段。`);
+    throw new Error(`至少需要选择 ${min} 个开放时间。`);
   }
   if (slotIds.length > max) {
-    throw new Error(`最多只能选择 ${max} 个时间段。`);
+    throw new Error(`最多只能选择 ${max} 个开放时间。`);
   }
 }
 
 export function assertSlotsSelectable(slots: SlotForSelection[], slotIds: string[]) {
   if (slots.length !== slotIds.length) {
-    throw new Error("包含无效时间段，请刷新后重试。");
+    throw new Error("包含无效开放时间，请刷新后重试。");
   }
 
   const unavailable = slots.find(
     (slot) => slot.status !== GroupTimeSlotStatus.OPEN || slot.activeLock
   );
   if (unavailable) {
-    throw new Error("所选时间包含不可选时间段，请刷新后重试。");
+    throw new Error("所选时间包含不可选的开放时间，请刷新后重试。");
   }
 }
 
@@ -44,7 +44,7 @@ export function assertSlotsSelectableForAppointment(
   appointmentId: string
 ) {
   if (slots.length !== slotIds.length) {
-    throw new Error("包含无效时间段，请刷新后重试。");
+    throw new Error("包含无效开放时间，请刷新后重试。");
   }
 
   const unavailable = slots.find((slot) => {
@@ -56,7 +56,7 @@ export function assertSlotsSelectableForAppointment(
   });
 
   if (unavailable) {
-    throw new Error("所选时间包含已关闭或被其他预约锁定的时间段，请刷新后重试。");
+    throw new Error("所选时间包含已关闭或被其他面试安排锁定的开放时间，请刷新后重试。");
   }
 }
 
@@ -72,7 +72,7 @@ export function assertContinuousSlots(slots: Pick<GroupTimeSlot, "startAt" | "en
     const current = sorted[index];
 
     if (!previous || !current || previous.endAt.getTime() !== current.startAt.getTime()) {
-      throw new Error("预约时间必须由连续时间段组成。");
+      throw new Error("面试时间必须由连续开放时间组成。");
     }
   }
 }

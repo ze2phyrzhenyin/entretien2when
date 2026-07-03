@@ -84,11 +84,11 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
   return (
     <AdminShell admin={admin} active="appointments">
       <PageHeader
-        title="预约管理"
-        description="集中查看全部面试组的正式预约记录。"
+        title="面试安排"
+        description="集中查看全部面试组的已确认面试安排。"
         action={
           <Badge tone={scheduledCount > 0 ? "scheduled" : "neutral"}>
-            {scheduledCount} 个已预约
+            {scheduledCount} 个已安排
           </Badge>
         }
       />
@@ -96,7 +96,7 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
       <form className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_auto_auto]">
         <div className="relative">
           <label className="sr-only" htmlFor="appointmentSearch">
-            搜索预约
+            搜索面试安排
           </label>
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -106,11 +106,11 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
             id="appointmentSearch"
             name="q"
             defaultValue={q}
-            placeholder="搜索候选人、邮箱、面试组或组编号"
+            placeholder="搜索候选人、邮箱、面试组或编号"
             className="pl-9"
           />
         </div>
-        <Select name="status" defaultValue={status ?? ""} aria-label="预约状态">
+        <Select name="status" defaultValue={status ?? ""} aria-label="面试安排状态">
           <option value="">全部状态</option>
           {Object.values(AppointmentStatus).map((item) => (
             <option key={item} value={item}>
@@ -134,11 +134,11 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
 
       {appointments.length === 0 ? (
         <EmptyState
-          title={q || status ? "没有匹配的预约" : "暂无预约"}
+          title={q || status ? "没有匹配的面试安排" : "暂无面试安排"}
           description={
             q || status
-              ? "换一个关键词或状态，或清除筛选后查看全部预约。"
-              : "管理员在候选人详情页安排面试后，会集中显示在这里。"
+              ? "换一个关键词或状态，或清除筛选后查看全部面试安排。"
+              : "在候选人详情页确认面试安排后，记录会集中显示在这里。"
           }
           icon={<CalendarClock className="h-6 w-6" aria-hidden="true" />}
         />

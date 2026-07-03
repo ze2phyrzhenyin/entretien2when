@@ -30,7 +30,7 @@ type CandidateEmailHistoryProps = {
 
 const statusLabel: Record<CandidateEmailDeliveryStatus, string> = {
   SENT: "已发送",
-  PREVIEW: "预览",
+  PREVIEW: "测试发送预览",
   FAILED: "失败"
 };
 
@@ -50,16 +50,16 @@ export function CandidateEmailHistory({
     <Card className="p-5">
       <div className="mb-4">
         <div>
-          <h3 className="font-semibold">邮件发送历史</h3>
+          <h3 className="font-semibold">通知发送历史</h3>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            记录该候选人的邮件发送结果，失败记录可直接重试。
+            记录该候选人的通知发送结果，失败记录可直接重试。
           </p>
         </div>
       </div>
       <AdminOnlyNotice />
       {deliveries.length === 0 ? (
         <div className="mt-4">
-          <EmptyState title="暂无发送记录" description="发送候选人邮件后，记录会显示在这里。" />
+          <EmptyState title="暂无发送记录" description="发送候选人通知后，记录会显示在这里。" />
         </div>
       ) : (
         <div className="mt-4 space-y-3">

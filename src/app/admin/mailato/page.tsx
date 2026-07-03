@@ -24,18 +24,18 @@ export default async function AdminMailatoPage({ searchParams }: AdminMailatoPag
   return (
     <AdminShell admin={admin} active="mailato">
       <PageHeader
-        title="Mailato 邮件"
-        description="直接调用服务器 Mailato 发送邮件。收件人、抄送、密送均支持多个邮箱。"
+        title="邮件发送"
+        description="通过服务器 Mailato 发送邮件，支持收件人、抄送（CC）和密送（BCC）。"
       />
 
       {query.mailato === "sent" ? (
         <InlineNotice tone="success" className="mb-5">
-          邮件已提交给 Mailato{query.dryRun ? "（dry-run 预览）" : ""}。
+          邮件已提交给 Mailato{query.dryRun ? "（测试发送预览）" : ""}。
         </InlineNotice>
       ) : null}
       {query.mailato === "error" ? (
         <InlineNotice tone="danger" className="mb-5">
-          Mailato 发送失败。请检查服务器 Mailato 配置和操作日志。
+          Mailato 发送失败。请检查服务器 Mailato 配置和审计日志。
         </InlineNotice>
       ) : null}
       {query.mailato === "invalid" ? (
@@ -46,8 +46,8 @@ export default async function AdminMailatoPage({ searchParams }: AdminMailatoPag
 
       {!isSuperAdmin ? (
         <EmptyState
-          title="没有 Mailato 发送权限"
-          description="该工具仅限超级管理员使用。"
+          title="暂无邮件发送权限"
+          description="该功能仅限超级管理员使用。"
           icon={<Mail className="h-6 w-6" aria-hidden="true" />}
         />
       ) : (
@@ -70,8 +70,8 @@ export default async function AdminMailatoPage({ searchParams }: AdminMailatoPag
               <div className="grid gap-5">
                 <FormField
                   id="mailatoCcEmails"
-                  label="抄送（CC）"
-                  description="抄送收件人会互相可见。"
+                  label="抄送（CC，可选）"
+                  description="抄送收件人会在邮件抄送列表中互相可见。"
                 >
                   <Textarea
                     id="mailatoCcEmails"
@@ -82,8 +82,8 @@ export default async function AdminMailatoPage({ searchParams }: AdminMailatoPag
                 </FormField>
                 <FormField
                   id="mailatoBccEmails"
-                  label="密送（BCC）"
-                  description="密送收件人不会显示在邮件抄送列表里。"
+                  label="密送（BCC，可选）"
+                  description="密送收件人不会显示在收件人或抄送列表中。"
                 >
                   <Textarea
                     id="mailatoBccEmails"
@@ -102,7 +102,7 @@ export default async function AdminMailatoPage({ searchParams }: AdminMailatoPag
             </FormField>
             <label className="flex items-start gap-2 rounded-lg border border-border bg-surface-subtle p-4 text-sm">
               <Checkbox name="confirmSend" value="yes" />
-              <span>我确认收件人、抄送、密送、主题和正文无误，立即调用 Mailato 发送。</span>
+              <span>我确认收件人、抄送、密送、主题和正文无误，并立即发送。</span>
             </label>
             <SubmitButton pendingText="正在发送">发送邮件</SubmitButton>
           </form>

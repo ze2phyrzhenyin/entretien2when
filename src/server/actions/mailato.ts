@@ -31,7 +31,7 @@ function safeErrorMessage(error: unknown) {
 export async function sendMailatoAdminEmailAction(formData: FormData) {
   const admin = await requireAdmin();
   if (admin.role !== AdminRole.SUPER_ADMIN) {
-    throw new Error("只有超级管理员可以使用 Mailato 邮件工具。");
+    throw new Error("只有超级管理员可以使用邮件发送功能。");
   }
 
   const parsed = mailatoEmailActionSchema.safeParse({

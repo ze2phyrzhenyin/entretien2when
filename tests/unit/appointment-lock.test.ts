@@ -19,7 +19,7 @@ describe("appointment locks", () => {
         activeSlotId: "slot_1",
         lockType: TimeSlotLockType.APPOINTMENT,
         appointmentId: "appointment_1",
-        reasonInternal: "已预约给 张三",
+        reasonInternal: "已安排给 张三",
         lockedByAdminId: "admin_1"
       },
       {
@@ -28,7 +28,7 @@ describe("appointment locks", () => {
         activeSlotId: "slot_2",
         lockType: TimeSlotLockType.APPOINTMENT,
         appointmentId: "appointment_1",
-        reasonInternal: "已预约给 张三",
+        reasonInternal: "已安排给 张三",
         lockedByAdminId: "admin_1"
       }
     ]);

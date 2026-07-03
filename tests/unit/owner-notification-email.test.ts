@@ -43,7 +43,7 @@ describe("owner notification emails", () => {
       occurredAt: new Date("2026-07-02T01:00:00.000Z")
     });
 
-    expect(email.subject).toContain("修改通知");
+    expect(email.subject).toContain("修改申请通知");
     expect(email.body).toContain("候选人提交了可用时间修改申请");
     expect(email.body).toContain("商务信息助理电话面试");
     expect(email.body).toContain("隋朝阳 <zephyr2515@gmail.com>");
@@ -67,7 +67,7 @@ describe("owner notification emails", () => {
     });
 
     expect(email.subject).toContain("已安排面试");
-    expect(email.body).toContain("预约时间：2026/07/02 10:00-10:35");
+    expect(email.body).toContain("面试时间：2026/07/02 10:00-10:35");
     expect(email.body).toContain("腾讯会议 999-591-4078");
     expect(email.body).toContain("admin@example.com");
   });
@@ -93,8 +93,8 @@ describe("owner notification emails", () => {
     });
 
     expect(rescheduled.subject).toContain("面试时间已调整");
-    expect(rescheduled.body).toContain("管理员调整了正式面试预约");
-    expect(cancelled.subject).toContain("面试预约已取消");
-    expect(cancelled.body).toContain("管理员取消了正式面试预约");
+    expect(rescheduled.body).toContain("管理员调整了正式面试安排");
+    expect(cancelled.subject).toContain("面试安排已取消");
+    expect(cancelled.body).toContain("管理员取消了正式面试安排");
   });
 });

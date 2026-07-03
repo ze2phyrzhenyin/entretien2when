@@ -13,7 +13,7 @@ function getBlockedSlotDeletionReasons(slot: SlotDeletionCandidate) {
     reasons.push("已有候选人提交引用");
   }
   if (slot.appointmentSlots.length > 0) {
-    reasons.push("已有预约引用");
+    reasons.push("已有面试安排引用");
   }
   if (slot.activeLock) {
     reasons.push("当前已锁定");

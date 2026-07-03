@@ -60,7 +60,7 @@ export default async function OverviewPage({ params }: OverviewPageProps) {
       <GroupNav groupId={groupId} active="overview" />
       <PageHeader
         title="时间总览"
-        description="管理员端显示可用候选人人数、关闭和锁定原因。候选人端不会看到这些信息。"
+        description="显示每个开放时间的候选人数量、关闭状态和锁定原因。候选人端不会看到这些内部信息。"
         action={<AdminSlotLegend />}
       />
       <div className="mb-5">
@@ -68,7 +68,7 @@ export default async function OverviewPage({ params }: OverviewPageProps) {
       </div>
 
       {group.timeSlots.length === 0 ? (
-        <EmptyState title="还没有时间段" description="先到时间段页面批量生成开放时间。" />
+        <EmptyState title="暂无开放时间" description="请先到开放时间页面批量生成可选时间。" />
       ) : (
         <AdminTimeGrid slots={slotViews} defaultTimezone={group.timezone} />
       )}

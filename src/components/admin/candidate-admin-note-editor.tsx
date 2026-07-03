@@ -22,21 +22,18 @@ export function CandidateAdminNoteEditor({
 }) {
   return (
     <Card className="p-5" variant="flat">
-      <SectionHeader
-        title="管理员私有备注"
-        description="仅管理员可见，候选人不会看到这部分内容。"
-      />
+      <SectionHeader title="管理员跟进备注" description="仅管理员可见，用于记录内部跟进信息。" />
       <AdminOnlyNotice />
       <form action={action} className="mt-4 space-y-3">
-        <Textarea name="body" defaultValue={defaultValue ?? ""} placeholder="填写内部跟进信息" />
+        <Textarea name="body" defaultValue={defaultValue ?? ""} placeholder="填写内部跟进备注" />
         <SubmitButton variant="secondary" className="w-full" pendingText="正在保存">
-          保存私有备注
+          保存跟进备注
         </SubmitButton>
       </form>
       <div className="mt-5 space-y-3">
         {notes.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
-            暂无管理员备注。
+            暂无管理员跟进备注。
           </p>
         ) : (
           notes.map((note) => (
