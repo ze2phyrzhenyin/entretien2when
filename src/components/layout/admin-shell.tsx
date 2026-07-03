@@ -9,6 +9,7 @@ const shellTitle: Record<AdminShellActive, string> = {
   audit: "审计日志",
   reviews: "修改审核",
   appointments: "面试安排",
+  emailTemplates: "邮件模板",
   mailato: "邮件发送"
 };
 

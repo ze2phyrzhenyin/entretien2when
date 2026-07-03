@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppointmentStatus } from "@prisma/client";
+import { ChevronDown } from "lucide-react";
 import { AppointmentEmailFields } from "@/components/admin/appointment-email-fields";
 import { AppointmentSlotPicker } from "@/components/admin/appointment-slot-picker";
 import { CandidateAdminNoteEditor } from "@/components/admin/candidate-admin-note-editor";
@@ -22,6 +23,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
+import { appointmentConfirmedEmailTemplate } from "@/lib/mail/email-templates";
+import { getCandidateEmailTemplates } from "@/lib/mail/email-template-store";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
 import { candidateSubmissionStatusLabel, candidateSubmissionTypeLabel } from "@/lib/status-labels";
 import {
@@ -129,6 +132,10 @@ export default async function CandidateDetailPage({
         }
       })
     : [];
+  const emailTemplates = await getCandidateEmailTemplates();
+  const appointmentEmailTemplate =
+    emailTemplates.find((template) => template.key === appointmentConfirmedEmailTemplate.key) ??
+    appointmentConfirmedEmailTemplate;
   const scheduledAppointment = candidate.appointments.find(
     (appointment) => appointment.status === AppointmentStatus.SCHEDULED
   );
@@ -256,18 +263,28 @@ export default async function CandidateDetailPage({
                     defaultTimezone={group.timezone}
                   />
                 </div>
-                <form
-                  action={rescheduleAppointmentAction.bind(
-                    null,
-                    groupId,
-                    candidateId,
-                    scheduledAppointment.id
-                  )}
-                  className="space-y-4"
-                >
-                  <div>
-                    <h4 className="text-sm font-semibold">调整面试时间</h4>
-                    <div className="mt-3">
+                <details className="group rounded-lg border border-border bg-surface-subtle">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-colors duration-fast hover:bg-muted [&::-webkit-details-marker]:hidden">
+                    <span>调整面试时间</span>
+                    <span className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                      <span className="group-open:hidden">展开调整</span>
+                      <span className="hidden group-open:inline">收起</span>
+                      <ChevronDown
+                        className="h-4 w-4 transition-transform duration-fast group-open:rotate-180"
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </summary>
+                  <form
+                    action={rescheduleAppointmentAction.bind(
+                      null,
+                      groupId,
+                      candidateId,
+                      scheduledAppointment.id
+                    )}
+                    className="space-y-4 border-t border-border p-4"
+                  >
+                    <div>
                       <AppointmentSlotPicker
                         defaultTimezone={group.timezone}
                         initiallySelectedSlotIds={[...scheduledAppointmentSlotIds]}
@@ -289,34 +306,37 @@ export default async function CandidateDetailPage({
                         })}
                       />
                     </div>
-                  </div>
-                  <FormField id="rescheduleMeetingLocation" label="会议地点或链接">
-                    <Input
-                      id="rescheduleMeetingLocation"
-                      name="meetingLocation"
-                      defaultValue={scheduledAppointment.meetingLocation ?? ""}
-                      placeholder="会议室 / 腾讯会议链接"
+                    <FormField id="rescheduleMeetingLocation" label="会议地点或链接">
+                      <Input
+                        id="rescheduleMeetingLocation"
+                        name="meetingLocation"
+                        defaultValue={scheduledAppointment.meetingLocation ?? ""}
+                        placeholder="会议室 / 腾讯会议链接"
+                      />
+                    </FormField>
+                    <FormField id="rescheduleCandidateVisibleMessage" label="给候选人的说明">
+                      <Textarea
+                        id="rescheduleCandidateVisibleMessage"
+                        name="candidateVisibleMessage"
+                        defaultValue={scheduledAppointment.candidateVisibleMessage ?? ""}
+                      />
+                    </FormField>
+                    <FormField id="rescheduleInternalNote" label="内部备注（仅管理员可见）">
+                      <Textarea
+                        id="rescheduleInternalNote"
+                        name="internalNote"
+                        defaultValue={scheduledAppointment.internalNote ?? ""}
+                      />
+                    </FormField>
+                    <AppointmentEmailFields
+                      checkboxLabel="保存后发送标准面试安排通知"
+                      template={appointmentEmailTemplate}
                     />
-                  </FormField>
-                  <FormField id="rescheduleCandidateVisibleMessage" label="给候选人的说明">
-                    <Textarea
-                      id="rescheduleCandidateVisibleMessage"
-                      name="candidateVisibleMessage"
-                      defaultValue={scheduledAppointment.candidateVisibleMessage ?? ""}
-                    />
-                  </FormField>
-                  <FormField id="rescheduleInternalNote" label="内部备注（仅管理员可见）">
-                    <Textarea
-                      id="rescheduleInternalNote"
-                      name="internalNote"
-                      defaultValue={scheduledAppointment.internalNote ?? ""}
-                    />
-                  </FormField>
-                  <AppointmentEmailFields checkboxLabel="保存后发送标准面试安排通知" />
-                  <div className="flex flex-wrap items-center gap-3">
-                    <SubmitButton pendingText="正在保存">保存调整并锁定时间</SubmitButton>
-                  </div>
-                </form>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <SubmitButton pendingText="正在保存">保存调整并锁定时间</SubmitButton>
+                    </div>
+                  </form>
+                </details>
                 <form action={cancelAppointmentAction.bind(null, groupId, scheduledAppointment.id)}>
                   <SubmitButton variant="danger" pendingText="正在删除">
                     取消安排并释放时间
@@ -354,7 +374,10 @@ export default async function CandidateDetailPage({
                 <FormField id="internalNote" label="内部备注（仅管理员可见）">
                   <Textarea id="internalNote" name="internalNote" />
                 </FormField>
-                <AppointmentEmailFields checkboxLabel="确认安排后发送标准面试安排通知" />
+                <AppointmentEmailFields
+                  checkboxLabel="确认安排后发送标准面试安排通知"
+                  template={appointmentEmailTemplate}
+                />
                 <SubmitButton>确认安排并锁定时间</SubmitButton>
               </form>
             )}
@@ -406,6 +429,7 @@ export default async function CandidateDetailPage({
             groupId={groupId}
             groupName={group.name}
             returnTo={returnTo}
+            templates={emailTemplates}
             mode="single"
             candidates={[
               {

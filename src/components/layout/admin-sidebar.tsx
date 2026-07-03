@@ -3,6 +3,7 @@ import {
   CalendarCheck,
   CalendarClock,
   ClipboardList,
+  FileText,
   History,
   Inbox,
   Send,
@@ -10,7 +11,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type AdminShellActive = "groups" | "audit" | "reviews" | "appointments" | "mailato";
+export type AdminShellActive =
+  "groups" | "audit" | "reviews" | "appointments" | "emailTemplates" | "mailato";
 
 export const adminNavItems: Array<{
   key: AdminShellActive;
@@ -22,6 +24,7 @@ export const adminNavItems: Array<{
   { key: "audit", label: "审计日志", href: "/admin/audit", icon: History },
   { key: "reviews", label: "修改审核", href: "/admin/reviews", icon: Inbox },
   { key: "appointments", label: "面试安排", href: "/admin/appointments", icon: CalendarCheck },
+  { key: "emailTemplates", label: "邮件模板", href: "/admin/email-templates", icon: FileText },
   { key: "mailato", label: "邮件发送", href: "/admin/mailato", icon: Send }
 ];
 

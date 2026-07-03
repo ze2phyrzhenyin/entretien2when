@@ -25,6 +25,7 @@ import {
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
+import { getCandidateEmailTemplates } from "@/lib/mail/email-template-store";
 import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
 
 type CandidatesPageProps = {
@@ -129,6 +130,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
         }
       })
     : [];
+  const emailTemplates = await getCandidateEmailTemplates();
   const returnTo = `/admin/groups/${groupId}/candidates`;
   const mailCount = Number(query.mailCount ?? 0);
   const mailFailed = Number(query.mailFailed ?? 0);
@@ -190,6 +192,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
             groupId={groupId}
             groupName={group.name}
             returnTo={returnTo}
+            templates={emailTemplates}
             candidates={candidates.map((candidate) => ({
               id: candidate.id,
               name: candidate.name,

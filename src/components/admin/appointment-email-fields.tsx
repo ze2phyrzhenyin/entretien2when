@@ -1,12 +1,18 @@
 import { Bell } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { appointmentConfirmedEmailTemplate } from "@/lib/mail/email-templates";
+import type { CandidateEmailTemplate } from "@/lib/mail/email-templates";
 
-export function AppointmentEmailFields({ checkboxLabel }: { checkboxLabel: string }) {
+export function AppointmentEmailFields({
+  checkboxLabel,
+  template
+}: {
+  checkboxLabel: string;
+  template: CandidateEmailTemplate;
+}) {
   return (
     <div className="rounded-lg border border-border bg-surface-subtle p-4">
-      <input type="hidden" name="emailSubject" value={appointmentConfirmedEmailTemplate.subject} />
-      <input type="hidden" name="emailBody" value={appointmentConfirmedEmailTemplate.body} />
+      <input type="hidden" name="emailSubject" value={template.subject} />
+      <input type="hidden" name="emailBody" value={template.body} />
       <input type="hidden" name="ccEmails" value="" />
 
       <div className="flex items-start gap-3">

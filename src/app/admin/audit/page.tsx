@@ -90,7 +90,9 @@ const auditActionLabel: Record<string, string> = {
   "admin.send_candidate_email": "发送候选人通知",
   "admin.send_appointment_email": "发送面试安排通知",
   "admin.retry_candidate_email": "重试候选人通知",
-  "admin.send_mailato_email": "发送邮件"
+  "admin.send_mailato_email": "发送邮件",
+  "admin.update_email_template": "更新邮件模板",
+  "admin.reset_email_template": "恢复默认邮件模板"
 };
 
 const entityTypeLabel: Record<string, string> = {
@@ -101,6 +103,7 @@ const entityTypeLabel: Record<string, string> = {
   CandidateAdminNote: "管理员跟进备注",
   CandidateEmailBatch: "候选人通知批次",
   CandidateEmailDelivery: "候选人通知记录",
+  EmailTemplate: "邮件模板",
   MailatoEmail: "邮件发送记录"
 };
 

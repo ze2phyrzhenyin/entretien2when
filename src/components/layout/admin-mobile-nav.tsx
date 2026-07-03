@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 export function AdminMobileNav({ active = "groups" }: { active?: AdminShellActive }) {
   return (
     <nav
-      className="sticky top-16 z-20 grid grid-cols-5 gap-1 border-b border-border bg-surface/95 px-2 py-2 backdrop-blur md:hidden"
+      className="sticky top-16 z-20 grid grid-cols-3 gap-1 border-b border-border bg-surface/95 px-2 py-2 backdrop-blur md:hidden"
       aria-label="管理员主导航"
     >
       {adminNavItems.map((item) => (

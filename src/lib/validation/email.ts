@@ -1,5 +1,8 @@
 import { z } from "zod";
+import { candidateEmailTemplates } from "@/lib/mail/email-templates";
 import { cuidSchema, requiredTextSchema } from "@/lib/validation/common";
+
+const candidateEmailTemplateKeys = new Set(candidateEmailTemplates.map((template) => template.key));
 
 function parseEmailList(value: string) {
   return [
@@ -102,5 +105,20 @@ export const mailatoEmailActionSchema = z.object({
   body: requiredTextSchema("请输入邮件正文", 10000),
   confirmSend: z.literal("yes", {
     errorMap: () => ({ message: "发送前请确认收件人、主题和正文" })
+  })
+});
+
+export const emailTemplateUpdateSchema = z.object({
+  key: z.string().refine((value) => candidateEmailTemplateKeys.has(value), {
+    message: "未知邮件模板"
+  }),
+  label: requiredTextSchema("请输入模板名称", 80),
+  subject: requiredTextSchema("请输入邮件主题", 160),
+  body: requiredTextSchema("请输入邮件正文", 5000)
+});
+
+export const emailTemplateResetSchema = z.object({
+  key: z.string().refine((value) => candidateEmailTemplateKeys.has(value), {
+    message: "未知邮件模板"
   })
 });

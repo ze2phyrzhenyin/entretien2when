@@ -24,8 +24,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   appointmentConfirmedEmailTemplate,
-  candidateEmailTemplates,
-  defaultCandidateEmailTemplate
+  defaultCandidateEmailTemplate,
+  type CandidateEmailTemplate
 } from "@/lib/mail/email-templates";
 import { renderCandidateEmailTemplate } from "@/lib/mail/render-template";
 import { sendCandidateEmailAction } from "@/server/actions/email";
@@ -44,6 +44,7 @@ type CandidateEmailComposerProps = {
   groupId: string;
   groupName: string;
   candidates: CandidateEmailTarget[];
+  templates: CandidateEmailTemplate[];
   returnTo: string;
   mode?: "table" | "single";
 };
@@ -52,17 +53,27 @@ export function CandidateEmailComposer({
   groupId,
   groupName,
   candidates,
+  templates,
   returnTo,
   mode = "table"
 }: CandidateEmailComposerProps) {
   const isSingle = mode === "single";
+  const availableTemplates =
+    templates.length > 0
+      ? templates
+      : [defaultCandidateEmailTemplate, appointmentConfirmedEmailTemplate];
   const hasConfirmedAppointment = candidates.some(
     (candidate) => candidate.appointmentTime && candidate.appointmentTime !== "尚未安排"
   );
   const initialTemplate =
-    isSingle && hasConfirmedAppointment
+    availableTemplates.find((template) =>
+      isSingle && hasConfirmedAppointment
+        ? template.key === appointmentConfirmedEmailTemplate.key
+        : template.key === defaultCandidateEmailTemplate.key
+    ) ??
+    (isSingle && hasConfirmedAppointment
       ? appointmentConfirmedEmailTemplate
-      : defaultCandidateEmailTemplate;
+      : defaultCandidateEmailTemplate);
   const [templateKey, setTemplateKey] = useState(initialTemplate.key);
   const [subject, setSubject] = useState(initialTemplate.subject);
   const [body, setBody] = useState(initialTemplate.body);
@@ -91,7 +102,7 @@ export function CandidateEmailComposer({
 
   function applyTemplate(nextKey: string) {
     const template =
-      candidateEmailTemplates.find((item) => item.key === nextKey) ?? defaultCandidateEmailTemplate;
+      availableTemplates.find((item) => item.key === nextKey) ?? defaultCandidateEmailTemplate;
     setTemplateKey(template.key);
     setSubject(template.subject);
     setBody(template.body);
@@ -136,7 +147,7 @@ export function CandidateEmailComposer({
             value={templateKey}
             onChange={(event) => applyTemplate(event.target.value)}
           >
-            {candidateEmailTemplates.map((template) => (
+            {availableTemplates.map((template) => (
               <option key={template.key} value={template.key}>
                 {template.label}
               </option>

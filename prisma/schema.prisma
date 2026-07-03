@@ -110,6 +110,7 @@ model Admin {
   lockedSlots           TimeSlotLock[]           @relation("SlotLocker")
   adminAuditLogs        AuditLog[]               @relation("AuditAdminActor")
   sentCandidateEmails   CandidateEmailDelivery[] @relation("CandidateEmailSender")
+  updatedEmailTemplates EmailTemplate[]          @relation("EmailTemplateUpdater")
 
   @@index([role, status])
 }
@@ -384,6 +385,21 @@ model CandidateEmailDelivery {
   @@index([sentByAdminId])
   @@index([batchId])
   @@index([status, createdAt])
+}
+
+model EmailTemplate {
+  id               String   @id @default(cuid())
+  key              String   @unique
+  label            String
+  subject          String
+  body             String
+  updatedByAdminId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  updatedByAdmin Admin? @relation("EmailTemplateUpdater", fields: [updatedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByAdminId])
 }
 
 model AuditLog {

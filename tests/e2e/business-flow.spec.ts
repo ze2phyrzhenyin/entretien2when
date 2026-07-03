@@ -121,6 +121,7 @@ test.describe("P0 business flow", () => {
   test.setTimeout(90_000);
 
   test.beforeAll(async () => {
+    await prisma.emailTemplate.deleteMany();
     await prisma.interviewGroup.deleteMany({
       where: { name: { startsWith: groupNamePrefix } }
     });
@@ -247,7 +248,9 @@ test.describe("P0 business flow", () => {
     await expect(page.getByText(/已安排：/)).toBeVisible();
     await expect(page.getByText("已发送 1 封候选人通知（测试发送预览）")).toBeVisible();
     await expect(page.getByText("2026/08/03 10:00-11:00", { exact: true })).toBeVisible();
-    await expect(page.getByText("面试时间：2026/08/03 10:00-11:00（北京时间）")).toBeVisible();
+    await expect(
+      page.getByText("面试时间：2026/08/03 10:00-11:00（北京时间）", { exact: true })
+    ).toBeVisible();
 
     const candidate = await prisma.candidate.findUnique({
       where: {
@@ -287,6 +290,11 @@ test.describe("P0 business flow", () => {
     expect(appointmentEmailDelivery.status).toBe("PREVIEW");
     expect(appointmentEmailDelivery.bodyTemplate).toContain("{appointmentTime}");
     expect(appointmentEmailDelivery.ccEmailSnapshots).toEqual([]);
+
+    await expect(page.getByText("展开调整")).toBeVisible();
+    await expect(page.getByRole("button", { name: "保存调整并锁定时间" })).toHaveCount(0);
+    await page.getByText("调整面试时间").click();
+    await expect(page.getByText("收起")).toBeVisible();
 
     const rescheduleForm = page.locator("form").filter({
       has: page.getByRole("button", { name: "保存调整并锁定时间" })

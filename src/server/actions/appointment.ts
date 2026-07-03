@@ -13,8 +13,8 @@ import {
 } from "@/lib/business/slot-selection";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
-import { appointmentConfirmedEmailTemplate } from "@/lib/mail/email-templates";
 import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
+import { getAppointmentConfirmedEmailTemplate } from "@/lib/mail/email-template-store";
 import { requireGroupPermission } from "@/lib/permissions/admin";
 import { formValue, formValues } from "@/lib/validation/common";
 import { scheduleAppointmentSchema } from "@/lib/validation/appointment";
@@ -67,14 +67,15 @@ async function sendAppointmentCandidateEmailAndRedirect({
   };
 }) {
   const batchId = randomUUID();
+  const appointmentEmailTemplate = await getAppointmentConfirmedEmailTemplate();
   const result = await attemptCandidateEmailDelivery({
     adminId,
     group,
     candidate,
     batchId,
-    templateKey: appointmentConfirmedEmailTemplate.key,
-    subject: input.emailSubject ?? appointmentConfirmedEmailTemplate.subject,
-    bodyTemplate: input.emailBody ?? appointmentConfirmedEmailTemplate.body,
+    templateKey: appointmentEmailTemplate.key,
+    subject: input.emailSubject ?? appointmentEmailTemplate.subject,
+    bodyTemplate: input.emailBody ?? appointmentEmailTemplate.body,
     ccEmails: input.ccEmails,
     templateValues: buildAppointmentEmailContext({
       startAt: appointment.startAt,
