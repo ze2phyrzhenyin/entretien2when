@@ -1,0 +1,24 @@
+# Non-secret deployment reference. The authoritative SSH inventory lives in
+# /Users/zephyrsui/Developer/server-ops/inventory/servers/zhaoali.toml.
+schema_version = 1
+server_id = "zhaoali"
+environment = "production"
+
+[application]
+id = "when2entretien"
+base_path = "/when2entretien"
+public_host = "when2entretien.120.24.108.234.nip.io"
+public_origin = "https://when2entretien.120.24.108.234.nip.io/when2entretien"
+remote_root = "/opt/when2entretien"
+nginx_vhost = "/www/server/panel/vhost/nginx/90-when2entretien.conf"
+
+[services]
+web = "when2entretien-web.service"
+email_outbox_timer = "when2entretien-web-email-outbox.timer"
+certificate_renewal_timer = "when2entretien-certificate-renew.timer"
+
+[release_gate]
+requires_trusted_https = true
+requires_http_redirect = true
+requires_database_backup = true
+requires_btree_gist = true

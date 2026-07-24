@@ -58,6 +58,7 @@ pnpm exec playwright test tests/e2e/business-flow.spec.ts --project=chromium
 
 本项目的生产目标已登记为服务器管理项目中的 `zhaoali`，不要把 SSH IP、私钥路径或登录命令散落在个人脚本里：
 
+- 版本化部署清单：`ops/zhaoali.toml`
 - 管理目录：`/Users/zephyrsui/Developer/server-ops`
 - 服务器 ID：`zhaoali`
 - 应用 ID：`when2entretien`
