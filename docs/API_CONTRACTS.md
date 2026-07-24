@@ -4,8 +4,9 @@
 
 ## 候选人接口
 
-- `joinGroup(input: name, email, groupCode)`
-- `getCandidateSelfView(groupCode, email)`
+- `requestCandidateAccess(input: name, email, groupCode)`
+- `consumeCandidateAccessToken(token)`
+- `getCandidateSelfView(groupCode, candidateSession)`
 - `submitInitialAvailability(...)`
 - `requestSubmissionModification(...)`
 - `getCandidateReviewStatus(...)`
@@ -26,8 +27,11 @@
 - `adminLogin(email, password)`
 - `adminLogout()`
 - `listGroups()`
+- `listProjects()`
+- `getProjectDetail()`
 - `createGroup()`
 - `updateGroup()`
+- `upsertInterviewer()`
 - `generateGroupCode()`
 - `listGroupCandidates()`
 - `getCandidateAdminDetail()`
@@ -35,12 +39,18 @@
 - `listPendingReviews()`
 - `reviewSubmission()`
 - `listTimeOverview()`
-- `scheduleAppointment()`
+- `scheduleAppointment(slotIds, interviewerIds?, meetingLocation?, candidateVisibleMessage?, internalNote?, email fields...)`
 - `cancelAppointment()`
 - `listAppointments()`
 - `sendMailatoEmail()`
 
-所有 admin 接口必须 `requireAdmin`。当前 `requireAdmin` 只允许超级管理员进入后台；候选人接口不复用管理员 session。
+所有 admin 接口必须 `requireAdmin`。超级管理员可访问全量后台数据；普通管理员必须继续经过 group/project permission helper 做服务端二次校验。候选人接口不复用管理员 session。
+
+`scheduleAppointment` 和 `rescheduleAppointment` 必须校验：
+
+- `slotIds` 属于候选人当前有效提交，且连续、开放、未被其他预约锁定。
+- `interviewerIds` 属于当前面试组关联项目，且面试官状态为 `ACTIVE`。
+- 所选面试官没有与目标时间重叠的 `SCHEDULED` 预约。
 
 ## DTO 分离
 

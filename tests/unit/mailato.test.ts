@@ -26,6 +26,7 @@ describe("mailato adapter", () => {
       bcc: [{ email: "owner@example.com" }],
       subject: "面试通知",
       bodyFile: "/tmp/body.txt",
+      idempotencyKey: "candidate-email-delivery-1",
       auditId: "audit-1",
       dryRun: true
     });
@@ -46,6 +47,8 @@ describe("mailato adapter", () => {
       "面试官 <interviewer@example.com>",
       "--bcc",
       "owner@example.com",
+      "--idempotency-key",
+      "candidate-email-delivery-1",
       "--audit-id",
       "audit-1",
       "--dry-run-json"

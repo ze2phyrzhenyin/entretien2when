@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { ConfirmForm } from "@/components/ui/confirm-form";
 import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
 import { getEmailTemplateManagementItems } from "@/lib/mail/email-template-store";
@@ -153,7 +154,10 @@ export default async function AdminEmailTemplatesPage({
                     </p>
                   ) : null}
                 </div>
-                <form action={resetEmailTemplateAction}>
+                <ConfirmForm
+                  action={resetEmailTemplateAction}
+                  confirmMessage="确认恢复默认模板吗？当前自定义内容会被替换。"
+                >
                   <input type="hidden" name="key" value={template.key} />
                   <SubmitButton
                     variant="secondary"
@@ -162,7 +166,7 @@ export default async function AdminEmailTemplatesPage({
                   >
                     恢复默认
                   </SubmitButton>
-                </form>
+                </ConfirmForm>
               </div>
             </Card>
           ))}

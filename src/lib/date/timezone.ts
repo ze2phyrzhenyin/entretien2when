@@ -94,7 +94,66 @@ function getTimezoneParts(date: Date, timezone: string) {
   };
 }
 
-export function zonedDateTimeToUtc(date: string, time: string, timezone = "Asia/Shanghai"): Date {
+type LocalDateTimeParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+};
+
+export type ZonedDateTimeDisambiguation = "earlier" | "later" | "reject";
+
+export class ZonedDateTimeError extends Error {
+  constructor(
+    public readonly code: "INVALID" | "NONEXISTENT" | "AMBIGUOUS",
+    message: string
+  ) {
+    super(message);
+    this.name = "ZonedDateTimeError";
+  }
+}
+
+function matchesLocalDateTime(candidate: Date, expected: LocalDateTimeParts, timezone: string) {
+  const actual = getTimezoneParts(candidate, timezone);
+  return (
+    actual.year === expected.year &&
+    actual.month === expected.month &&
+    actual.day === expected.day &&
+    actual.hour === expected.hour &&
+    actual.minute === expected.minute &&
+    actual.second === 0
+  );
+}
+
+function timezoneOffsetMinutes(instant: Date, timezone: string) {
+  const local = getTimezoneParts(instant, timezone);
+  const localAsUtc = Date.UTC(
+    local.year,
+    local.month - 1,
+    local.day,
+    local.hour,
+    local.minute,
+    local.second
+  );
+  return Math.round((localAsUtc - instant.getTime()) / 60_000);
+}
+
+function possibleTimezoneOffsets(utcGuess: number, timezone: string) {
+  // An IANA offset can change close to the requested wall time. Sampling both
+  // sides of a 48-hour window captures the before/after offsets without making
+  // assumptions about a locale's DST rules or a one-hour transition.
+  const sampleHours = [-48, -36, -24, -12, -6, 0, 6, 12, 24, 36, 48];
+  return [
+    ...new Set(
+      sampleHours.map((hours) =>
+        timezoneOffsetMinutes(new Date(utcGuess + hours * 60 * 60 * 1000), timezone)
+      )
+    )
+  ];
+}
+
+function parseLocalDateTime(date: string, time: string): LocalDateTimeParts {
   const [yearRaw, monthRaw, dayRaw] = date.split("-");
   const [hourRaw, minuteRaw] = time.split(":");
   const year = Number(yearRaw);
@@ -103,22 +162,76 @@ export function zonedDateTimeToUtc(date: string, time: string, timezone = "Asia/
   const hour = Number(hourRaw);
   const minute = Number(minuteRaw);
 
-  if (![year, month, day, hour, minute].every(Number.isFinite)) {
-    throw new Error("Invalid zoned date time input.");
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    !/^\d{2}:\d{2}$/.test(time) ||
+    ![year, month, day, hour, minute].every(Number.isInteger) ||
+    month < 1 ||
+    month > 12 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    throw new ZonedDateTimeError("INVALID", "Invalid local date/time input.");
   }
 
-  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0);
-  const localPartsAtGuess = getTimezoneParts(new Date(utcGuess), timezone);
-  const localAsUtc = Date.UTC(
-    localPartsAtGuess.year,
-    localPartsAtGuess.month - 1,
-    localPartsAtGuess.day,
-    localPartsAtGuess.hour,
-    localPartsAtGuess.minute,
-    localPartsAtGuess.second
-  );
-  const offset = localAsUtc - utcGuess;
-  return new Date(utcGuess - offset);
+  const calendarCheck = new Date(Date.UTC(year, month - 1, day));
+  if (
+    calendarCheck.getUTCFullYear() !== year ||
+    calendarCheck.getUTCMonth() !== month - 1 ||
+    calendarCheck.getUTCDate() !== day
+  ) {
+    throw new ZonedDateTimeError("INVALID", "Invalid local calendar date.");
+  }
+
+  return { year, month, day, hour, minute };
+}
+
+/**
+ * Convert a local IANA wall time to an instant without guessing across DST.
+ * Gaps are rejected. Repeated wall times require an explicit earlier/later
+ * policy; callers default to reject so one displayed time cannot silently map
+ * to an unintended interview slot.
+ */
+export function zonedDateTimeToUtc(
+  date: string,
+  time: string,
+  timezone = "Asia/Shanghai",
+  { disambiguation = "reject" }: { disambiguation?: ZonedDateTimeDisambiguation } = {}
+): Date {
+  if (!isValidTimezone(timezone)) {
+    throw new ZonedDateTimeError("INVALID", `Invalid IANA timezone: ${timezone}`);
+  }
+
+  const local = parseLocalDateTime(date, time);
+  const utcGuess = Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute, 0);
+  const candidates = possibleTimezoneOffsets(utcGuess, timezone)
+    .map((offsetMinutes) => new Date(utcGuess - offsetMinutes * 60_000))
+    .filter((candidate) => matchesLocalDateTime(candidate, local, timezone))
+    .sort((left, right) => left.getTime() - right.getTime());
+
+  if (candidates.length === 0) {
+    throw new ZonedDateTimeError(
+      "NONEXISTENT",
+      `${date} ${time} does not exist in ${timezone} because of a daylight-saving transition.`
+    );
+  }
+
+  if (candidates.length > 1) {
+    if (disambiguation === "earlier") {
+      return candidates[0]!;
+    }
+    if (disambiguation === "later") {
+      return candidates[candidates.length - 1]!;
+    }
+    throw new ZonedDateTimeError(
+      "AMBIGUOUS",
+      `${date} ${time} occurs more than once in ${timezone} because of a daylight-saving transition.`
+    );
+  }
+
+  return candidates[0]!;
 }
 
 export function addMinutes(date: Date, minutes: number) {

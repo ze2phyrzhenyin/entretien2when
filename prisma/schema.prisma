@@ -12,6 +12,13 @@ enum AdminRole {
   ADMIN
 }
 
+enum AdminGroupRole {
+  OWNER
+  SCHEDULER
+  REVIEWER
+  VIEWER
+}
+
 enum AdminStatus {
   ACTIVE
   DISABLED
@@ -22,6 +29,22 @@ enum InterviewGroupStatus {
   OPEN
   CLOSED
   ARCHIVED
+}
+
+enum InterviewProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum InterviewRoundStatus {
+  ACTIVE
+  CLOSED
+  ARCHIVED
+}
+
+enum InterviewerStatus {
+  ACTIVE
+  INACTIVE
 }
 
 enum GroupTimeSlotStatus {
@@ -84,8 +107,16 @@ enum AuditActorType {
 }
 
 enum CandidateEmailDeliveryStatus {
+  PROCESSING
   SENT
   PREVIEW
+  FAILED
+}
+
+enum EmailOutboxStatus {
+  PENDING
+  PROCESSING
+  SENT
   FAILED
 }
 
@@ -101,6 +132,8 @@ model Admin {
   lastLoginAt  DateTime?
 
   sessions              AdminSession[]
+  groupMemberships      AdminGroupMembership[]
+  createdProjects       InterviewProject[]       @relation("ProjectCreator")
   createdGroups         InterviewGroup[]         @relation("GroupCreator")
   reviewedSubmissions   CandidateSubmission[]    @relation("SubmissionReviewer")
   scheduledAppointments Appointment[]            @relation("AppointmentScheduler")
@@ -128,8 +161,64 @@ model AdminSession {
   @@index([expiresAt])
 }
 
+model InterviewProject {
+  id                String                 @id @default(cuid())
+  name              String
+  publicDescription String?
+  status            InterviewProjectStatus @default(ACTIVE)
+  createdByAdminId  String
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  createdByAdmin Admin            @relation("ProjectCreator", fields: [createdByAdminId], references: [id])
+  rounds         InterviewRound[]
+  groups         InterviewGroup[]
+  interviewers   Interviewer[]
+
+  @@index([createdByAdminId])
+  @@index([status])
+}
+
+model InterviewRound {
+  id                       String               @id @default(cuid())
+  projectId                String
+  name                     String
+  orderIndex               Int                  @default(1)
+  description              String?
+  interviewDurationMinutes Int?
+  status                   InterviewRoundStatus @default(ACTIVE)
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  project      InterviewProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  groups       InterviewGroup[]
+  appointments Appointment[]
+
+  @@unique([projectId, orderIndex])
+  @@index([projectId, status])
+}
+
+model Interviewer {
+  id              String            @id @default(cuid())
+  projectId       String
+  name            String
+  email           String
+  normalizedEmail String
+  status          InterviewerStatus @default(ACTIVE)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  project          InterviewProject         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  appointmentLinks AppointmentInterviewer[]
+
+  @@unique([projectId, normalizedEmail])
+  @@index([projectId, status])
+}
+
 model InterviewGroup {
   id                         String               @id @default(cuid())
+  projectId                  String?
+  roundId                    String?
   name                       String
   groupCode                  String               @unique
   publicDescription          String?
@@ -146,19 +235,42 @@ model InterviewGroup {
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
 
-  createdByAdmin  Admin                    @relation("GroupCreator", fields: [createdByAdminId], references: [id])
-  timeSlots       GroupTimeSlot[]
-  locks           TimeSlotLock[]
-  candidates      Candidate[]
-  submissions     CandidateSubmission[]
-  appointments    Appointment[]
-  adminNotes      CandidateAdminNote[]
-  notifications   AdminNotification[]
-  auditLogs       AuditLog[]
-  emailDeliveries CandidateEmailDelivery[]
+  project               InterviewProject?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  round                 InterviewRound?          @relation(fields: [roundId], references: [id], onDelete: SetNull)
+  createdByAdmin        Admin                    @relation("GroupCreator", fields: [createdByAdminId], references: [id])
+  adminMemberships      AdminGroupMembership[]
+  timeSlots             GroupTimeSlot[]
+  locks                 TimeSlotLock[]
+  candidates            Candidate[]
+  candidateAccessTokens CandidateAccessToken[]
+  candidateSessions     CandidateSession[]
+  submissions           CandidateSubmission[]
+  appointments          Appointment[]
+  adminNotes            CandidateAdminNote[]
+  notifications         AdminNotification[]
+  auditLogs             AuditLog[]
+  emailDeliveries       CandidateEmailDelivery[]
 
   @@index([createdByAdminId])
+  @@index([projectId])
+  @@index([roundId])
   @@index([status])
+}
+
+model AdminGroupMembership {
+  id        String         @id @default(cuid())
+  adminId   String
+  groupId   String
+  role      AdminGroupRole @default(VIEWER)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  admin Admin          @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  group InterviewGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([adminId, groupId])
+  @@index([groupId, role])
+  @@index([adminId, role])
 }
 
 model GroupTimeSlot {
@@ -224,9 +336,46 @@ model Candidate {
   notifications      AdminNotification[]
   candidateAuditLogs AuditLog[]                @relation("AuditCandidateActor")
   emailDeliveries    CandidateEmailDelivery[]
+  sessions           CandidateSession[]
 
   @@unique([groupId, normalizedEmail])
   @@index([groupId, status])
+}
+
+model CandidateAccessToken {
+  id              String    @id @default(cuid())
+  groupId         String
+  tokenHash       String    @unique
+  name            String
+  email           String
+  normalizedEmail String
+  expiresAt       DateTime
+  consumedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  group InterviewGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, normalizedEmail])
+  @@index([expiresAt])
+}
+
+model CandidateSession {
+  id              String   @id @default(cuid())
+  groupId         String
+  candidateId     String?
+  tokenHash       String   @unique
+  name            String
+  email           String
+  normalizedEmail String
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  group     InterviewGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  candidate Candidate?     @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  @@index([groupId, normalizedEmail])
+  @@index([candidateId])
+  @@index([expiresAt])
 }
 
 model CandidateSubmission {
@@ -278,6 +427,7 @@ model CandidateSubmissionSlot {
 model Appointment {
   id                      String            @id @default(cuid())
   groupId                 String
+  roundId                 String?
   candidateId             String
   startAt                 DateTime
   endAt                   DateTime
@@ -292,14 +442,17 @@ model Appointment {
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt
 
-  group            InterviewGroup    @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  candidate        Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  scheduledByAdmin Admin             @relation("AppointmentScheduler", fields: [scheduledByAdminId], references: [id])
-  cancelledByAdmin Admin?            @relation("AppointmentCanceller", fields: [cancelledByAdminId], references: [id], onDelete: SetNull)
+  group            InterviewGroup           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  round            InterviewRound?          @relation(fields: [roundId], references: [id], onDelete: SetNull)
+  candidate        Candidate                @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  scheduledByAdmin Admin                    @relation("AppointmentScheduler", fields: [scheduledByAdminId], references: [id])
+  cancelledByAdmin Admin?                   @relation("AppointmentCanceller", fields: [cancelledByAdminId], references: [id], onDelete: SetNull)
   slots            AppointmentSlot[]
   locks            TimeSlotLock[]
+  interviewers     AppointmentInterviewer[]
 
   @@index([groupId, status, startAt])
+  @@index([roundId, status, startAt])
   @@index([candidateId, status])
 }
 
@@ -314,6 +467,19 @@ model AppointmentSlot {
 
   @@unique([appointmentId, slotId])
   @@index([slotId])
+}
+
+model AppointmentInterviewer {
+  id            String   @id @default(cuid())
+  appointmentId String
+  interviewerId String
+  createdAt     DateTime @default(now())
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  interviewer Interviewer @relation(fields: [interviewerId], references: [id], onDelete: Cascade)
+
+  @@unique([appointmentId, interviewerId])
+  @@index([interviewerId])
 }
 
 model CandidateAdminNote {
@@ -365,14 +531,19 @@ model CandidateEmailDelivery {
   templateKey            String?
   subject                String
   bodyTemplate           String
+  renderedSubject        String?
+  renderedBody           String?
   candidateNameSnapshot  String
   recipientEmailSnapshot String
   ccEmailSnapshots       String[]                     @default([])
   status                 CandidateEmailDeliveryStatus
+  idempotencyKey         String?                      @unique
   providerMessageId      String?
   errorMessage           String?
+  leaseExpiresAt         DateTime?
   retriedFromId          String?
   createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
 
   group       InterviewGroup           @relation(fields: [groupId], references: [id], onDelete: Cascade)
   candidate   Candidate                @relation(fields: [candidateId], references: [id], onDelete: Cascade)
@@ -385,6 +556,7 @@ model CandidateEmailDelivery {
   @@index([sentByAdminId])
   @@index([batchId])
   @@index([status, createdAt])
+  @@index([status, leaseExpiresAt])
 }
 
 model EmailTemplate {
@@ -400,6 +572,38 @@ model EmailTemplate {
   updatedByAdmin Admin? @relation("EmailTemplateUpdater", fields: [updatedByAdminId], references: [id], onDelete: SetNull)
 
   @@index([updatedByAdminId])
+}
+
+model EmailOutbox {
+  id            String            @id @default(cuid())
+  status        EmailOutboxStatus @default(PENDING)
+  type          String
+  payload       Json
+  attempts      Int               @default(0)
+  maxAttempts   Int               @default(3)
+  lastError     String?
+  nextAttemptAt DateTime          @default(now())
+  leaseExpiresAt DateTime?
+  processedAt   DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
+  @@index([type, createdAt])
+}
+
+/// Shared, short-lived fixed-window counters used for unauthenticated and
+/// login abuse controls. Keys are one-way hashes where they contain any
+/// client identity, never raw emails or IP addresses.
+model RateLimitBucket {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
 }
 
 model AuditLog {

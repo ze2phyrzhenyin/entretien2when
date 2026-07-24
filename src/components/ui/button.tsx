@@ -48,8 +48,15 @@ export function Button({
   );
 
   if (asChild && isValidElement(children)) {
-    const child = children as ReactElement<{ className?: string }>;
+    const child = children as ReactElement<{
+      className?: string;
+      "aria-disabled"?: boolean;
+      "aria-busy"?: boolean;
+    }>;
     return cloneElement(child, {
+      ...props,
+      "aria-disabled": disabled || isLoading || child.props["aria-disabled"],
+      "aria-busy": isLoading || child.props["aria-busy"] || undefined,
       className: cn(classNames, child.props.className)
     });
   }

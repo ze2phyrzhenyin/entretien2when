@@ -39,11 +39,35 @@ test.beforeEach(async () => {
       name: { startsWith: groupNamePrefix }
     }
   });
+  await prisma.interviewProject.deleteMany({
+    where: {
+      name: { startsWith: groupNamePrefix }
+    }
+  });
   await prisma.emailTemplate.deleteMany();
+
+  const groupName = `${groupNamePrefix}${Date.now()}`;
+  const project = await prisma.interviewProject.create({
+    data: {
+      name: groupName,
+      publicDescription: "邮件运营自动化验收。",
+      createdByAdminId: admin.id
+    }
+  });
+  const round = await prisma.interviewRound.create({
+    data: {
+      projectId: project.id,
+      name: "默认轮次",
+      orderIndex: 1,
+      interviewDurationMinutes: 30
+    }
+  });
 
   const group = await prisma.interviewGroup.create({
     data: {
-      name: `${groupNamePrefix}${Date.now()}`,
+      projectId: project.id,
+      roundId: round.id,
+      name: groupName,
       groupCode: generateGroupCode(),
       publicDescription: "邮件运营自动化验收。",
       timezone: "Asia/Shanghai",
@@ -65,6 +89,11 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   await prisma.interviewGroup.deleteMany({
+    where: {
+      name: { startsWith: groupNamePrefix }
+    }
+  });
+  await prisma.interviewProject.deleteMany({
     where: {
       name: { startsWith: groupNamePrefix }
     }

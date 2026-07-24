@@ -43,6 +43,8 @@ export function Alert({
 }) {
   return (
     <div
+      role={tone === "danger" ? "alert" : "status"}
+      aria-live={tone === "danger" ? "assertive" : "polite"}
       className={cn(
         "flex gap-3 rounded-lg border px-4 py-3 text-sm leading-6",
         toneClassName[tone],

@@ -30,6 +30,8 @@ jobs:
       ADMIN_BOOTSTRAP_PASSWORD: ChangeMe_StrongPassword_123!
       ADMIN_BOOTSTRAP_NAME: 超级管理员
       SESSION_TTL_DAYS: "7"
+      APP_URL: https://ci.example.test/when2entretien
+      NEXT_PUBLIC_BASE_PATH: /when2entretien
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -66,6 +68,8 @@ jobs:
       ADMIN_BOOTSTRAP_PASSWORD: ChangeMe_StrongPassword_123!
       ADMIN_BOOTSTRAP_NAME: 超级管理员
       SESSION_TTL_DAYS: "7"
+      WHEN2ENTRETIEN_ALLOW_E2E_MUTATION: "1"
+      PLAYWRIGHT_WORKERS: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -79,4 +83,12 @@ jobs:
       - run: pnpm db:generate
       - run: pnpm exec prisma migrate deploy
       - run: pnpm exec playwright install chromium
-      - run: pnpm exec playwright test tests/e2e/business-flow.spec.ts --project=chromium
+      - run: >-
+          pnpm exec playwright test
+          tests/e2e/business-flow.spec.ts
+          tests/e2e/candidate-auth-security.spec.ts
+          tests/e2e/scheduling-integrity.spec.ts
+          tests/e2e/email-ops.spec.ts
+          tests/e2e/slot-clear.spec.ts
+          tests/e2e/timezone-switch.spec.ts
+          --project=chromium --workers=1

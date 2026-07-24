@@ -3,10 +3,12 @@ import { AdminShell } from "@/components/layout/admin-shell";
 import { Card } from "@/components/ui/card";
 import { requireAdmin } from "@/lib/auth/session";
 import { timezoneOptionsWith } from "@/lib/date/timezone";
+import { requireSuperAdmin } from "@/lib/permissions/admin";
 import { NewGroupForm } from "./new-group-form";
 
 export default async function NewGroupPage() {
   const admin = await requireAdmin();
+  requireSuperAdmin(admin);
 
   return (
     <AdminShell admin={admin}>

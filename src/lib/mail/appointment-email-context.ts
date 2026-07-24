@@ -7,11 +7,19 @@ export type AppointmentEmailContextInput = {
   candidateVisibleMessage?: string | null;
 };
 
-function formatBeijingAppointmentTime(startAt: Date | string, endAt: Date | string) {
-  return `${formatDateTimeRange(new Date(startAt), new Date(endAt), "Asia/Shanghai")}（北京时间）`;
+export function formatAppointmentEmailTime(
+  startAt: Date | string,
+  endAt: Date | string,
+  timezone = "Asia/Shanghai"
+) {
+  const timezoneLabel = timezone === "Asia/Shanghai" ? "北京时间" : timezone;
+  return `${formatDateTimeRange(new Date(startAt), new Date(endAt), timezone)}（${timezoneLabel}）`;
 }
 
-export function buildAppointmentEmailContext(appointment?: AppointmentEmailContextInput | null) {
+export function buildAppointmentEmailContext(
+  appointment?: AppointmentEmailContextInput | null,
+  timezone = "Asia/Shanghai"
+) {
   if (!appointment) {
     return {
       appointmentTime: "尚未安排",
@@ -21,7 +29,7 @@ export function buildAppointmentEmailContext(appointment?: AppointmentEmailConte
   }
 
   return {
-    appointmentTime: formatBeijingAppointmentTime(appointment.startAt, appointment.endAt),
+    appointmentTime: formatAppointmentEmailTime(appointment.startAt, appointment.endAt, timezone),
     meetingLocation: appointment.meetingLocation?.trim() || "未填写",
     candidateMessage: appointment.candidateVisibleMessage?.trim() || ""
   };

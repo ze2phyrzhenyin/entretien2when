@@ -2,16 +2,22 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { AuditActorType } from "@prisma/client";
+import { AdminGroupRole, AuditActorType } from "@prisma/client";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
-import { requireGroupPermission } from "@/lib/permissions/admin";
+import {
+  groupOwnerRoles,
+  requireGroupPermission,
+  requireSuperAdmin
+} from "@/lib/permissions/admin";
 import { formValue } from "@/lib/validation/common";
 import { groupFormSchema } from "@/lib/validation/group";
 import { generateUniqueGroupCode } from "@/server/services/group-code";
 
 const groupAuditSelect = {
+  projectId: true,
+  roundId: true,
   name: true,
   publicDescription: true,
   timezone: true,
@@ -78,6 +84,7 @@ export async function createGroupAction(
   formData: FormData
 ): Promise<GroupFormState> {
   const admin = await requireAdmin();
+  requireSuperAdmin(admin);
   const parsed = groupFormSchema.safeParse(readGroupFormValues(formData));
   if (!parsed.success) {
     return getGroupFormStateFromError(parsed.error);
@@ -86,9 +93,29 @@ export async function createGroupAction(
 
   const groupCode = await generateUniqueGroupCode();
   const group = await prisma.$transaction(async (tx) => {
+    const project = await tx.interviewProject.create({
+      data: {
+        name: input.name,
+        publicDescription: input.publicDescription || null,
+        createdByAdminId: admin.id
+      },
+      select: { id: true }
+    });
+    const round = await tx.interviewRound.create({
+      data: {
+        projectId: project.id,
+        name: "默认轮次",
+        orderIndex: 1,
+        description: input.publicDescription || null,
+        interviewDurationMinutes: input.interviewDurationMinutes
+      },
+      select: { id: true }
+    });
     const createdGroup = await tx.interviewGroup.create({
       data: {
         ...input,
+        projectId: project.id,
+        roundId: round.id,
         publicDescription: input.publicDescription || null,
         groupCode,
         createdByAdminId: admin.id
@@ -112,6 +139,14 @@ export async function createGroupAction(
       }
     });
 
+    await tx.adminGroupMembership.create({
+      data: {
+        adminId: admin.id,
+        groupId: createdGroup.id,
+        role: AdminGroupRole.OWNER
+      }
+    });
+
     return createdGroup;
   });
 
@@ -125,7 +160,7 @@ export async function updateGroupAction(
   formData: FormData
 ): Promise<GroupFormState> {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId);
+  await requireGroupPermission(admin, groupId, groupOwnerRoles);
 
   const parsed = groupFormSchema.safeParse(readGroupFormValues(formData));
   if (!parsed.success) {
@@ -147,6 +182,11 @@ export async function updateGroupAction(
       },
       select: groupAuditSelect
     });
+
+    // Project and round records can be shared by multiple groups. A group
+    // OWNER is deliberately scoped to this group, so its settings form must
+    // never mutate those shared records. Shared project/round administration
+    // belongs to an explicit super-admin workflow.
 
     await tx.auditLog.create({
       data: {

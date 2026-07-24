@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildOwnerAppointmentNotificationEmail,
   buildOwnerSubmissionNotificationEmail,
-  getOwnerNotificationRecipients
+  normalizeOwnerNotificationRecipients
 } from "@/server/services/owner-notification-email";
 
 const group = {
@@ -14,17 +14,17 @@ const group = {
 
 const candidate = {
   id: "candidate_1",
-  name: "隋朝阳",
-  email: "zephyr2515@gmail.com"
+  name: "测试候选人",
+  email: "candidate@example.test"
 };
 
 describe("owner notification emails", () => {
-  it("parses configured recipients and falls back to the default owner", () => {
-    expect(getOwnerNotificationRecipients("a@example.com; b@example.com invalid")).toEqual([
+  it("normalizes active group-owner recipient emails without a fallback mailbox", () => {
+    expect(normalizeOwnerNotificationRecipients(["a@example.com; b@example.com invalid"])).toEqual([
       "a@example.com",
       "b@example.com"
     ]);
-    expect(getOwnerNotificationRecipients("not-an-email")).toEqual(["zephyr2515@gmail.com"]);
+    expect(normalizeOwnerNotificationRecipients(["not-an-email"])).toEqual([]);
   });
 
   it("builds a candidate modification notification without internal-only fields", () => {
@@ -46,7 +46,7 @@ describe("owner notification emails", () => {
     expect(email.subject).toContain("修改申请通知");
     expect(email.body).toContain("候选人提交了可用时间修改申请");
     expect(email.body).toContain("商务信息助理电话面试");
-    expect(email.body).toContain("隋朝阳 <zephyr2515@gmail.com>");
+    expect(email.body).toContain("测试候选人 <candidate@example.test>");
     expect(email.body).toContain("2026/07/02 10:00-10:07");
     expect(email.body).toContain("上午更方便");
     expect(email.body).not.toContain("reasonInternal");

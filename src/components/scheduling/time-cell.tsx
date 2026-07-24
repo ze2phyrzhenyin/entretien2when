@@ -19,6 +19,8 @@ export function CandidateTimeCell({
       type="button"
       disabled={disabled}
       onClick={onClick}
+      aria-pressed={selected || undefined}
+      aria-label={disabled ? `${label}，不可选` : `${label}，${selected ? "已选" : "未选"}`}
       className={cn(
         "flex min-h-12 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors duration-fast",
         selected

@@ -7,6 +7,7 @@ import {
   isValidGroupCode,
   normalizeGroupCode
 } from "@/lib/group-code/generate";
+import { candidateAccessRequestSchema } from "@/lib/validation/candidate";
 
 describe("group code generator", () => {
   it("generates a 20-character grouped code", () => {
@@ -36,5 +37,33 @@ describe("group code generator", () => {
     expect(isValidGroupCode("K7Q9-M2TD-8F6P-W4ZX-N3CY")).toBe(true);
     expect(isValidGroupCode("K7Q9-M2TD-8F6P-W4ZX")).toBe(false);
     expect(isValidGroupCode("K7Q9-M2TD-8F6P-W4ZX-N0CY")).toBe(false);
+    expect(isValidGroupCode("$K7Q9-M2TD-8F6P-W4ZX-N3CY")).toBe(false);
+    expect(isValidGroupCode("K7Q9-".repeat(20))).toBe(false);
+  });
+
+  it("applies the strong group-code validation on the server-side access request schema", () => {
+    const candidate = {
+      name: "测试候选人",
+      email: "candidate@example.com"
+    };
+
+    expect(
+      candidateAccessRequestSchema.safeParse({
+        ...candidate,
+        groupCode: "K7Q9-M2TD-8F6P-W4ZX-N3CY"
+      }).success
+    ).toBe(true);
+    expect(
+      candidateAccessRequestSchema.safeParse({
+        ...candidate,
+        groupCode: "$K7Q9-M2TD-8F6P-W4ZX-N3CY"
+      }).success
+    ).toBe(false);
+    expect(
+      candidateAccessRequestSchema.safeParse({
+        ...candidate,
+        groupCode: "K7Q9-".repeat(20)
+      }).success
+    ).toBe(false);
   });
 });

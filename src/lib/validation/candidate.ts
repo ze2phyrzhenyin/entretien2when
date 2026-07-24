@@ -11,3 +11,11 @@ export const candidateAvailabilitySchema = candidateIdentitySchema.extend({
   candidateNote: z.string().trim().max(1000, "备注最多 1000 个字符").optional(),
   slotIds: z.array(z.string().min(1)).min(1, "请选择可用时间")
 });
+
+export const candidateAvailabilitySessionSchema = z.object({
+  groupCode: groupCodeSchema,
+  candidateNote: z.string().trim().max(1000, "备注最多 1000 个字符").optional(),
+  slotIds: z.array(z.string().min(1)).min(1, "请选择可用时间")
+});
+
+export const candidateAccessRequestSchema = candidateIdentitySchema;

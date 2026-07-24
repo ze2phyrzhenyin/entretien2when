@@ -95,6 +95,8 @@ export function CandidateTimeGrid({
                 key={dateLabel}
                 type="button"
                 onClick={() => setActiveDateLabel(dateLabel)}
+                aria-pressed={active}
+                aria-label={`${dateLabel}，已选 ${selectedCount} 个，可选 ${openCount} 个`}
                 className={[
                   "min-w-36 rounded-md border px-3 py-2 text-left text-sm transition-colors duration-fast",
                   active
@@ -118,6 +120,7 @@ export function CandidateTimeGrid({
           variant={rangeMode ? "primary" : "secondary"}
           onClick={onToggleRangeMode}
           className="min-w-28"
+          aria-pressed={rangeMode}
         >
           <MousePointerClick className="h-4 w-4" aria-hidden="true" />
           {rangeMode ? (rangeStartSlotId ? "选择结束时间" : "选择开始时间") : "连续选择"}
@@ -161,7 +164,10 @@ export function CandidateTimeGrid({
               </Button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+          <div
+            className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5"
+            aria-label={`${activeGroup[0]} 的可选面试时间`}
+          >
             {activeGroup[1].map((slot) => (
               <CandidateTimeCell
                 key={slot.id}

@@ -19,5 +19,6 @@ Accepted
 ## 后果
 
 - 所有后台页面和 API 必须 `requireAdmin`。
-- 组级操作仍保留服务端权限检查；当前产品模式只允许超级管理员通过。
+- 组级操作必须检查 `AdminGroupMembership`；超级管理员可绕过组成员限制。
+- 候选人端使用一次性邮箱访问链接换取 httpOnly candidate session，不在 URL query 中传递姓名和邮箱身份。
 - `.env` 只存 bootstrap 管理员初始信息和数据库连接，不提交仓库。

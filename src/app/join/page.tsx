@@ -1,9 +1,30 @@
 import { LockKeyhole } from "lucide-react";
+import { InlineNotice } from "@/components/design-system/inline-notice";
 import { PrivacyNotice } from "@/components/design-system/privacy-notice";
 import { CenteredCardLayout } from "@/components/layout/centered-card-layout";
 import { JoinForm } from "./join-form";
 
-export default function JoinPage() {
+type JoinPageProps = {
+  searchParams: Promise<{ access?: string }>;
+};
+
+function accessNotice(access?: string) {
+  if (access === "invalid") {
+    return "访问链接无效或已过期，请重新发送访问链接。";
+  }
+  if (access === "required") {
+    return "请先通过邮箱访问链接进入候选人页面。";
+  }
+  if (access === "group-not-open") {
+    return "面试组不存在或暂未开放。";
+  }
+  return null;
+}
+
+export default async function JoinPage({ searchParams }: JoinPageProps) {
+  const query = await searchParams;
+  const notice = accessNotice(query.access);
+
   return (
     <CenteredCardLayout>
       <div className="mb-6">
@@ -15,6 +36,12 @@ export default function JoinPage() {
           请输入姓名、邮箱和面试组编号，进入对应的时间选择页面。
         </p>
       </div>
+
+      {notice ? (
+        <InlineNotice tone="warning" className="mb-5">
+          {notice}
+        </InlineNotice>
+      ) : null}
 
       <JoinForm />
 

@@ -9,6 +9,7 @@ import {
   PrismaClient
 } from "@prisma/client";
 import { hashPassword } from "../../src/lib/auth/password";
+import { hashCandidateToken } from "../../src/lib/auth/candidate-token";
 
 const prisma = new PrismaClient();
 
@@ -47,10 +48,14 @@ async function createGroupThroughUi(page: Page, groupName: string) {
 
   const group = await prisma.interviewGroup.findFirst({
     where: { name: groupName },
-    select: { id: true, groupCode: true }
+    select: { id: true, groupCode: true, projectId: true, roundId: true }
   });
   assertFound(group, "Expected E2E group to be created.");
-  return group;
+  const projectId = group.projectId;
+  const roundId = group.roundId;
+  assertFound(projectId, "Expected E2E group to be linked to a project.");
+  assertFound(roundId, "Expected E2E group to be linked to a round.");
+  return { ...group, projectId, roundId };
 }
 
 async function generateSlotsThroughUi(page: Page, groupId: string) {
@@ -83,8 +88,13 @@ async function enterCandidateFromJoin(
   await page.getByLabel("姓名").fill(name);
   await page.getByLabel("邮箱").fill(email);
   await page.getByLabel("面试组编号").fill(groupCode);
-  await page.getByRole("button", { name: "进入可用时间选择" }).click();
+  await page.getByRole("button", { name: "发送访问链接" }).click();
+  await expect(page.getByText("访问链接已发送到邮箱")).toBeVisible();
+  await page.getByRole("link", { name: "打开测试访问链接" }).click();
+  await expect(page.getByRole("heading", { name: "确认进入候选人页面" })).toBeVisible();
+  await page.getByRole("button", { name: "继续进入" }).click();
   await expect(page.getByRole("heading", { name: groupName })).toBeVisible();
+  await expect(page.getByTestId("availability-ready")).toBeAttached();
 }
 
 async function expectCandidateActiveSlots(
@@ -125,6 +135,9 @@ test.describe("P0 business flow", () => {
     await prisma.interviewGroup.deleteMany({
       where: { name: { startsWith: groupNamePrefix } }
     });
+    await prisma.interviewProject.deleteMany({
+      where: { name: { startsWith: groupNamePrefix } }
+    });
 
     await prisma.admin.upsert({
       where: { email: adminEmail },
@@ -146,6 +159,9 @@ test.describe("P0 business flow", () => {
 
   test.afterAll(async () => {
     await prisma.interviewGroup.deleteMany({
+      where: { name: { startsWith: groupNamePrefix } }
+    });
+    await prisma.interviewProject.deleteMany({
       where: { name: { startsWith: groupNamePrefix } }
     });
     await prisma.adminSession.deleteMany({
@@ -174,11 +190,35 @@ test.describe("P0 business flow", () => {
     const candidateVisibleMessage = "E2E 给候选人的说明";
     const internalNote = "E2E 内部备注不能给候选人看";
     const adminPrivateNote = "E2E 管理员跟进备注不能给候选人看";
+    const interviewerName = `面试官${runId}`;
+    const interviewerEmail = `interviewer-${runId}@example.com`;
     await loginAdmin(page);
     const group = await createGroupThroughUi(page, groupName);
+    await page.goto("/admin/projects");
+    await expect(page.getByRole("heading", { level: 2, name: "招聘项目" })).toBeVisible();
+    const projectRow = page.getByRole("row").filter({ hasText: groupName });
+    await expect(projectRow).toBeVisible();
+    await projectRow.getByRole("link", { name: "查看" }).click();
+    await expect(page.getByRole("heading", { name: groupName })).toBeVisible();
+    await page.getByLabel("姓名").fill(interviewerName);
+    await page.getByLabel("邮箱").fill(interviewerEmail);
+    await page.getByRole("button", { name: "保存面试官" }).click();
+    await expect(page.getByText("面试官已保存。")).toBeVisible();
+    await expect(page.getByText(interviewerEmail)).toBeVisible();
+    await expect
+      .poll(() =>
+        prisma.interviewer.count({
+          where: {
+            projectId: group.projectId,
+            normalizedEmail: interviewerEmail
+          }
+        })
+      )
+      .toBe(1);
     const slots = await generateSlotsThroughUi(page, group.id);
     const initialSlotIds = slots.slice(0, 2).map((slot) => slot.id);
-    const modifiedSlotIds = slots.slice(2, 4).map((slot) => slot.id);
+    const scheduledSlotIds = slots.slice(2, 4).map((slot) => slot.id);
+    const modifiedSlotIds = slots.slice(2, 6).map((slot) => slot.id);
     const rescheduledSlotIds = slots.slice(4, 6).map((slot) => slot.id);
 
     await enterCandidateFromJoin(page, group.groupCode, candidateAName, candidateAEmail, groupName);
@@ -196,6 +236,8 @@ test.describe("P0 business flow", () => {
     await page.getByRole("button", { name: "09:30-10:00" }).click();
     await page.getByRole("button", { name: "10:00-10:30" }).click();
     await page.getByRole("button", { name: "10:30-11:00" }).click();
+    await page.getByRole("button", { name: "11:00-11:30" }).click();
+    await page.getByRole("button", { name: "11:30-12:00" }).click();
     await page.getByLabel("备注").fill(modifiedNote);
     page.once("dialog", async (dialog) => {
       expect(dialog.message()).toContain("需要管理员审核");
@@ -218,7 +260,7 @@ test.describe("P0 business flow", () => {
 
     await page.goto(`/admin/groups/${group.id}/reviews`);
     await expect(page.getByText("1 个待审核")).toBeVisible();
-    await page.getByRole("link", { name: "审核", exact: true }).click();
+    await page.goto(`/admin/groups/${group.id}/reviews/${pendingSubmission.id}`);
     await expect(page.getByRole("heading", { name: "审核修改申请" })).toBeVisible();
     await page.getByPlaceholder("审核意见（可选）").fill("E2E 审核通过");
     await page.getByRole("button", { name: "通过修改" }).click();
@@ -236,24 +278,77 @@ test.describe("P0 business flow", () => {
     await expect(
       page.getByText("请选择候选人当前有效可用时间中的连续开放时间后再确认安排。")
     ).toBeVisible();
-    await page.getByLabel("选择 2026/08/03 10:00-10:30").check();
-    await page.getByLabel("选择 2026/08/03 10:30-11:00").check();
-    await page.getByLabel("会议地点或链接").fill(meetingLocation);
-    await page.getByLabel("给候选人的说明").fill(candidateVisibleMessage);
-    await page.getByLabel("内部备注（仅管理员可见）").fill(internalNote);
+
+    const interviewer = await prisma.interviewer.findFirstOrThrow({
+      where: {
+        projectId: group.projectId,
+        normalizedEmail: interviewerEmail
+      },
+      select: { id: true }
+    });
+    const admin = await prisma.admin.findUniqueOrThrow({
+      where: { email: adminEmail },
+      select: { id: true }
+    });
+    const conflictCandidate = await prisma.candidate.create({
+      data: {
+        groupId: group.id,
+        name: `冲突候选人${runId}`,
+        email: `conflict-${runId}@example.com`,
+        normalizedEmail: `conflict-${runId}@example.com`,
+        status: CandidateStatus.SCHEDULED
+      }
+    });
+    const conflictAppointment = await prisma.appointment.create({
+      data: {
+        groupId: group.id,
+        roundId: group.roundId,
+        candidateId: conflictCandidate.id,
+        startAt: slots[2]!.startAt,
+        endAt: new Date(slots[2]!.startAt.getTime() + 25 * 60 * 1000),
+        status: AppointmentStatus.SCHEDULED,
+        scheduledByAdminId: admin.id,
+        interviewers: {
+          create: {
+            interviewerId: interviewer.id
+          }
+        }
+      }
+    });
+
     const scheduleForm = page.locator("form").filter({
       has: page.getByRole("button", { name: "确认安排并锁定时间" })
     });
+    async function fillScheduleForm() {
+      await scheduleForm.getByLabel("选择 2026/08/03 10:00-10:30").check();
+      await scheduleForm.getByLabel("选择 2026/08/03 10:30-11:00").check();
+      await scheduleForm.getByLabel(`选择面试官 ${interviewerName} ${interviewerEmail}`).check();
+      await scheduleForm.getByLabel("会议地点或链接").fill(meetingLocation);
+      await scheduleForm.getByLabel("给候选人的说明").fill(candidateVisibleMessage);
+      await scheduleForm.getByLabel("内部备注（仅管理员可见）").fill(internalNote);
+    }
+
+    await fillScheduleForm();
     await expect(scheduleForm.getByLabel("确认安排后发送标准面试安排通知")).toBeChecked();
     await expect(scheduleForm.getByLabel("邮件主题")).toHaveCount(0);
     await expect(scheduleForm.getByLabel("抄送（CC，可选）")).toHaveCount(0);
     await expect(scheduleForm.getByLabel("邮件正文")).toHaveCount(0);
-    await page.getByRole("button", { name: "确认安排并锁定时间" }).click();
-    await expect(page.getByText(/已安排：/)).toBeVisible();
-    await expect(page.getByText("已发送 1 封候选人通知（测试发送预览）")).toBeVisible();
-    await expect(page.getByText("2026/08/03 10:00-11:00", { exact: true })).toBeVisible();
+    await scheduleForm.getByRole("button", { name: "确认安排并锁定时间" }).click();
     await expect(
-      page.getByText("面试时间：2026/08/03 10:00-11:00（北京时间）", { exact: true })
+      page.getByText("所选面试官在该时间已有面试安排，请调整时间或更换面试官。")
+    ).toBeVisible();
+
+    await prisma.appointment.delete({
+      where: { id: conflictAppointment.id }
+    });
+    await fillScheduleForm();
+    await scheduleForm.getByRole("button", { name: "确认安排并锁定时间" }).click();
+    await expect(page.getByText(/已安排：/)).toBeVisible();
+    await expect(page.getByText(`面试官：${interviewerName}`)).toBeVisible();
+    await expect(page.getByText("已发送 1 封候选人通知（测试发送预览）")).toBeVisible();
+    await expect(page.getByText("2026/08/03 10:00-10:25", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("面试时间：2026/08/03 10:00-10:25（北京时间）", { exact: true })
     ).toBeVisible();
 
     const candidate = await prisma.candidate.findUnique({
@@ -274,12 +369,16 @@ test.describe("P0 business flow", () => {
         candidateId: candidate.id,
         status: AppointmentStatus.SCHEDULED
       },
-      include: { locks: true }
+      include: { locks: true, interviewers: true }
     });
     assertFound(scheduledAppointment, "Expected scheduled appointment.");
+    expect(scheduledAppointment.roundId).toBe(group.roundId);
+    expect(scheduledAppointment.interviewers.map((assignment) => assignment.interviewerId)).toEqual(
+      [interviewer.id]
+    );
     expect(scheduledAppointment.locks).toHaveLength(2);
     expect(sorted(scheduledAppointment.locks.map((lock) => lock.slotId))).toEqual(
-      sorted(modifiedSlotIds)
+      sorted(scheduledSlotIds)
     );
 
     const appointmentEmailDelivery = await prisma.candidateEmailDelivery.findFirst({
@@ -310,13 +409,17 @@ test.describe("P0 business flow", () => {
     await rescheduleForm.getByLabel("保存后发送标准面试安排通知").uncheck();
     await rescheduleForm.getByLabel("会议地点或链接").fill(rescheduledMeetingLocation);
     await rescheduleForm.getByRole("button", { name: "保存调整并锁定时间" }).click();
-    await expect(page.getByText("2026/08/03 11:00-12:00", { exact: true })).toBeVisible();
+    await expect(page.getByText("2026/08/03 11:00-11:25", { exact: true })).toBeVisible();
 
     const rescheduledAppointment = await prisma.appointment.findUnique({
       where: { id: scheduledAppointment.id },
-      include: { locks: true, slots: true }
+      include: { locks: true, slots: true, interviewers: true }
     });
     assertFound(rescheduledAppointment, "Expected rescheduled appointment.");
+    expect(rescheduledAppointment.roundId).toBe(group.roundId);
+    expect(
+      rescheduledAppointment.interviewers.map((assignment) => assignment.interviewerId)
+    ).toEqual([interviewer.id]);
     expect(sorted(rescheduledAppointment.slots.map((slot) => slot.slotId))).toEqual(
       sorted(rescheduledSlotIds)
     );
@@ -325,7 +428,7 @@ test.describe("P0 business flow", () => {
     expect(sorted(activeLocks.map((lock) => lock.slotId))).toEqual(sorted(rescheduledSlotIds));
     expect(
       rescheduledAppointment.locks
-        .filter((lock) => modifiedSlotIds.includes(lock.slotId))
+        .filter((lock) => scheduledSlotIds.includes(lock.slotId))
         .every((lock) => lock.activeSlotId === null && lock.releasedAt !== null)
     ).toBe(true);
 
@@ -333,12 +436,31 @@ test.describe("P0 business flow", () => {
     await page.getByRole("button", { name: "保存跟进备注" }).click();
     await expect(page.getByText(adminPrivateNote).first()).toBeVisible();
 
-    await page.goto(
-      `/candidate/${group.groupCode}?name=${encodeURIComponent(candidateAName)}&email=${encodeURIComponent(candidateAEmail)}`
+    await expect
+      .poll(async () =>
+        prisma.candidateSession.count({
+          where: { groupId: group.id, normalizedEmail: candidateAEmail }
+        })
+      )
+      .toBe(1);
+    const candidateSessionCookie = (await page.context().cookies()).find(
+      (cookie) => cookie.name === "interview_candidate_session"
     );
+    expect(candidateSessionCookie).toMatchObject({ path: "/", secure: false });
+    expect(candidateSessionCookie).toBeDefined();
+    await expect
+      .poll(() =>
+        prisma.candidateSession.findUnique({
+          where: { tokenHash: hashCandidateToken(candidateSessionCookie!.value) },
+          select: { groupId: true }
+        })
+      )
+      .toMatchObject({ groupId: group.id });
+    await page.goto(`/candidate/${group.groupCode}`);
     await expect(page.getByRole("heading", { name: "面试已安排" })).toBeVisible();
     await expect(page.getByText(rescheduledMeetingLocation)).toBeVisible();
     await expect(page.getByText(candidateVisibleMessage)).toBeVisible();
+    await expect(page.getByRole("link", { name: "申请修改" })).toHaveCount(0);
     await expect(page.locator("body")).not.toContainText(internalNote);
     await expect(page.locator("body")).not.toContainText(adminPrivateNote);
     await expect(page.locator("body")).not.toContainText("管理员跟进备注");
@@ -354,6 +476,10 @@ test.describe("P0 business flow", () => {
 
     await page.goto(`/admin/groups/${group.id}/appointments`);
     await expect(page.getByRole("table").getByText("已安排")).toBeVisible();
+    page.once("dialog", async (dialog) => {
+      expect(dialog.message()).toContain("确认取消");
+      await dialog.accept();
+    });
     await page.getByRole("table").getByRole("button", { name: "取消" }).click();
     await expect(page.getByRole("table").getByText("已取消")).toBeVisible();
     await expect
@@ -375,9 +501,7 @@ test.describe("P0 business flow", () => {
     expect(cancelledAppointment.locks.every((lock) => lock.activeSlotId === null)).toBe(true);
     expect(cancelledAppointment.locks.every((lock) => lock.releasedAt !== null)).toBe(true);
 
-    await page.goto(
-      `/candidate/${group.groupCode}?name=${encodeURIComponent(candidateBName)}&email=${encodeURIComponent(candidateBEmail)}`
-    );
+    await page.goto(`/candidate/${group.groupCode}`);
     await expect(page.getByRole("button", { name: "不可选" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "11:00-11:30" })).toBeEnabled();
     await expect(page.getByRole("button", { name: "11:30-12:00" })).toBeEnabled();

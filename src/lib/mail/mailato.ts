@@ -18,6 +18,7 @@ export type MailatoSendInput = {
   bcc?: MailatoRecipient[];
   subject: string;
   body: string;
+  idempotencyKey?: string;
   auditId?: string;
   timeoutMs?: number;
 };
@@ -64,6 +65,7 @@ export function buildMailatoArgs({
   bcc,
   subject,
   bodyFile,
+  idempotencyKey,
   auditId,
   dryRun
 }: {
@@ -73,6 +75,7 @@ export function buildMailatoArgs({
   bcc?: MailatoRecipient[];
   subject: string;
   bodyFile: string;
+  idempotencyKey?: string;
   auditId?: string;
   dryRun: boolean;
 }) {
@@ -106,6 +109,10 @@ export function buildMailatoArgs({
     );
   }
 
+  if (idempotencyKey) {
+    args.push("--idempotency-key", idempotencyKey);
+  }
+
   if (auditId) {
     args.push("--audit-id", auditId);
   }
@@ -137,6 +144,7 @@ export async function sendMailatoEmail(input: MailatoSendInput): Promise<Mailato
           bcc: input.bcc,
           subject: input.subject,
           bodyFile,
+          idempotencyKey: input.idempotencyKey,
           auditId: input.auditId,
           dryRun
         }),

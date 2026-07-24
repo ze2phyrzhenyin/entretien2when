@@ -3,11 +3,11 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { AuditActorType } from "@prisma/client";
+import { AuditActorType, CandidateEmailDeliveryStatus } from "@prisma/client";
 import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
-import { requireGroupPermission } from "@/lib/permissions/admin";
+import { groupSchedulingRoles, requireGroupPermission } from "@/lib/permissions/admin";
 import { formValue, formValues } from "@/lib/validation/common";
 import { candidateEmailActionSchema, retryCandidateEmailSchema } from "@/lib/validation/email";
 import { attemptCandidateEmailDelivery } from "@/server/services/candidate-email";
@@ -52,7 +52,7 @@ function redirectWithMailStatus(
 
 export async function sendCandidateEmailAction(groupId: string, formData: FormData) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId);
+  await requireGroupPermission(admin, groupId, groupSchedulingRoles);
 
   const returnTo = sanitizeReturnTo(formValue(formData, "returnTo"), groupId);
   const parsed = candidateEmailActionSchema.safeParse({
@@ -72,7 +72,7 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
   const input = parsed.data;
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
-    select: { id: true, name: true }
+    select: { id: true, name: true, timezone: true }
   });
   const uniqueCandidateIds = [...new Set(input.candidateIds)];
   const candidates = await prisma.candidate.findMany({
@@ -122,7 +122,7 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
       subject: input.subject,
       bodyTemplate: input.body,
       ccEmails: input.ccEmails,
-      templateValues: buildAppointmentEmailContext(candidate.appointments[0])
+      templateValues: buildAppointmentEmailContext(candidate.appointments[0], group.timezone)
     });
     results.push(result);
   }
@@ -179,7 +179,7 @@ export async function retryCandidateEmailDeliveryAction(
   formData: FormData
 ) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId);
+  await requireGroupPermission(admin, groupId, groupSchedulingRoles);
 
   const input = retryCandidateEmailSchema.parse({
     returnTo: formValue(formData, "returnTo")
@@ -189,7 +189,7 @@ export async function retryCandidateEmailDeliveryAction(
     where: { id: deliveryId, groupId },
     include: {
       group: {
-        select: { id: true, name: true }
+        select: { id: true, name: true, timezone: true }
       },
       candidate: {
         select: {
@@ -212,7 +212,11 @@ export async function retryCandidateEmailDeliveryAction(
     }
   });
 
-  if (!original) {
+  if (
+    !original ||
+    original.status !== CandidateEmailDeliveryStatus.FAILED ||
+    !original.idempotencyKey
+  ) {
     redirectWithMailStatus(returnTo, { mail: "invalid" });
   }
 
@@ -220,14 +224,21 @@ export async function retryCandidateEmailDeliveryAction(
   const result = await attemptCandidateEmailDelivery({
     adminId: admin.id,
     group: original.group,
-    candidate: original.candidate,
+    candidate: {
+      id: original.candidate.id,
+      name: original.candidateNameSnapshot,
+      email: original.recipientEmailSnapshot
+    },
     batchId,
     templateKey: original.templateKey,
     subject: original.subject,
     bodyTemplate: original.bodyTemplate,
     ccEmails: original.ccEmailSnapshots,
-    templateValues: buildAppointmentEmailContext(original.candidate.appointments[0]),
-    retriedFromId: original.id
+    templateValues: buildAppointmentEmailContext(
+      original.candidate.appointments[0],
+      original.group.timezone
+    ),
+    deliveryId: original.id
   });
   const failed = result.status === "failure" ? 1 : 0;
   const dryRun = result.status === "preview";

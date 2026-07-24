@@ -10,13 +10,15 @@ export function CandidateSubmittedSummary({
   defaultTimezone,
   note,
   modifyHref,
-  hasPendingSubmission
+  hasPendingSubmission,
+  canRequestModification
 }: {
   slots: TimeRangeItem[];
   defaultTimezone: string;
   note?: string | null;
-  modifyHref: string;
+  modifyHref?: string;
   hasPendingSubmission: boolean;
+  canRequestModification: boolean;
 }) {
   return (
     <Card className="p-6" variant="flat">
@@ -27,15 +29,19 @@ export function CandidateSubmittedSummary({
             <h2 className="text-lg font-semibold">当前有效可用时间</h2>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            如需修改，需要提交申请并等待管理员审核。
+            {canRequestModification
+              ? "如需修改，需要提交申请并等待管理员审核。"
+              : "当前有正式面试安排或待审核申请；如需调整请联系招聘方处理。"}
           </p>
         </div>
-        <Link
-          href={modifyHref}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-surface-subtle"
-        >
-          申请修改
-        </Link>
+        {canRequestModification && modifyHref ? (
+          <Link
+            href={modifyHref}
+            className="inline-flex h-10 items-center justify-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-surface-subtle"
+          >
+            申请修改
+          </Link>
+        ) : null}
       </div>
       <div className="mt-5">
         <TimeRangePreview items={slots} defaultTimezone={defaultTimezone} />

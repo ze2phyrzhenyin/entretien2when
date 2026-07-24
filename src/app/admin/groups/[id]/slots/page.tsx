@@ -1,4 +1,4 @@
-import { GroupTimeSlotStatus } from "@prisma/client";
+import { GroupTimeSlotStatus, type Prisma } from "@prisma/client";
 import { FormField } from "@/components/design-system/form-field";
 import { InlineNotice } from "@/components/design-system/inline-notice";
 import { PageHeader } from "@/components/design-system/page-header";
@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { PaginationNav } from "@/components/ui/pagination-nav";
 import { SubmitButton } from "@/components/ui/submit-button";
 import {
   Table,
@@ -26,7 +27,12 @@ import {
 } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
-import { canAccessGroup } from "@/lib/permissions/admin";
+import {
+  getGroupCapabilities,
+  groupSchedulingRoles,
+  requireGroupPermission
+} from "@/lib/permissions/admin";
+import { createPagination } from "@/lib/pagination";
 import {
   batchGenerateSlotsAction,
   deleteSlotsAction,
@@ -42,35 +48,53 @@ type SlotsPageProps = {
     slotDelete?: string;
     slotDeleted?: string;
     slotSkipped?: string;
+    page?: string;
   }>;
 };
+
+const slotsPageSize = 100;
 
 export default async function GroupSlotsPage({ params, searchParams }: SlotsPageProps) {
   const [{ id: groupId }, query] = await Promise.all([params, searchParams]);
   const admin = await requireAdmin();
-  const allowed = await canAccessGroup(admin, groupId);
+  await requireGroupPermission(admin, groupId, groupSchedulingRoles);
+  const capabilities = await getGroupCapabilities(admin, groupId);
 
-  if (!allowed) {
-    throw new Error("没有权限访问该面试组。");
-  }
-
-  const group = await prisma.interviewGroup.findUniqueOrThrow({
-    where: { id: groupId },
+  const deletableSlotWhere: Prisma.GroupTimeSlotWhereInput = {
+    groupId,
+    activeLock: { is: null },
+    submissionSlots: { none: {} },
+    appointmentSlots: { none: {} },
+    locks: { none: {} }
+  };
+  const [group, totalSlotCount, deletableSlotCount] = await Promise.all([
+    prisma.interviewGroup.findUniqueOrThrow({
+      where: { id: groupId },
+      select: { name: true, timezone: true }
+    }),
+    prisma.groupTimeSlot.count({ where: { groupId } }),
+    prisma.groupTimeSlot.count({ where: deletableSlotWhere })
+  ]);
+  const pagination = createPagination({
+    page: query.page,
+    pageSize: slotsPageSize,
+    totalCount: totalSlotCount
+  });
+  const timeSlots = await prisma.groupTimeSlot.findMany({
+    where: { groupId },
+    orderBy: [{ startAt: "asc" }, { id: "asc" }],
+    skip: pagination.skip,
+    take: pagination.pageSize,
     include: {
-      timeSlots: {
-        orderBy: { startAt: "asc" },
-        include: {
-          activeLock: true,
-          submissionSlots: {
-            select: { id: true }
-          },
-          appointmentSlots: {
-            select: { id: true }
-          },
-          locks: {
-            select: { id: true }
-          }
-        }
+      activeLock: true,
+      submissionSlots: {
+        select: { id: true }
+      },
+      appointmentSlots: {
+        select: { id: true }
+      },
+      locks: {
+        select: { id: true }
       }
     }
   });
@@ -78,20 +102,12 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
   const skippedCount = Number(query.slotSkipped ?? 0);
   const generatedCount = Number(query.slotGenerated ?? 0);
   const skippedGenerateCount = Number(query.slotSkippedGenerate ?? 0);
-  const deletableSlotCount = group.timeSlots.filter(
-    (slot) =>
-      !slot.activeLock &&
-      slot.submissionSlots.length === 0 &&
-      slot.appointmentSlots.length === 0 &&
-      slot.locks.length === 0
-  ).length;
-
   return (
     <AdminShell admin={admin}>
-      <GroupNav groupId={groupId} active="slots" />
+      <GroupNav groupId={groupId} active="slots" capabilities={capabilities} />
       <PageHeader
         title="开放时间配置"
-        description="按面试组时区生成开放时间。管理员可查看关闭、锁定和内部原因；候选人端仅显示是否可选。"
+        description={`按面试组时区生成开放时间。当前显示 ${timeSlots.length} / ${totalSlotCount} 个开放时间。`}
       />
       <div className="mb-5">
         <TimezoneSwitcher defaultTimezone={group.timezone} />
@@ -110,6 +126,11 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
       {query.slotGenerate === "invalid" ? (
         <InlineNotice tone="warning" className="mb-5">
           请检查开始日期、结束日期和起止时间。
+        </InlineNotice>
+      ) : null}
+      {query.slotGenerate === "dst" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          所选时段跨越夏令时切换，包含不存在或重复的本地时间。请拆分范围并避开该时段，避免生成含糊的预约时间。
         </InlineNotice>
       ) : null}
       {query.slotDelete === "deleted" ? (
@@ -161,7 +182,7 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
           <div className="mb-4">
             <AdminSlotLegend />
           </div>
-          {group.timeSlots.length === 0 ? (
+          {timeSlots.length === 0 ? (
             <EmptyState
               title="暂无开放时间"
               description="请先用左侧表单批量生成开放时间。候选人只能选择已开放且未锁定的时间。"
@@ -219,7 +240,7 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                     </tr>
                   </TableHeader>
                   <TableBody>
-                    {group.timeSlots.map((slot) => {
+                    {timeSlots.map((slot) => {
                       const blockedReasons = [
                         slot.submissionSlots.length > 0 ? "候选人提交" : null,
                         slot.appointmentSlots.length > 0 ? "面试安排" : null,
@@ -293,6 +314,12 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                   </TableBody>
                 </Table>
               </TableContainer>
+              <PaginationNav
+                pathname={`/admin/groups/${groupId}/slots`}
+                searchParams={{}}
+                itemLabel="个开放时间"
+                {...pagination}
+              />
             </div>
           )}
         </div>

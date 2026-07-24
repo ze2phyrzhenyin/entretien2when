@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { PaginationNav } from "@/components/ui/pagination-nav";
 import {
   Table,
   TableBody,
@@ -19,13 +20,18 @@ import {
 } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
+import { accessibleGroupWhere, groupReviewRoles, isSuperAdmin } from "@/lib/permissions/admin";
+import { createPagination } from "@/lib/pagination";
 
 type AdminReviewsPageProps = {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 };
+
+const reviewsPageSize = 50;
 
 export default async function AdminReviewsPage({ searchParams }: AdminReviewsPageProps) {
   const [admin, query] = await Promise.all([requireAdmin(), searchParams]);
+  const superAdmin = isSuperAdmin(admin);
   const q = query.q?.trim() ?? "";
 
   const searchWhere: Prisma.CandidateSubmissionWhereInput = q
@@ -39,12 +45,22 @@ export default async function AdminReviewsPage({ searchParams }: AdminReviewsPag
       }
     : {};
 
+  const submissionWhere: Prisma.CandidateSubmissionWhereInput = {
+    AND: [
+      { status: CandidateSubmissionStatus.PENDING_REVIEW },
+      { group: accessibleGroupWhere(admin, groupReviewRoles) },
+      searchWhere
+    ]
+  };
+  const totalSubmissionCount = await prisma.candidateSubmission.count({ where: submissionWhere });
+  const pagination = createPagination({
+    page: query.page,
+    pageSize: reviewsPageSize,
+    totalCount: totalSubmissionCount
+  });
   const submissions = await prisma.candidateSubmission.findMany({
-    where: {
-      status: CandidateSubmissionStatus.PENDING_REVIEW,
-      ...searchWhere
-    },
-    orderBy: { submittedAt: "asc" },
+    where: submissionWhere,
+    orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
     include: {
       group: {
         select: {
@@ -67,17 +83,22 @@ export default async function AdminReviewsPage({ searchParams }: AdminReviewsPag
         }
       }
     },
-    take: 100
+    skip: pagination.skip,
+    take: pagination.pageSize
   });
 
   return (
     <AdminShell admin={admin} active="reviews">
       <PageHeader
         title="修改审核"
-        description="集中处理候选人提交的可用时间修改申请。"
+        description={
+          superAdmin
+            ? "集中处理全部面试组的候选人可用时间修改申请。"
+            : "集中处理你有审核权限的面试组候选人可用时间修改申请。"
+        }
         action={
-          <Badge tone={submissions.length > 0 ? "warning" : "neutral"}>
-            {submissions.length} 个待审核
+          <Badge tone={totalSubmissionCount > 0 ? "warning" : "neutral"}>
+            {totalSubmissionCount} 个待审核
           </Badge>
         }
       />
@@ -124,57 +145,65 @@ export default async function AdminReviewsPage({ searchParams }: AdminReviewsPag
           icon={<ClipboardCheck className="h-6 w-6" aria-hidden="true" />}
         />
       ) : (
-        <TableContainer>
-          <Table className="min-w-[980px]">
-            <TableHeader>
-              <tr>
-                <TableHead>面试组</TableHead>
-                <TableHead>候选人</TableHead>
-                <TableHead>版本</TableHead>
-                <TableHead>选择数量</TableHead>
-                <TableHead>提交时间</TableHead>
-                <TableHead>操作</TableHead>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {submissions.map((submission) => (
-                <TableRow key={submission.id}>
-                  <TableCell>
-                    <Link
-                      className="font-medium text-primary"
-                      href={`/admin/groups/${submission.group.id}/settings`}
-                    >
-                      {submission.group.name}
-                    </Link>
-                    <p className="font-mono text-xs text-muted-foreground">
-                      {submission.group.groupCode}
-                    </p>
-                  </TableCell>
-                  <TableCell>
-                    <p className="font-medium">{submission.candidate.name}</p>
-                    <p className="text-muted-foreground">{submission.candidate.email}</p>
-                  </TableCell>
-                  <TableCell>版本 {submission.versionNo}</TableCell>
-                  <TableCell>{submission.slots.length}</TableCell>
-                  <TableCell>
-                    <ZonedDateTime
-                      value={submission.submittedAt.toISOString()}
-                      defaultTimezone={submission.group.timezone}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      className="font-medium text-primary"
-                      href={`/admin/groups/${submission.group.id}/reviews/${submission.id}`}
-                    >
-                      审核
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <div className="space-y-4">
+          <TableContainer>
+            <Table className="min-w-[980px]">
+              <TableHeader>
+                <tr>
+                  <TableHead>面试组</TableHead>
+                  <TableHead>候选人</TableHead>
+                  <TableHead>版本</TableHead>
+                  <TableHead>选择数量</TableHead>
+                  <TableHead>提交时间</TableHead>
+                  <TableHead>操作</TableHead>
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {submissions.map((submission) => (
+                  <TableRow key={submission.id}>
+                    <TableCell>
+                      <Link
+                        className="font-medium text-primary"
+                        href={`/admin/groups/${submission.group.id}/settings`}
+                      >
+                        {submission.group.name}
+                      </Link>
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {submission.group.groupCode}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-medium">{submission.candidate.name}</p>
+                      <p className="text-muted-foreground">{submission.candidate.email}</p>
+                    </TableCell>
+                    <TableCell>版本 {submission.versionNo}</TableCell>
+                    <TableCell>{submission.slots.length}</TableCell>
+                    <TableCell>
+                      <ZonedDateTime
+                        value={submission.submittedAt.toISOString()}
+                        defaultTimezone={submission.group.timezone}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        className="font-medium text-primary"
+                        href={`/admin/groups/${submission.group.id}/reviews/${submission.id}`}
+                      >
+                        审核
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <PaginationNav
+            pathname="/admin/reviews"
+            searchParams={{ q: q || undefined }}
+            itemLabel="个待审核申请"
+            {...pagination}
+          />
+        </div>
       )}
     </AdminShell>
   );

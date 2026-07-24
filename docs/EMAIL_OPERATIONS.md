@@ -9,8 +9,8 @@
 - 邮箱 provider、发件域名、API key 或 SMTP 密码保存在 `/etc/mailato/mailato.env`。
 - 本仓库只保留变量名和说明，不提交真实密钥。
 - 本地或演练环境可设置 `MAILATO_DRY_RUN=true`，真实发送环境设为 `false`。
-- 候选人提交可用时间、提交修改申请，或管理员安排正式预约后，会向负责人发送通知邮件。
-- 负责人通知默认收件人为 `zephyr2515@gmail.com`；如需多人通知，可设置 `OWNER_NOTIFICATION_EMAILS`，用逗号、分号或空格分隔多个邮箱。
+- 候选人提交可用时间、提交修改申请，或管理员安排正式预约后，会向该面试组中处于 `ACTIVE` 状态的 `OWNER` 管理员发送通知邮件。
+- 收件人只从组成员关系解析；不读取 `OWNER_NOTIFICATION_EMAILS`，也绝不回退到个人或全局邮箱。若组内没有活跃 OWNER，系统记录 `system.owner_notification_not_queued` 审计事件而不外发候选人信息；管理员应先补齐组 OWNER 再继续运营。
 
 ## 小流量真实邮件验收
 
@@ -51,4 +51,5 @@
 
 - 如果需要暂停真实发送，将 `/etc/when2entretien/when2entretien.env` 中 `MAILATO_DRY_RUN` 改为 `true`，然后重启 `when2entretien-web.service`。
 - 如果 Mailato 配置异常，候选人详情页的失败记录可以在修复配置后重试。
+- `when2entretien-web-email-outbox.timer` 每分钟处理负责人通知并回收过期 lease；可手动执行 `pnpm email:outbox` 进行受控排查。
 - 不要把 `/etc/mailato/mailato.env` 内容复制进 issue、PR、截图或 git。

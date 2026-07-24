@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  BriefcaseBusiness,
   CalendarCheck,
   CalendarClock,
   ClipboardList,
@@ -9,26 +10,79 @@ import {
   Send,
   type LucideIcon
 } from "lucide-react";
+import type { AdminNavigationCapabilities } from "@/lib/permissions/admin";
 import { cn } from "@/lib/utils";
 
 export type AdminShellActive =
-  "groups" | "audit" | "reviews" | "appointments" | "emailTemplates" | "mailato";
+  "groups" | "projects" | "audit" | "reviews" | "appointments" | "emailTemplates" | "mailato";
 
 export const adminNavItems: Array<{
   key: AdminShellActive;
   label: string;
   href: string;
   icon: LucideIcon;
+  requiresSuperAdmin?: boolean;
+  requiresCapability?: keyof AdminNavigationCapabilities;
 }> = [
   { key: "groups", label: "面试组", href: "/admin", icon: ClipboardList },
-  { key: "audit", label: "审计日志", href: "/admin/audit", icon: History },
-  { key: "reviews", label: "修改审核", href: "/admin/reviews", icon: Inbox },
-  { key: "appointments", label: "面试安排", href: "/admin/appointments", icon: CalendarCheck },
-  { key: "emailTemplates", label: "邮件模板", href: "/admin/email-templates", icon: FileText },
-  { key: "mailato", label: "邮件发送", href: "/admin/mailato", icon: Send }
+  { key: "projects", label: "招聘项目", href: "/admin/projects", icon: BriefcaseBusiness },
+  {
+    key: "audit",
+    label: "审计日志",
+    href: "/admin/audit",
+    icon: History,
+    requiresCapability: "canViewAudit"
+  },
+  {
+    key: "reviews",
+    label: "修改审核",
+    href: "/admin/reviews",
+    icon: Inbox,
+    requiresCapability: "canReview"
+  },
+  {
+    key: "appointments",
+    label: "面试安排",
+    href: "/admin/appointments",
+    icon: CalendarCheck,
+    requiresCapability: "canSchedule"
+  },
+  {
+    key: "emailTemplates",
+    label: "邮件模板",
+    href: "/admin/email-templates",
+    icon: FileText,
+    requiresSuperAdmin: true
+  },
+  {
+    key: "mailato",
+    label: "邮件发送",
+    href: "/admin/mailato",
+    icon: Send,
+    requiresSuperAdmin: true
+  }
 ];
 
-export function AdminSidebar({ active = "groups" }: { active?: AdminShellActive }) {
+export function visibleAdminNavItems(
+  isSuperAdmin: boolean,
+  capabilities: AdminNavigationCapabilities
+) {
+  return adminNavItems.filter(
+    (item) =>
+      (isSuperAdmin || !item.requiresSuperAdmin) &&
+      (!item.requiresCapability || capabilities[item.requiresCapability])
+  );
+}
+
+export function AdminSidebar({
+  active = "groups",
+  isSuperAdmin,
+  capabilities
+}: {
+  active?: AdminShellActive;
+  isSuperAdmin: boolean;
+  capabilities: AdminNavigationCapabilities;
+}) {
   return (
     <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-border bg-surface px-5 py-6 md:block">
       <Link href="/admin" className="flex items-center gap-2 text-base font-semibold">
@@ -36,7 +90,7 @@ export function AdminSidebar({ active = "groups" }: { active?: AdminShellActive 
         面试时间管理
       </Link>
       <nav className="mt-8 space-y-1 text-sm" aria-label="管理员主导航">
-        {adminNavItems.map((item) => (
+        {visibleAdminNavItems(isSuperAdmin, capabilities).map((item) => (
           <Link
             key={item.key}
             className={cn(

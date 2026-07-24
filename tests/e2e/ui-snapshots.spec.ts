@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { generateCandidateToken, hashCandidateToken } from "@/lib/auth/candidate-token";
+import { prisma } from "@/lib/db/prisma";
 
 const OUT_DIR = "artifacts/ui-snapshots/frontend-refactor-p0";
 
@@ -26,6 +28,35 @@ const groupId = process.env.PLAYWRIGHT_GROUP_ID;
 const groupCode = process.env.PLAYWRIGHT_GROUP_CODE;
 const candidateId = process.env.PLAYWRIGHT_CANDIDATE_ID;
 const submissionId = process.env.PLAYWRIGHT_SUBMISSION_ID;
+
+async function openCandidatePage(
+  page: import("@playwright/test").Page,
+  input: { groupCode: string; name: string; email: string; mode?: string }
+) {
+  const group = await prisma.interviewGroup.findUniqueOrThrow({
+    where: { groupCode: input.groupCode },
+    select: { id: true }
+  });
+  const token = generateCandidateToken();
+  await prisma.candidateAccessToken.create({
+    data: {
+      groupId: group.id,
+      tokenHash: hashCandidateToken(token),
+      name: input.name,
+      email: input.email,
+      normalizedEmail: input.email.toLowerCase(),
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000)
+    }
+  });
+  await page.goto(`/candidate/auth/${token}`);
+  if (input.mode) {
+    await page.goto(`/candidate/${input.groupCode}?mode=${input.mode}`);
+  }
+}
+
+test.afterAll(async () => {
+  await prisma.$disconnect();
+});
 
 test("screenshot authenticated admin pages when demo data is available", async ({ page }) => {
   test.skip(
@@ -71,49 +102,64 @@ test("screenshot authenticated admin pages when demo data is available", async (
 
 test("screenshot candidate pages when demo data is available", async ({ page }) => {
   test.skip(!groupCode, "Missing candidate demo screenshot environment.");
+  const demoGroupCode = groupCode!;
 
-  await page.goto(
-    `/candidate/${groupCode}?name=${encodeURIComponent("王五")}&email=wangwu@example.com`
-  );
+  await openCandidatePage(page, {
+    groupCode: demoGroupCode,
+    name: "王五",
+    email: "wangwu@example.com"
+  });
   await waitForSettledPage(page);
   await page.screenshot({ path: `${OUT_DIR}/candidate-first-submit.png`, fullPage: true });
 
-  await page.goto(
-    `/candidate/${groupCode}?name=${encodeURIComponent("李四")}&email=lisi@example.com`
-  );
+  await openCandidatePage(page, {
+    groupCode: demoGroupCode,
+    name: "李四",
+    email: "lisi@example.com"
+  });
   await waitForSettledPage(page);
   await page.screenshot({ path: `${OUT_DIR}/candidate-submitted.png`, fullPage: true });
 
-  await page.goto(
-    `/candidate/${groupCode}?name=${encodeURIComponent("李四")}&email=lisi@example.com&mode=modify`
-  );
+  await openCandidatePage(page, {
+    groupCode: demoGroupCode,
+    name: "李四",
+    email: "lisi@example.com",
+    mode: "modify"
+  });
   await waitForSettledPage(page);
   await page.screenshot({ path: `${OUT_DIR}/candidate-modification.png`, fullPage: true });
 
-  await page.goto(
-    `/candidate/${groupCode}?name=${encodeURIComponent("李四")}&email=lisi@example.com`
-  );
+  await openCandidatePage(page, {
+    groupCode: demoGroupCode,
+    name: "李四",
+    email: "lisi@example.com"
+  });
   await waitForSettledPage(page);
   await page.screenshot({ path: `${OUT_DIR}/candidate-pending-review.png`, fullPage: true });
 
-  await page.goto(
-    `/candidate/${groupCode}?name=${encodeURIComponent("张三")}&email=zhangsan@example.com`
-  );
+  await openCandidatePage(page, {
+    groupCode: demoGroupCode,
+    name: "张三",
+    email: "zhangsan@example.com"
+  });
   await waitForSettledPage(page);
   await page.screenshot({ path: `${OUT_DIR}/candidate-appointment.png`, fullPage: true });
 });
 
 test("screenshot mobile candidate pages when demo data is available", async ({ page }) => {
   test.skip(!groupCode, "Missing candidate demo screenshot environment.");
+  const demoGroupCode = groupCode!;
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/join");
   await waitForSettledPage(page);
   await page.screenshot({ path: `${OUT_DIR}/mobile-join.png`, fullPage: true });
 
-  await page.goto(
-    `/candidate/${groupCode}?name=${encodeURIComponent("王五")}&email=wangwu@example.com`
-  );
+  await openCandidatePage(page, {
+    groupCode: demoGroupCode,
+    name: "王五",
+    email: "wangwu@example.com"
+  });
   await waitForSettledPage(page);
   await page.screenshot({ path: `${OUT_DIR}/mobile-candidate-first-submit.png`, fullPage: true });
 });

@@ -1,9 +1,8 @@
-import { AuditActorType } from "@prisma/client";
+import { AdminGroupRole, AdminStatus, AuditActorType, type Prisma } from "@prisma/client";
+import { getPublicAppUrl, withBasePath } from "@/lib/app-url";
 import { formatDateTime, formatDateTimeRange } from "@/lib/date/timezone";
-import { sendMailatoEmail } from "@/lib/mail/mailato";
 import { prisma } from "@/lib/db/prisma";
-
-const DEFAULT_OWNER_NOTIFICATION_EMAIL = "zephyr2515@gmail.com";
+import { enqueueOwnerNotificationEmail } from "@/server/services/email-outbox";
 
 type NotificationGroup = {
   id: string;
@@ -31,29 +30,60 @@ type OwnerNotificationEmail = {
   body: string;
 };
 
+type OwnerRecipientClient = Pick<Prisma.TransactionClient, "adminGroupMembership">;
+type OwnerNotificationClient = OwnerRecipientClient &
+  Pick<Prisma.TransactionClient, "auditLog" | "emailOutbox">;
+
 function isEmailLike(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-export function getOwnerNotificationRecipients(raw = process.env.OWNER_NOTIFICATION_EMAILS) {
-  const source = raw?.trim() ? raw : DEFAULT_OWNER_NOTIFICATION_EMAIL;
-  const emails = [
+export function normalizeOwnerNotificationRecipients(values: Iterable<string>) {
+  return [
     ...new Set(
-      source
-        .split(/[,\s;；]+/)
+      [...values]
+        .flatMap((value) => value.split(/[,\s;；]+/))
         .map((email) => email.trim().toLowerCase())
         .filter(Boolean)
         .filter(isEmailLike)
     )
   ];
+}
 
-  return emails.length > 0 ? emails : [DEFAULT_OWNER_NOTIFICATION_EMAIL];
+export async function getOwnerNotificationRecipients(
+  groupId: string,
+  client: OwnerRecipientClient = prisma
+) {
+  const memberships = await client.adminGroupMembership.findMany({
+    where: {
+      groupId,
+      role: AdminGroupRole.OWNER,
+      admin: { status: AdminStatus.ACTIVE }
+    },
+    select: {
+      admin: {
+        select: { email: true }
+      }
+    }
+  });
+
+  return normalizeOwnerNotificationRecipients(memberships.map(({ admin }) => admin.email));
 }
 
 function adminCandidateUrl(groupId: string, candidateId: string) {
-  const baseUrl = process.env.APP_URL?.trim().replace(/\/+$/, "");
   const path = `/admin/groups/${groupId}/candidates/${candidateId}`;
-  return baseUrl ? `${baseUrl}${path}` : path;
+  try {
+    return getPublicAppUrl(path);
+  } catch {
+    // A malformed public URL must not prevent the business transaction from
+    // committing. Keep the message useful to an authenticated owner while
+    // avoiding an unsafe/incorrect external origin.
+    try {
+      return withBasePath(path);
+    } catch {
+      return path;
+    }
+  }
 }
 
 function formatSlots(slots: NotificationSlot[], timezone: string) {
@@ -173,129 +203,93 @@ export function buildOwnerAppointmentNotificationEmail({
   };
 }
 
-async function writeOwnerNotificationAudit(input: {
-  groupId: string;
-  entityType: "CandidateSubmission" | "Appointment";
-  entityId: string;
-  event: string;
-  recipients: string[];
-  status: "sent" | "preview" | "failure";
-  emailId?: string | null;
-  dryRun?: boolean;
-  errorMessage?: string | null;
-}) {
-  try {
-    await prisma.auditLog.create({
+async function sendOwnerNotificationEmail(
+  input: {
+    groupId: string;
+    entityType: "CandidateSubmission" | "Appointment";
+    entityId: string;
+    event: string;
+    email: OwnerNotificationEmail;
+  },
+  client: OwnerNotificationClient = prisma
+) {
+  const recipients = await getOwnerNotificationRecipients(input.groupId, client);
+  if (recipients.length === 0) {
+    // Do not fall back to a personal or global mailbox.  A missing active group
+    // owner is an operational failure, but it must not roll back an already
+    // committed candidate/appointment change or leak PII to an unrelated party.
+    await client.auditLog.create({
       data: {
         actorType: AuditActorType.SYSTEM,
         groupId: input.groupId,
-        action: "system.owner_notification_email",
+        action: "system.owner_notification_not_queued",
         entityType: input.entityType,
         entityId: input.entityId,
         afterData: {
           event: input.event,
-          recipients: input.recipients,
-          status: input.status,
-          emailId: input.emailId ?? null,
-          dryRun: input.dryRun ?? false,
-          errorMessage: input.errorMessage ?? null
+          reason: "no_active_group_owner"
         }
       }
     });
-  } catch (error) {
-    console.error("Failed to write owner notification audit log", error);
-  }
-}
-
-function safeErrorMessage(error: unknown) {
-  if (error instanceof Error) {
-    return error.message.split("\n")[0]?.slice(0, 240) || "发送负责人通知失败";
-  }
-  return "发送负责人通知失败";
-}
-
-async function sendOwnerNotificationEmail(input: {
-  groupId: string;
-  entityType: "CandidateSubmission" | "Appointment";
-  entityId: string;
-  event: string;
-  email: OwnerNotificationEmail;
-}) {
-  const recipients = getOwnerNotificationRecipients();
-  const [primaryRecipient, ...ccRecipients] = recipients;
-  if (!primaryRecipient) {
-    return;
+    return { queued: false };
   }
 
-  try {
-    const result = await sendMailatoEmail({
-      recipient: {
-        email: primaryRecipient,
-        name: "Interview Scheduler"
-      },
-      cc: ccRecipients.map((email) => ({ email })),
+  await enqueueOwnerNotificationEmail(
+    {
+      kind: "owner-notification",
+      groupId: input.groupId,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      event: input.event,
+      recipients,
       subject: input.email.subject,
-      body: input.email.body,
-      auditId: `owner-notification:${input.entityType}:${input.entityId}`,
-      timeoutMs: 15_000
-    });
-
-    await writeOwnerNotificationAudit({
-      groupId: input.groupId,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      event: input.event,
-      recipients,
-      status: result.status,
-      emailId: result.emailId ?? null,
-      dryRun: result.dryRun
-    });
-  } catch (error) {
-    const errorMessage = safeErrorMessage(error);
-    await writeOwnerNotificationAudit({
-      groupId: input.groupId,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      event: input.event,
-      recipients,
-      status: "failure",
-      errorMessage
-    });
-    console.error(errorMessage);
-  }
+      body: input.email.body
+    },
+    client
+  );
+  return { queued: true };
 }
 
-export async function notifyOwnerAboutSubmission(input: {
-  kind: SubmissionNotificationKind;
-  group: NotificationGroup;
-  candidate: NotificationCandidate;
-  submissionId: string;
-  slots: NotificationSlot[];
-  candidateNote?: string | null;
-}) {
-  await sendOwnerNotificationEmail({
-    groupId: input.group.id,
-    entityType: "CandidateSubmission",
-    entityId: input.submissionId,
-    event:
-      input.kind === "modification"
-        ? "candidate.request_submission_modification"
-        : "candidate.submit_initial_availability",
-    email: buildOwnerSubmissionNotificationEmail(input)
-  });
+export async function notifyOwnerAboutSubmission(
+  input: {
+    kind: SubmissionNotificationKind;
+    group: NotificationGroup;
+    candidate: NotificationCandidate;
+    submissionId: string;
+    slots: NotificationSlot[];
+    candidateNote?: string | null;
+  },
+  client: OwnerNotificationClient = prisma
+) {
+  await sendOwnerNotificationEmail(
+    {
+      groupId: input.group.id,
+      entityType: "CandidateSubmission",
+      entityId: input.submissionId,
+      event:
+        input.kind === "modification"
+          ? "candidate.request_submission_modification"
+          : "candidate.submit_initial_availability",
+      email: buildOwnerSubmissionNotificationEmail(input)
+    },
+    client
+  );
 }
 
-export async function notifyOwnerAboutAppointment(input: {
-  kind?: AppointmentNotificationKind;
-  group: NotificationGroup;
-  candidate: NotificationCandidate;
-  appointmentId: string;
-  startAt: Date | string;
-  endAt: Date | string;
-  meetingLocation?: string | null;
-  candidateVisibleMessage?: string | null;
-  scheduledByEmail?: string | null;
-}) {
+export async function notifyOwnerAboutAppointment(
+  input: {
+    kind?: AppointmentNotificationKind;
+    group: NotificationGroup;
+    candidate: NotificationCandidate;
+    appointmentId: string;
+    startAt: Date | string;
+    endAt: Date | string;
+    meetingLocation?: string | null;
+    candidateVisibleMessage?: string | null;
+    scheduledByEmail?: string | null;
+  },
+  client: OwnerNotificationClient = prisma
+) {
   const kind = input.kind ?? "scheduled";
   const event: Record<AppointmentNotificationKind, string> = {
     scheduled: "admin.schedule_appointment",
@@ -303,11 +297,14 @@ export async function notifyOwnerAboutAppointment(input: {
     cancelled: "admin.cancel_appointment"
   };
 
-  await sendOwnerNotificationEmail({
-    groupId: input.group.id,
-    entityType: "Appointment",
-    entityId: input.appointmentId,
-    event: event[kind],
-    email: buildOwnerAppointmentNotificationEmail({ ...input, kind })
-  });
+  await sendOwnerNotificationEmail(
+    {
+      groupId: input.group.id,
+      entityType: "Appointment",
+      entityId: input.appointmentId,
+      event: event[kind],
+      email: buildOwnerAppointmentNotificationEmail({ ...input, kind })
+    },
+    client
+  );
 }

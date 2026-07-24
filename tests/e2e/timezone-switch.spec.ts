@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { AdminRole, AdminStatus, GroupTimeSlotStatus, InterviewGroupStatus } from "@prisma/client";
 import { hashPassword } from "@/lib/auth/password";
+import { generateCandidateToken, hashCandidateToken } from "@/lib/auth/candidate-token";
 import { generateGroupCode } from "@/lib/group-code/generate";
 import { prisma } from "@/lib/db/prisma";
 
@@ -27,10 +28,32 @@ test.beforeEach(async () => {
   await prisma.interviewGroup.deleteMany({
     where: { name: { startsWith: groupNamePrefix } }
   });
+  await prisma.interviewProject.deleteMany({
+    where: { name: { startsWith: groupNamePrefix } }
+  });
+
+  const groupName = `${groupNamePrefix}${Date.now()}`;
+  const project = await prisma.interviewProject.create({
+    data: {
+      name: groupName,
+      publicDescription: "时区切换自动化验收。",
+      createdByAdminId: admin.id
+    }
+  });
+  const round = await prisma.interviewRound.create({
+    data: {
+      projectId: project.id,
+      name: "默认轮次",
+      orderIndex: 1,
+      interviewDurationMinutes: 30
+    }
+  });
 
   const group = await prisma.interviewGroup.create({
     data: {
-      name: `${groupNamePrefix}${Date.now()}`,
+      projectId: project.id,
+      roundId: round.id,
+      name: groupName,
       groupCode: generateGroupCode(),
       publicDescription: "时区切换自动化验收。",
       timezone: "Asia/Shanghai",
@@ -55,6 +78,9 @@ test.afterEach(async () => {
   await prisma.interviewGroup.deleteMany({
     where: { name: { startsWith: groupNamePrefix } }
   });
+  await prisma.interviewProject.deleteMany({
+    where: { name: { startsWith: groupNamePrefix } }
+  });
 });
 
 test("candidate can switch display timezone without changing stored slots", async ({ page }) => {
@@ -64,9 +90,25 @@ test("candidate can switch display timezone without changing stored slots", asyn
   });
 
   await page.addInitScript(() => window.localStorage.clear());
-  await page.goto(
-    `/candidate/${group.groupCode}?name=${encodeURIComponent("时区候选人")}&email=timezone@example.com`
-  );
+  const token = generateCandidateToken();
+  await prisma.candidateAccessToken.create({
+    data: {
+      groupId: group.id,
+      tokenHash: hashCandidateToken(token),
+      name: "时区候选人",
+      email: "timezone@example.com",
+      normalizedEmail: "timezone@example.com",
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000)
+    }
+  });
+  await page.goto(`/candidate/auth/${token}`);
+
+  await expect(page.getByRole("heading", { name: "确认进入候选人页面" })).toBeVisible();
+  await page.getByRole("button", { name: "继续进入" }).click();
+  // The availability picker deliberately defaults to a bounded current-date
+  // window. This timezone regression uses a stable historical summer instant,
+  // so explicitly request its one-day window instead of depending on today.
+  await page.goto(`/candidate/${group.groupCode}?from=2026-07-08&to=2026-07-08`);
 
   await expect(page.getByRole("button", { name: /09:00-09:30/ })).toBeVisible();
 

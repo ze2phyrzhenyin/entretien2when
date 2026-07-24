@@ -4,6 +4,7 @@ import { ccEmailListSchema } from "@/lib/validation/email";
 export const scheduleAppointmentSchema = z
   .object({
     slotIds: z.array(z.string().min(1)).min(1, "请选择面试时间"),
+    interviewerIds: z.array(z.string().min(1)).max(20, "最多选择 20 位面试官").default([]),
     meetingLocation: z.string().trim().max(500, "会议地点最多 500 个字符").optional(),
     candidateVisibleMessage: z
       .string()

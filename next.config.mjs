@@ -8,6 +8,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: __dirname,
+  poweredByHeader: false,
   ...(basePath ? { basePath } : {})
 };
 

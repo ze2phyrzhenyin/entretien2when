@@ -16,10 +16,12 @@ pnpm test
 echo "5/5 build"
 pnpm build
 
-if command -v pnpm >/dev/null 2>&1 && pnpm exec playwright --version >/dev/null 2>&1; then
+if [[ "${WHEN2ENTRETIEN_ALLOW_E2E_MUTATION:-}" != "1" ]]; then
+  echo "Optional e2e smoke skipped: set WHEN2ENTRETIEN_ALLOW_E2E_MUTATION=1 and use an isolated database."
+elif command -v pnpm >/dev/null 2>&1 && pnpm exec playwright --version >/dev/null 2>&1; then
   if node -e "try { const fs=require('node:fs'); const { chromium }=require('@playwright/test'); process.exit(fs.existsSync(chromium.executablePath()) ? 0 : 1); } catch { process.exit(1); }"; then
     echo "Optional e2e smoke"
-    env -u NO_COLOR pnpm exec playwright test --grep "@smoke"
+    env -u NO_COLOR pnpm exec playwright test --grep "@smoke" --workers="${PLAYWRIGHT_WORKERS:-1}"
   else
     echo "Playwright Chromium is not installed; skipped e2e smoke with explicit notice."
   fi

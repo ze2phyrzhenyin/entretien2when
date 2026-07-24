@@ -1,6 +1,7 @@
 export const GROUP_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const DEFAULT_GROUP_CODE_GROUPS = 5;
 export const DEFAULT_GROUP_CODE_GROUP_LENGTH = 4;
+export const MAX_GROUP_CODE_INPUT_LENGTH = 64;
 
 export type GenerateGroupCodeOptions = {
   groups?: number;
@@ -49,6 +50,10 @@ export function normalizeGroupCode(input: string) {
 }
 
 export function isValidGroupCode(input: string) {
+  if (input.length > MAX_GROUP_CODE_INPUT_LENGTH || !/^[A-Za-z0-9\s-]+$/.test(input)) {
+    return false;
+  }
+
   const normalized = normalizeGroupCode(input);
   const compact = normalized.replaceAll("-", "");
   return (

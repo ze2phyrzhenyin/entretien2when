@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.29.2",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -10,13 +11,17 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "WHEN2ENTRETIEN_ALLOW_E2E_MUTATION=1 playwright test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx scripts/db-seed.ts",
     "db:seed:demo": "tsx scripts/db-seed-demo.ts",
+    "email:outbox": "tsx scripts/process-email-outbox.ts",
+    "admin:assign-group": "tsx scripts/assign-admin-group.ts",
+    "admin:reset-password": "tsx scripts/reset-admin-password.ts",
+    "auth:revoke": "tsx scripts/revoke-auth-artifacts.ts",
     "doctor": "bash scripts/doctor.sh",
     "check": "bash scripts/check.sh"
   },
@@ -24,7 +29,7 @@
     "@prisma/client": "^6.16.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
-    "next": "^15.5.0",
+    "next": "^15.5.21",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "zod": "^3.25.0"
@@ -39,14 +44,20 @@
     "autoprefixer": "^10.4.20",
     "dotenv": "^17.4.2",
     "eslint": "^9.35.0",
-    "eslint-config-next": "^15.5.0",
+    "eslint-config-next": "^15.5.21",
     "eslint-config-prettier": "^9.1.0",
-    "postcss": "^8.4.49",
+    "postcss": "^8.5.18",
     "prettier": "^3.6.0",
     "prisma": "^6.16.0",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "8.5.18",
+      "sharp": "0.35.3"
+    }
   }
 }

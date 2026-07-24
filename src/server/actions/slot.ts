@@ -9,15 +9,17 @@ import {
   addMinutes,
   dateRangeDates,
   minutesSinceMidnight,
+  ZonedDateTimeError,
   zonedDateTimeToUtc
 } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
-import { requireGroupPermission } from "@/lib/permissions/admin";
+import { groupSchedulingRoles, requireGroupPermission } from "@/lib/permissions/admin";
 import { formValue, formValues } from "@/lib/validation/common";
 import {
   batchDeleteSlotsSchema,
   batchGenerateSlotsSchema,
-  clearSlotsSchema
+  clearSlotsSchema,
+  isSlotGenerationWithinLimits
 } from "@/lib/validation/slot";
 
 function redirectWithSlotDeleteStatus(
@@ -42,7 +44,7 @@ function redirectWithSlotDeleteStatus(
 function redirectWithSlotGenerateStatus(
   groupId: string,
   params: {
-    result: "generated" | "empty" | "invalid";
+    result: "generated" | "empty" | "invalid" | "dst";
     generated?: number;
     skipped?: number;
   }
@@ -60,7 +62,7 @@ function redirectWithSlotGenerateStatus(
 
 export async function batchGenerateSlotsAction(groupId: string, formData: FormData) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId);
+  await requireGroupPermission(admin, groupId, groupSchedulingRoles);
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
@@ -80,28 +82,58 @@ export async function batchGenerateSlotsAction(groupId: string, formData: FormDa
 
   const startMinutes = minutesSinceMidnight(input.startTime);
   const endMinutes = minutesSinceMidnight(input.endTime);
+  const dayMinutes = 24 * 60;
+  if (
+    !Number.isSafeInteger(startMinutes) ||
+    !Number.isSafeInteger(endMinutes) ||
+    !Number.isSafeInteger(group.slotDurationMinutes) ||
+    startMinutes < 0 ||
+    endMinutes > dayMinutes ||
+    startMinutes >= endMinutes ||
+    group.slotDurationMinutes < 1
+  ) {
+    redirectWithSlotGenerateStatus(groupId, { result: "invalid" });
+  }
+
   const dates = dateRangeDates(input.dateFrom, input.dateTo);
+  const slotsPerDay = Math.floor((endMinutes - startMinutes) / group.slotDurationMinutes);
+  if (slotsPerDay === 0 || dates.length === 0) {
+    redirectWithSlotGenerateStatus(groupId, { result: "empty", generated: 0, skipped: 0 });
+  }
+  // Keep a second, action-local bound even if a future caller bypasses or
+  // weakens the form schema. Never allocate the generated rows before this.
+  if (!isSlotGenerationWithinLimits(dates.length, slotsPerDay)) {
+    redirectWithSlotGenerateStatus(groupId, { result: "invalid" });
+  }
+
   const data: Array<{ groupId: string; startAt: Date; endAt: Date; status: GroupTimeSlotStatus }> =
     [];
 
-  for (const date of dates) {
-    for (
-      let cursor = startMinutes;
-      cursor + group.slotDurationMinutes <= endMinutes;
-      cursor += group.slotDurationMinutes
-    ) {
-      const hour = Math.floor(cursor / 60)
-        .toString()
-        .padStart(2, "0");
-      const minute = (cursor % 60).toString().padStart(2, "0");
-      const startAt = zonedDateTimeToUtc(date, `${hour}:${minute}`, group.timezone);
-      data.push({
-        groupId,
-        startAt,
-        endAt: addMinutes(startAt, group.slotDurationMinutes),
-        status: GroupTimeSlotStatus.OPEN
-      });
+  try {
+    for (const date of dates) {
+      for (
+        let cursor = startMinutes;
+        cursor + group.slotDurationMinutes <= endMinutes;
+        cursor += group.slotDurationMinutes
+      ) {
+        const hour = Math.floor(cursor / 60)
+          .toString()
+          .padStart(2, "0");
+        const minute = (cursor % 60).toString().padStart(2, "0");
+        const startAt = zonedDateTimeToUtc(date, `${hour}:${minute}`, group.timezone);
+        data.push({
+          groupId,
+          startAt,
+          endAt: addMinutes(startAt, group.slotDurationMinutes),
+          status: GroupTimeSlotStatus.OPEN
+        });
+      }
     }
+  } catch (error) {
+    if (error instanceof ZonedDateTimeError && error.code !== "INVALID") {
+      redirectWithSlotGenerateStatus(groupId, { result: "dst" });
+    }
+    throw error;
   }
 
   if (data.length === 0) {
@@ -151,7 +183,7 @@ export async function updateSlotStatusAction(
   status: GroupTimeSlotStatus
 ) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId);
+  await requireGroupPermission(admin, groupId, groupSchedulingRoles);
 
   const slot = await prisma.groupTimeSlot.findFirst({
     where: {
@@ -200,7 +232,7 @@ export async function updateSlotStatusAction(
 
 export async function deleteSlotsAction(groupId: string, formData: FormData) {
   const admin = await requireAdmin();
-  await requireGroupPermission(admin, groupId);
+  await requireGroupPermission(admin, groupId, groupSchedulingRoles);
 
   const mode = formValue(formData, "deleteMode") === "clearAll" ? "clearAll" : "selected";
   let targetSlotIds: string[] | null = null;

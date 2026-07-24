@@ -1,4 +1,5 @@
 import {
+  AdminGroupRole,
   AdminRole,
   AdminStatus,
   AppointmentStatus,
@@ -37,9 +38,30 @@ async function main() {
   await prisma.interviewGroup.deleteMany({
     where: { name: "P0 演示面试组" }
   });
+  await prisma.interviewProject.deleteMany({
+    where: { name: "P0 演示面试组" }
+  });
+
+  const project = await prisma.interviewProject.create({
+    data: {
+      name: "P0 演示面试组",
+      publicDescription: null,
+      createdByAdminId: admin.id
+    }
+  });
+  const round = await prisma.interviewRound.create({
+    data: {
+      projectId: project.id,
+      name: "默认轮次",
+      orderIndex: 1,
+      interviewDurationMinutes: 30
+    }
+  });
 
   const group = await prisma.interviewGroup.create({
     data: {
+      projectId: project.id,
+      roundId: round.id,
       name: "P0 演示面试组",
       groupCode: generateGroupCode(),
       publicDescription: null,
@@ -50,6 +72,13 @@ async function main() {
       minSelectSlots: 1,
       maxSelectSlots: 4,
       createdByAdminId: admin.id
+    }
+  });
+  await prisma.adminGroupMembership.create({
+    data: {
+      adminId: admin.id,
+      groupId: group.id,
+      role: AdminGroupRole.OWNER
     }
   });
 
@@ -109,6 +138,7 @@ async function main() {
   const appointment = await prisma.appointment.create({
     data: {
       groupId: group.id,
+      roundId: round.id,
       candidateId: zhang.id,
       startAt: slots[0]!.startAt,
       endAt: slots[1]!.endAt,
@@ -210,6 +240,8 @@ async function main() {
       {
         adminEmail,
         adminPassword,
+        projectId: project.id,
+        roundId: round.id,
         groupId: group.id,
         groupCode: group.groupCode,
         candidateId: zhang.id,

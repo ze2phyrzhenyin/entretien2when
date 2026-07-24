@@ -2,7 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Admin } from "@prisma/client";
-import { AdminRole, AdminStatus } from "@prisma/client";
+import { AdminStatus } from "@prisma/client";
+import { getSessionCookiePath } from "@/lib/app-url";
 import { prisma } from "@/lib/db/prisma";
 
 const ADMIN_SESSION_COOKIE_NAME = "interview_admin_session";
@@ -18,20 +19,28 @@ function getSessionExpiresAt(now = new Date()) {
 }
 
 export function shouldUseSecureAdminCookie() {
+  if (process.env.NODE_ENV === "production") {
+    // A production deployment without HTTPS is a configuration error. Sending
+    // an authentication cookie over HTTP is never an acceptable fallback.
+    return true;
+  }
+
   const override = process.env.SESSION_COOKIE_SECURE?.trim().toLowerCase();
   if (override === "true" || override === "1" || override === "yes") {
     return true;
   }
-  if (override === "false" || override === "0" || override === "no") {
-    return false;
-  }
 
-  const appUrl = process.env.APP_URL?.trim();
-  if (appUrl) {
-    return appUrl.startsWith("https://");
-  }
+  return false;
+}
 
-  return process.env.NODE_ENV === "production";
+export function getAdminSessionCookieOptions(expiresAt: Date) {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: shouldUseSecureAdminCookie(),
+    path: getSessionCookiePath(),
+    expires: expiresAt
+  };
 }
 
 export async function createAdminSession(adminId: string) {
@@ -47,13 +56,7 @@ export async function createAdminSession(adminId: string) {
   });
 
   const cookieStore = await cookies();
-  cookieStore.set(ADMIN_SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: shouldUseSecureAdminCookie(),
-    path: "/",
-    expires: expiresAt
-  });
+  cookieStore.set(ADMIN_SESSION_COOKIE_NAME, token, getAdminSessionCookieOptions(expiresAt));
 }
 
 export async function getCurrentAdmin(): Promise<Admin | null> {
@@ -76,8 +79,7 @@ export async function getCurrentAdmin(): Promise<Admin | null> {
   if (
     !session ||
     session.expiresAt.getTime() <= Date.now() ||
-    session.admin.status !== AdminStatus.ACTIVE ||
-    session.admin.role !== AdminRole.SUPER_ADMIN
+    session.admin.status !== AdminStatus.ACTIVE
   ) {
     return null;
   }
@@ -107,5 +109,10 @@ export async function destroyCurrentAdminSession() {
     });
   }
 
-  cookieStore.delete(ADMIN_SESSION_COOKIE_NAME);
+  // The path must match the original Set-Cookie path, otherwise a scoped
+  // production cookie survives logout.
+  cookieStore.set(ADMIN_SESSION_COOKIE_NAME, "", {
+    ...getAdminSessionCookieOptions(new Date(0)),
+    maxAge: 0
+  });
 }

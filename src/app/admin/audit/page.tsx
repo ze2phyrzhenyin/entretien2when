@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { PaginationNav } from "@/components/ui/pagination-nav";
 import { Select } from "@/components/ui/select";
 import {
   Table,
@@ -22,10 +23,14 @@ import {
 } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
+import { accessibleGroupWhere, groupOwnerRoles, isSuperAdmin } from "@/lib/permissions/admin";
+import { createPagination } from "@/lib/pagination";
 
 type AdminAuditPageProps = {
-  searchParams: Promise<{ q?: string; actor?: string; groupId?: string }>;
+  searchParams: Promise<{ q?: string; actor?: string; groupId?: string; page?: string }>;
 };
+
+const auditLogsPageSize = 100;
 
 const auditLogInclude = {
   actorAdmin: {
@@ -162,25 +167,39 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
   const q = query.q?.trim() ?? "";
   const actorType = parseActorType(query.actor);
   const selectedGroupId = query.groupId?.trim() ?? "";
+  const superAdmin = isSuperAdmin(admin);
 
   const accessibleGroups = await prisma.interviewGroup.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 100,
+    // Audit payloads may contain candidate and operator PII. They are an
+    // ownership/governance surface rather than a generic group-read surface.
+    where: accessibleGroupWhere(admin, groupOwnerRoles),
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     select: {
       id: true,
       name: true,
       groupCode: true
     }
   });
+  const accessibleGroupIds = new Set(accessibleGroups.map((group) => group.id));
 
   const filters: Prisma.AuditLogWhereInput[] = [];
+
+  if (!superAdmin) {
+    filters.push({
+      groupId: {
+        in: [...accessibleGroupIds]
+      }
+    });
+  }
 
   if (actorType) {
     filters.push({ actorType });
   }
 
-  if (selectedGroupId) {
+  if (selectedGroupId && (superAdmin || accessibleGroupIds.has(selectedGroupId))) {
     filters.push({ groupId: selectedGroupId });
+  } else if (selectedGroupId) {
+    filters.push({ groupId: "__no_access__" });
   }
 
   if (q) {
@@ -224,21 +243,27 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
   }
 
   const where: Prisma.AuditLogWhereInput = filters.length > 0 ? { AND: filters } : {};
-  const [logs, totalCount] = await Promise.all([
-    prisma.auditLog.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: 100,
-      include: auditLogInclude
-    }),
-    prisma.auditLog.count({ where })
-  ]);
+  const totalCount = await prisma.auditLog.count({ where });
+  const pagination = createPagination({
+    page: query.page,
+    pageSize: auditLogsPageSize,
+    totalCount
+  });
+  const logs = await prisma.auditLog.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    skip: pagination.skip,
+    take: pagination.pageSize,
+    include: auditLogInclude
+  });
 
   return (
     <AdminShell admin={admin} active="audit">
       <PageHeader
         title="审计日志"
-        description="超级管理员可查看全部关键业务审计记录。"
+        description={
+          superAdmin ? "查看全部关键业务审计记录。" : "仅查看你作为负责人管理的面试组审计记录。"
+        }
         action={
           <p className="text-sm text-muted-foreground">
             显示最近 {logs.length} 条，共 {totalCount} 条
@@ -315,93 +340,105 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
           description="当管理员或候选人完成提交、审核、面试安排、取消安排等动作后，这里会显示审计记录。"
         />
       ) : (
-        <TableContainer>
-          <Table className="min-w-[980px]">
-            <TableHeader>
-              <tr>
-                <TableHead>时间</TableHead>
-                <TableHead>操作</TableHead>
-                <TableHead>操作者</TableHead>
-                <TableHead>面试组</TableHead>
-                <TableHead>对象</TableHead>
-                <TableHead>数据</TableHead>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {logs.map((log) => {
-                const actor = getActorDisplay(log);
-                const group = getGroupDisplay(log);
-                const beforeData = formatJson(log.beforeData);
-                const afterData = formatJson(log.afterData);
+        <div className="space-y-4">
+          <TableContainer>
+            <Table className="min-w-[980px]">
+              <TableHeader>
+                <tr>
+                  <TableHead>时间</TableHead>
+                  <TableHead>操作</TableHead>
+                  <TableHead>操作者</TableHead>
+                  <TableHead>面试组</TableHead>
+                  <TableHead>对象</TableHead>
+                  <TableHead>数据</TableHead>
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {logs.map((log) => {
+                  const actor = getActorDisplay(log);
+                  const group = getGroupDisplay(log);
+                  const beforeData = formatJson(log.beforeData);
+                  const afterData = formatJson(log.afterData);
 
-                return (
-                  <TableRow key={log.id} className="align-top">
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      <ZonedDateTime
-                        value={log.createdAt.toISOString()}
-                        defaultTimezone={log.group?.timezone ?? "Asia/Shanghai"}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <p className="font-medium">{auditActionLabel[log.action] ?? log.action}</p>
-                      <p className="mt-1 font-mono text-xs text-muted-foreground">{log.action}</p>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col items-start gap-1">
-                        <Badge tone={actorTone[log.actorType]}>
-                          {actorTypeLabel[log.actorType]}
-                        </Badge>
-                        <p className="font-medium">{actor.primary}</p>
-                        {actor.secondary ? (
-                          <p className="text-xs text-muted-foreground">{actor.secondary}</p>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {group ? (
-                        <Link
-                          className="font-medium text-primary"
-                          href={`/admin/groups/${group.id}/settings`}
-                        >
-                          {group.name}
-                          <span className="block font-mono text-xs text-muted-foreground">
-                            {group.groupCode}
-                          </span>
-                        </Link>
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <p>{entityTypeLabel[log.entityType] ?? log.entityType}</p>
-                      <p className="mt-1 font-mono text-xs text-muted-foreground">
-                        {shortId(log.entityId)}
-                      </p>
-                    </TableCell>
-                    <TableCell className="max-w-sm">
-                      {beforeData || afterData ? (
-                        <div className="space-y-1">
-                          {beforeData ? (
-                            <p className="truncate font-mono text-xs" title={beforeData}>
-                              前：{beforeData}
-                            </p>
-                          ) : null}
-                          {afterData ? (
-                            <p className="truncate font-mono text-xs" title={afterData}>
-                              后：{afterData}
-                            </p>
+                  return (
+                    <TableRow key={log.id} className="align-top">
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        <ZonedDateTime
+                          value={log.createdAt.toISOString()}
+                          defaultTimezone={log.group?.timezone ?? "Asia/Shanghai"}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <p className="font-medium">{auditActionLabel[log.action] ?? log.action}</p>
+                        <p className="mt-1 font-mono text-xs text-muted-foreground">{log.action}</p>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col items-start gap-1">
+                          <Badge tone={actorTone[log.actorType]}>
+                            {actorTypeLabel[log.actorType]}
+                          </Badge>
+                          <p className="font-medium">{actor.primary}</p>
+                          {actor.secondary ? (
+                            <p className="text-xs text-muted-foreground">{actor.secondary}</p>
                           ) : null}
                         </div>
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                      </TableCell>
+                      <TableCell>
+                        {group ? (
+                          <Link
+                            className="font-medium text-primary"
+                            href={`/admin/groups/${group.id}/settings`}
+                          >
+                            {group.name}
+                            <span className="block font-mono text-xs text-muted-foreground">
+                              {group.groupCode}
+                            </span>
+                          </Link>
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <p>{entityTypeLabel[log.entityType] ?? log.entityType}</p>
+                        <p className="mt-1 font-mono text-xs text-muted-foreground">
+                          {shortId(log.entityId)}
+                        </p>
+                      </TableCell>
+                      <TableCell className="max-w-sm">
+                        {beforeData || afterData ? (
+                          <div className="space-y-1">
+                            {beforeData ? (
+                              <p className="truncate font-mono text-xs" title={beforeData}>
+                                前：{beforeData}
+                              </p>
+                            ) : null}
+                            {afterData ? (
+                              <p className="truncate font-mono text-xs" title={afterData}>
+                                后：{afterData}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <PaginationNav
+            pathname="/admin/audit"
+            searchParams={{
+              q: q || undefined,
+              actor: actorType ?? undefined,
+              groupId: selectedGroupId || undefined
+            }}
+            itemLabel="条审计记录"
+            {...pagination}
+          />
+        </div>
       )}
     </AdminShell>
   );

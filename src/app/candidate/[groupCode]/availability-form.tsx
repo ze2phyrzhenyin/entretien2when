@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FormField } from "@/components/design-system/form-field";
 import { ReviewNotice } from "@/components/design-system/review-notice";
 import { CandidateTimeGrid } from "@/components/scheduling/candidate-time-grid";
@@ -18,8 +18,6 @@ export function AvailabilityForm({
   mode,
   groupCode,
   defaultTimezone,
-  name,
-  email,
   minSelectSlots,
   maxSelectSlots,
   slots,
@@ -28,8 +26,6 @@ export function AvailabilityForm({
   mode: "initial" | "modify";
   groupCode: string;
   defaultTimezone: string;
-  name: string;
-  email: string;
   minSelectSlots: number;
   maxSelectSlots: number;
   slots: CandidateSlotView[];
@@ -43,6 +39,11 @@ export function AvailabilityForm({
     slotId: string;
     daySlotIds: string[];
   } | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   function selectSlots(targetSlots: CandidateSlotView[]) {
     setSelectedSlotIds((current) => {
@@ -118,9 +119,8 @@ export function AvailabilityForm({
       }}
     >
       <input type="hidden" name="groupCode" value={groupCode} />
-      <input type="hidden" name="name" value={name} />
-      <input type="hidden" name="email" value={email} />
       <input type="hidden" name="slotIds" value={selectedSlotIds.join(",")} />
+      {hydrated ? <span data-testid="availability-ready" className="sr-only" /> : null}
 
       <ReviewNotice mode={mode === "modify" ? "modify" : "default"} />
 

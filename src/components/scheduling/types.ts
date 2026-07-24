@@ -16,7 +16,6 @@ export type AdminSlotView = {
   candidates?: Array<{
     id: string;
     name: string;
-    email: string;
   }>;
 };
 

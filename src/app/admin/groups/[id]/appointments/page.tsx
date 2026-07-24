@@ -8,6 +8,7 @@ import { GroupNav } from "@/components/layout/group-nav";
 import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { ZonedDateTimeRange } from "@/components/timezone/zoned-time";
 import { Button } from "@/components/ui/button";
+import { ConfirmForm } from "@/components/ui/confirm-form";
 import {
   Table,
   TableBody,
@@ -19,7 +20,11 @@ import {
 } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
-import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
+import {
+  getGroupCapabilities,
+  groupSchedulingRoles,
+  requireGroupPermission
+} from "@/lib/permissions/admin";
 import { cancelAppointmentAction } from "@/server/actions/appointment";
 
 type AppointmentsPageProps = {
@@ -29,12 +34,8 @@ type AppointmentsPageProps = {
 export default async function AppointmentsPage({ params }: AppointmentsPageProps) {
   const { id: groupId } = await params;
   const admin = await requireAdmin();
-  const allowed = await canAccessGroup(admin, groupId);
-
-  if (!allowed) {
-    throw new Error("没有权限访问该面试组。");
-  }
-  await requireGroupPermission(admin, groupId);
+  await requireGroupPermission(admin, groupId, groupSchedulingRoles);
+  const capabilities = await getGroupCapabilities(admin, groupId);
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
@@ -46,6 +47,16 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
     include: {
       candidate: {
         select: { id: true, name: true, email: true }
+      },
+      interviewers: {
+        include: {
+          interviewer: {
+            select: {
+              name: true,
+              email: true
+            }
+          }
+        }
       }
     }
   });
@@ -82,7 +93,7 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
 
   return (
     <AdminShell admin={admin}>
-      <GroupNav groupId={groupId} active="appointments" />
+      <GroupNav groupId={groupId} active="appointments" capabilities={capabilities} />
       <PageHeader
         title={`${group.name} · 面试安排`}
         description="查看已确认的面试安排和候选人提交的可用时间。取消安排会自动释放对应时间锁。"
@@ -141,6 +152,7 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
                 <tr>
                   <TableHead>候选人</TableHead>
                   <TableHead>时间</TableHead>
+                  <TableHead>面试官</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>地点/链接</TableHead>
                   <TableHead>给候选人的说明</TableHead>
@@ -168,6 +180,22 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
                       />
                     </TableCell>
                     <TableCell>
+                      {appointment.interviewers.length > 0 ? (
+                        <div className="space-y-1">
+                          {appointment.interviewers.map((assignment) => (
+                            <div key={assignment.interviewerId}>
+                              <p className="font-medium">{assignment.interviewer.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {assignment.interviewer.email}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <StatusBadge kind="appointment" status={appointment.status} />
                     </TableCell>
                     <TableCell>{appointment.meetingLocation ?? "-"}</TableCell>
@@ -175,11 +203,14 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
                     <TableCell>{appointment.internalNote ?? "-"}</TableCell>
                     <TableCell>
                       {appointment.status === "SCHEDULED" ? (
-                        <form action={cancelAppointmentAction.bind(null, groupId, appointment.id)}>
+                        <ConfirmForm
+                          action={cancelAppointmentAction.bind(null, groupId, appointment.id)}
+                          confirmMessage="确认取消这场面试并释放对应时间吗？候选人安排会立即失效。"
+                        >
                           <Button type="submit" variant="danger" size="sm">
                             取消
                           </Button>
-                        </form>
+                        </ConfirmForm>
                       ) : (
                         "-"
                       )}

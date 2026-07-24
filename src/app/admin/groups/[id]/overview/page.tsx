@@ -8,7 +8,11 @@ import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
-import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
+import {
+  getGroupCapabilities,
+  groupSchedulingRoles,
+  requireGroupPermission
+} from "@/lib/permissions/admin";
 
 type OverviewPageProps = {
   params: Promise<{ id: string }>;
@@ -17,27 +21,30 @@ type OverviewPageProps = {
 export default async function OverviewPage({ params }: OverviewPageProps) {
   const { id: groupId } = await params;
   const admin = await requireAdmin();
-  const allowed = await canAccessGroup(admin, groupId);
-
-  if (!allowed) {
-    throw new Error("没有权限访问该面试组。");
-  }
-  await requireGroupPermission(admin, groupId);
+  await requireGroupPermission(admin, groupId, groupSchedulingRoles);
+  const capabilities = await getGroupCapabilities(admin, groupId);
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
-    include: {
+    select: {
+      timezone: true,
       timeSlots: {
         orderBy: { startAt: "asc" },
-        include: {
-          activeLock: true,
+        select: {
+          id: true,
+          startAt: true,
+          endAt: true,
+          status: true,
+          activeLock: {
+            select: { reasonInternal: true }
+          },
           submissionSlots: {
             where: {
               submission: { status: "ACTIVE" }
             },
-            include: {
+            select: {
               candidate: {
-                select: { id: true, name: true, email: true }
+                select: { id: true, name: true }
               }
             }
           }
@@ -57,7 +64,7 @@ export default async function OverviewPage({ params }: OverviewPageProps) {
 
   return (
     <AdminShell admin={admin}>
-      <GroupNav groupId={groupId} active="overview" />
+      <GroupNav groupId={groupId} active="overview" capabilities={capabilities} />
       <PageHeader
         title="时间总览"
         description="显示每个开放时间的候选人数量、关闭状态和锁定原因。候选人端不会看到这些内部信息。"

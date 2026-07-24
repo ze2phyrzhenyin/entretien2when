@@ -8,6 +8,7 @@ import { AdminShell } from "@/components/layout/admin-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PaginationNav } from "@/components/ui/pagination-nav";
 import {
   Table,
   TableBody,
@@ -19,15 +20,21 @@ import {
 } from "@/components/ui/table";
 import { prisma } from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/session";
+import { accessibleGroupWhere, isSuperAdmin } from "@/lib/permissions/admin";
+import { createPagination } from "@/lib/pagination";
 
 type AdminDashboardPageProps = {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 };
+
+const groupsPageSize = 25;
 
 export default async function AdminDashboardPage({ searchParams }: AdminDashboardPageProps) {
   const query = await searchParams;
   const q = query.q?.trim() ?? "";
   const admin = await requireAdmin();
+  const superAdmin = isSuperAdmin(admin);
+  const accessWhere = accessibleGroupWhere(admin);
   const searchWhere: Prisma.InterviewGroupWhereInput = q
     ? {
         OR: [
@@ -36,13 +43,32 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
         ]
       }
     : {};
+  const groupWhere: Prisma.InterviewGroupWhereInput = {
+    AND: [accessWhere, searchWhere]
+  };
+  const totalGroupCount = await prisma.interviewGroup.count({ where: groupWhere });
+  const pagination = createPagination({
+    page: query.page,
+    pageSize: groupsPageSize,
+    totalCount: totalGroupCount
+  });
   const groups = await prisma.interviewGroup.findMany({
-    where: searchWhere,
-    orderBy: {
-      createdAt: "desc"
-    },
-    take: 20,
+    where: groupWhere,
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    skip: pagination.skip,
+    take: pagination.pageSize,
     include: {
+      project: {
+        select: {
+          id: true,
+          name: true
+        }
+      },
+      round: {
+        select: {
+          name: true
+        }
+      },
       _count: {
         select: {
           candidates: true,
@@ -60,15 +86,19 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
     <AdminShell admin={admin}>
       <PageHeader
         title="面试组"
-        description="超级管理员可查看和管理全部面试组。"
+        description={
+          superAdmin ? "超级管理员可查看和管理全部面试组。" : "仅显示你获授权访问的面试组。"
+        }
         action={
-          <Link
-            href="/admin/groups/new"
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-teal-800 sm:w-auto"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            创建面试组
-          </Link>
+          superAdmin ? (
+            <Link
+              href="/admin/groups/new"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-teal-800 sm:w-auto"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              创建面试组
+            </Link>
+          ) : null
         }
       />
 
@@ -129,10 +159,12 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
           <h3 className="text-lg font-semibold">{q ? "没有匹配的面试组" : "还没有面试组"}</h3>
           <p className="mt-2 text-sm text-muted-foreground">
             {q
-              ? "换一个关键词，或清除搜索条件后查看全部面试组。"
-              : "创建面试组后，系统会自动生成高强度面试组编号并提供候选人链接。"}
+              ? "换一个关键词，或清除搜索条件后查看可访问面试组。"
+              : superAdmin
+                ? "创建面试组后，系统会自动生成高强度面试组编号并提供候选人链接。"
+                : "暂时没有获授权访问的面试组。"}
           </p>
-          {q ? null : (
+          {q || !superAdmin ? null : (
             <Link
               href="/admin/groups/new"
               className="mt-5 inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-teal-800"
@@ -142,41 +174,67 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
           )}
         </Card>
       ) : (
-        <TableContainer>
-          <Table>
-            <TableHeader>
-              <tr>
-                <TableHead>面试组名称</TableHead>
-                <TableHead>面试组编号</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>候选人</TableHead>
-                <TableHead>面试安排</TableHead>
-                <TableHead>操作</TableHead>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {groups.map((group) => (
-                <TableRow key={group.id}>
-                  <TableCell className="font-medium">{group.name}</TableCell>
-                  <TableCell className="font-mono text-xs">{group.groupCode}</TableCell>
-                  <TableCell>
-                    <StatusBadge kind="group" status={group.status} />
-                  </TableCell>
-                  <TableCell>{group._count.candidates}</TableCell>
-                  <TableCell>{group._count.appointments}</TableCell>
-                  <TableCell>
-                    <Link
-                      className="font-medium text-primary"
-                      href={`/admin/groups/${group.id}/settings`}
-                    >
-                      查看
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <div className="space-y-4">
+          <TableContainer>
+            <Table>
+              <TableHeader>
+                <tr>
+                  <TableHead>面试组名称</TableHead>
+                  <TableHead>项目/轮次</TableHead>
+                  <TableHead>面试组编号</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>候选人</TableHead>
+                  <TableHead>面试安排</TableHead>
+                  <TableHead>操作</TableHead>
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {groups.map((group) => (
+                  <TableRow key={group.id}>
+                    <TableCell className="font-medium">{group.name}</TableCell>
+                    <TableCell className="min-w-48">
+                      {group.project ? (
+                        <div>
+                          <Link
+                            href={`/admin/projects/${group.project.id}`}
+                            className="font-medium text-primary"
+                          >
+                            {group.project.name}
+                          </Link>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {group.round?.name ?? "未关联轮次"}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">未关联项目</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{group.groupCode}</TableCell>
+                    <TableCell>
+                      <StatusBadge kind="group" status={group.status} />
+                    </TableCell>
+                    <TableCell>{group._count.candidates}</TableCell>
+                    <TableCell>{group._count.appointments}</TableCell>
+                    <TableCell>
+                      <Link
+                        className="font-medium text-primary"
+                        href={`/admin/groups/${group.id}/candidates`}
+                      >
+                        查看
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <PaginationNav
+            pathname="/admin"
+            searchParams={{ q: q || undefined }}
+            itemLabel="个面试组"
+            {...pagination}
+          />
+        </div>
       )}
     </AdminShell>
   );

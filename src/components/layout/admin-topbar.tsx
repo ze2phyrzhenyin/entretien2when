@@ -1,5 +1,5 @@
 import { LogOut, ShieldCheck } from "lucide-react";
-import type { Admin } from "@prisma/client";
+import { AdminRole, type Admin } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { adminLogoutAction } from "@/server/actions/admin-auth";
 
@@ -10,6 +10,8 @@ export function AdminTopbar({
   admin: Pick<Admin, "displayName" | "email" | "role">;
   title: string;
 }) {
+  const roleLabel = admin.role === AdminRole.SUPER_ADMIN ? "超级管理员" : "组级管理员";
+
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-surface/95 px-4 backdrop-blur md:px-8">
       <div>
@@ -23,7 +25,7 @@ export function AdminTopbar({
         </div>
         <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
           <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-          超级管理员
+          {roleLabel}
         </span>
         <form action={adminLogoutAction}>
           <Button variant="ghost" size="icon" type="submit" aria-label="退出登录">

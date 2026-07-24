@@ -8,7 +8,7 @@ type AdminNote = {
   id: string;
   body: string;
   authorName: string;
-  authorEmail: string;
+  authorEmail?: string;
 };
 
 export function CandidateAdminNoteEditor({
@@ -43,7 +43,7 @@ export function CandidateAdminNoteEditor({
             >
               <p className="whitespace-pre-wrap leading-6">{note.body}</p>
               <p className="mt-2 text-xs text-muted-foreground">
-                {note.authorName} · {note.authorEmail}
+                {note.authorEmail ? `${note.authorName} · ${note.authorEmail}` : note.authorName}
               </p>
             </div>
           ))

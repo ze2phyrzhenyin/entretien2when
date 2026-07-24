@@ -8,11 +8,16 @@ import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmForm } from "@/components/ui/confirm-form";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
-import { canAccessGroup, requireGroupPermission } from "@/lib/permissions/admin";
+import {
+  getGroupCapabilities,
+  groupReviewRoles,
+  requireGroupPermission
+} from "@/lib/permissions/admin";
 import { approveSubmissionAction, rejectSubmissionAction } from "@/server/actions/review";
 
 type ReviewDetailPageProps = {
@@ -22,35 +27,54 @@ type ReviewDetailPageProps = {
 export default async function ReviewDetailPage({ params }: ReviewDetailPageProps) {
   const { id: groupId, submissionId } = await params;
   const admin = await requireAdmin();
-  const allowed = await canAccessGroup(admin, groupId);
-
-  if (!allowed) {
-    throw new Error("没有权限访问该面试组。");
-  }
-  await requireGroupPermission(admin, groupId);
+  await requireGroupPermission(admin, groupId, groupReviewRoles);
+  const capabilities = await getGroupCapabilities(admin, groupId);
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
-    where: { id: groupId }
+    where: { id: groupId },
+    select: { timezone: true }
   });
   const submission = await prisma.candidateSubmission.findFirstOrThrow({
     where: { id: submissionId, groupId },
-    include: {
+    select: {
+      id: true,
+      status: true,
+      versionNo: true,
+      candidateNote: true,
       candidate: {
-        include: {
+        select: {
+          name: true,
           activeSubmission: {
-            include: {
+            select: {
+              candidateNote: true,
               slots: {
-                include: { slot: true }
+                select: {
+                  slotId: true,
+                  slot: {
+                    select: {
+                      id: true,
+                      startAt: true,
+                      endAt: true
+                    }
+                  }
+                }
               }
             }
           }
         }
       },
       slots: {
-        include: {
+        select: {
+          slotId: true,
           slot: {
-            include: {
-              activeLock: true
+            select: {
+              id: true,
+              startAt: true,
+              endAt: true,
+              status: true,
+              activeLock: {
+                select: { id: true }
+              }
             }
           }
         }
@@ -73,7 +97,8 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
   const newSlotById = new Map(submission.slots.map(({ slot }) => [slot.id, slot]));
   const slotChanges: ReviewSlotChange[] = [...new Set([...oldSlotIds, ...newSlotIds])].map(
     (slotId) => {
-      const slot = newSlotById.get(slotId) ?? oldSlotById.get(slotId);
+      const changedSlot = newSlotById.get(slotId);
+      const slot = changedSlot ?? oldSlotById.get(slotId);
       if (!slot) {
         return {
           id: slotId,
@@ -91,7 +116,7 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
         endAt: slot.endAt.toISOString(),
         change: isNew && !isOld ? "added" : !isNew && isOld ? "removed" : "unchanged",
         blockedReason:
-          isNew && (slot.status !== "OPEN" || Boolean("activeLock" in slot && slot.activeLock))
+          isNew && changedSlot && (changedSlot.status !== "OPEN" || Boolean(changedSlot.activeLock))
             ? "已关闭或已锁定，不能直接通过"
             : null
       };
@@ -103,7 +128,7 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
 
   return (
     <AdminShell admin={admin}>
-      <GroupNav groupId={groupId} active="reviews" />
+      <GroupNav groupId={groupId} active="reviews" capabilities={capabilities} />
       <PageHeader
         title="审核修改申请"
         description={`${submission.candidate.name} · 版本 ${submission.versionNo}`}
@@ -164,15 +189,16 @@ export default async function ReviewDetailPage({ params }: ReviewDetailPageProps
                 通过修改
               </SubmitButton>
             </form>
-            <form
+            <ConfirmForm
               action={rejectSubmissionAction.bind(null, groupId, submission.id)}
               className="space-y-3"
+              confirmMessage="确认拒绝这次修改申请吗？候选人需要重新提交才可再次审核。"
             >
               <Textarea name="reviewComment" placeholder="拒绝原因（可选）" />
               <Button type="submit" variant="danger" className="w-full">
                 拒绝修改
               </Button>
-            </form>
+            </ConfirmForm>
           </div>
         </Card>
       </div>

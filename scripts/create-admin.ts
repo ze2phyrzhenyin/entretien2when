@@ -11,7 +11,7 @@ const argsSchema = z.object({
     .transform((value) => value.toLowerCase()),
   password: z.string().min(12),
   displayName: z.string().min(1),
-  role: z.literal(AdminRole.SUPER_ADMIN).default(AdminRole.SUPER_ADMIN)
+  role: z.nativeEnum(AdminRole).default(AdminRole.ADMIN)
 });
 
 function parseArgs() {
@@ -49,7 +49,7 @@ main()
   .catch((error) => {
     console.error(
       error instanceof z.ZodError
-        ? "Usage: pnpm tsx scripts/create-admin.ts email password displayName [SUPER_ADMIN]"
+        ? "Usage: pnpm tsx scripts/create-admin.ts email password displayName [SUPER_ADMIN|ADMIN]"
         : error
     );
     process.exitCode = 1;

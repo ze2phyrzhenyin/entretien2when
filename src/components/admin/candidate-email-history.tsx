@@ -13,6 +13,7 @@ type CandidateEmailHistoryItem = {
   subject: string;
   ccEmailSnapshots: string[];
   status: CandidateEmailDeliveryStatus;
+  idempotencyKey?: string | null;
   providerMessageId?: string | null;
   errorMessage?: string | null;
   createdAt: Date;
@@ -26,15 +27,18 @@ type CandidateEmailHistoryProps = {
   returnTo: string;
   defaultTimezone: string;
   deliveries: CandidateEmailHistoryItem[];
+  historyLimit?: number;
 };
 
 const statusLabel: Record<CandidateEmailDeliveryStatus, string> = {
+  PROCESSING: "投递处理中",
   SENT: "已发送",
   PREVIEW: "测试发送预览",
   FAILED: "失败"
 };
 
 const statusTone: Record<CandidateEmailDeliveryStatus, BadgeTone> = {
+  PROCESSING: "warning",
   SENT: "success",
   PREVIEW: "info",
   FAILED: "danger"
@@ -44,7 +48,8 @@ export function CandidateEmailHistory({
   groupId,
   returnTo,
   defaultTimezone,
-  deliveries
+  deliveries,
+  historyLimit
 }: CandidateEmailHistoryProps) {
   return (
     <Card className="p-5">
@@ -52,7 +57,10 @@ export function CandidateEmailHistory({
         <div>
           <h3 className="font-semibold">通知发送历史</h3>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            记录该候选人的通知发送结果，失败记录可直接重试。
+            {historyLimit
+              ? `按发送时间显示最近 ${historyLimit} 条；`
+              : "记录该候选人的通知发送结果；"}
+            只有带幂等键的失败记录可安全重试。
           </p>
         </div>
       </div>
@@ -90,7 +98,7 @@ export function CandidateEmailHistory({
                     </p>
                   ) : null}
                 </div>
-                {delivery.status === "FAILED" ? (
+                {delivery.status === "FAILED" && delivery.idempotencyKey ? (
                   <form action={retryCandidateEmailDeliveryAction.bind(null, groupId, delivery.id)}>
                     <input type="hidden" name="returnTo" value={returnTo} />
                     <SubmitButton size="sm" variant="secondary" pendingText="重试中">
@@ -103,6 +111,11 @@ export function CandidateEmailHistory({
               {delivery.errorMessage ? (
                 <p className="mt-3 rounded-md border border-red-200 bg-danger-soft px-3 py-2 text-danger">
                   {delivery.errorMessage}
+                </p>
+              ) : null}
+              {delivery.status === "PROCESSING" ? (
+                <p className="mt-3 rounded-md border border-amber-200 bg-warning-soft px-3 py-2 text-warning">
+                  邮件发送结果尚未确认。请先通过服务商日志按该记录核查，避免重复发送。
                 </p>
               ) : null}
             </div>
