@@ -81,8 +81,8 @@ cd /Users/zephyrsui/Developer/server-ops
 发布前必须在独立终端验证：
 
 ```bash
-curl -I http://interviews.example.com/when2entretien/
-curl -fsS https://interviews.example.com/when2entretien/api/health/ready
+curl -I http://h5.cnniceshop.com/when2entretien/
+curl -fsS https://h5.cnniceshop.com/when2entretien/api/health/ready
 ```
 
 第一条必须返回到相同路径的 HTTPS `Location`；第二条必须在不使用 `-k` 的情况下成功。
@@ -90,7 +90,7 @@ curl -fsS https://interviews.example.com/when2entretien/api/health/ready
 部署命令：
 
 ```bash
-PUBLIC_ORIGIN=https://interviews.example.com/when2entretien \
+PUBLIC_ORIGIN=https://h5.cnniceshop.com/when2entretien \
 scripts/deploy-aliyun.sh --backup-copy-dir /mnt/off-host/when2entretien
 ```
 
