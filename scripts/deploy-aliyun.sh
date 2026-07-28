@@ -637,6 +637,9 @@ app_port = sys.argv[3]
 text = path.read_text()
 
 block = f"""    location ^~ {base_path}/_next/static/ {{
+        if ($scheme = http) {{
+            return 308 https://$host$request_uri;
+        }}
         proxy_pass http://127.0.0.1:{app_port};
         proxy_http_version 1.1;
         proxy_hide_header X-Powered-By;
@@ -650,6 +653,9 @@ block = f"""    location ^~ {base_path}/_next/static/ {{
     }}
 
     location ^~ {base_path}/candidate/auth/ {{
+        if ($scheme = http) {{
+            return 308 https://$host$request_uri;
+        }}
         access_log off;
         proxy_pass http://127.0.0.1:{app_port};
         proxy_http_version 1.1;
@@ -672,6 +678,9 @@ block = f"""    location ^~ {base_path}/_next/static/ {{
     }}
 
     location = {base_path} {{
+        if ($scheme = http) {{
+            return 308 https://$host$request_uri;
+        }}
         proxy_pass http://127.0.0.1:{app_port};
         proxy_http_version 1.1;
         proxy_cache off;
@@ -694,6 +703,9 @@ block = f"""    location ^~ {base_path}/_next/static/ {{
     }}
 
     location ^~ {base_path}/ {{
+        if ($scheme = http) {{
+            return 308 https://$host$request_uri;
+        }}
         proxy_pass http://127.0.0.1:{app_port};
         proxy_http_version 1.1;
         proxy_cache off;

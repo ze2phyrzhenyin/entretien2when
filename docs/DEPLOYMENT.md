@@ -65,10 +65,11 @@ pnpm exec playwright test --project=chromium --workers=1
 - 管理目录：`/Users/zephyrsui/Developer/server-ops`
 - 服务器 ID：`zhaoali`
 - 应用 ID：`when2entretien`
-- 预留独立域名：`when2entretien.120.24.108.234.nip.io`
-- 唯一公开入口：`https://when2entretien.120.24.108.234.nip.io/when2entretien`
+- 备案 HTTPS 入口：`h5.cnniceshop.com`
+- 唯一公开路径：`https://h5.cnniceshop.com/when2entretien`
 
-域名必须先完成 DNS、可信证书和 HTTP→HTTPS 跳转，才可执行受控发布：
+`nip.io` Host 会被当前云入口的备案策略重置，禁止再作为登录或候选人入口。受管脚本只在
+`h5.cnniceshop.com` 下新增 `/when2entretien` 最长前缀路由，保留该域名原有根站点，并在发布前验证可信证书和该路径的 HTTP→HTTPS 跳转：
 
 ```bash
 cd /Users/zephyrsui/Developer/server-ops
