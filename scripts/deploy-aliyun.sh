@@ -561,6 +561,7 @@ Description=Run Interview Scheduler CN Email Outbox Processor
 
 [Timer]
 OnBootSec=90s
+OnActiveSec=30s
 OnUnitActiveSec=60s
 AccuracySec=10s
 Persistent=true
