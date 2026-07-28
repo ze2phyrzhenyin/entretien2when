@@ -93,11 +93,29 @@ const auditActionLabel: Record<string, string> = {
   "admin.cancel_appointment": "取消面试安排",
   "admin.upsert_candidate_admin_note": "保存管理员跟进备注",
   "admin.send_candidate_email": "发送候选人通知",
+  "admin.queue_candidate_email": "候选人通知进入发送队列",
   "admin.send_appointment_email": "发送面试安排通知",
   "admin.retry_candidate_email": "重试候选人通知",
   "admin.send_mailato_email": "发送邮件",
   "admin.update_email_template": "更新邮件模板",
-  "admin.reset_email_template": "恢复默认邮件模板"
+  "admin.reset_email_template": "恢复默认邮件模板",
+  "admin.create_administrator": "创建管理员",
+  "admin.update_administrator": "更新管理员角色或状态",
+  "admin.reset_administrator_password": "重置管理员密码",
+  "admin.create_group_membership": "添加组成员",
+  "admin.update_group_membership": "更新组成员角色",
+  "admin.revoke_group_membership": "撤销组成员权限",
+  "admin.create_interview_round": "创建面试轮次",
+  "admin.update_interview_round": "更新面试轮次",
+  "admin.upsert_interviewer": "添加或更新面试官",
+  "admin.update_interviewer_status": "更新面试官状态",
+  "admin.export_candidate_data": "导出候选人数据",
+  "admin.anonymize_candidate": "匿名化候选人数据",
+  "system.admin_login_failed": "管理员登录失败",
+  "system.appointment_email_skipped": "跳过失效的排期邮件",
+  "system.owner_notification_not_queued": "负责人通知未入队",
+  "system.process_candidate_email_delivery": "处理候选人邮件队列",
+  "system.queue_candidate_access_link": "候选人访问链接入队"
 };
 
 const entityTypeLabel: Record<string, string> = {
@@ -109,7 +127,12 @@ const entityTypeLabel: Record<string, string> = {
   CandidateEmailBatch: "候选人通知批次",
   CandidateEmailDelivery: "候选人通知记录",
   EmailTemplate: "邮件模板",
-  MailatoEmail: "邮件发送记录"
+  MailatoEmail: "邮件发送记录",
+  Admin: "管理员",
+  AdminGroupMembership: "组成员权限",
+  InterviewRound: "面试轮次",
+  Interviewer: "面试官",
+  Candidate: "候选人"
 };
 
 function parseActorType(value: string | undefined) {

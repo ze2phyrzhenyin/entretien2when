@@ -37,6 +37,7 @@ pnpm db:seed
 - 若反向代理终止 TLS，只有在其覆盖 `X-Real-IP` 时才设置 `TRUST_PROXY=true`。
 - `ADMIN_BOOTSTRAP_PASSWORD` 仅用于空生产库的显式首次初始化，不是示例值，也不保留在长期运行环境中。
 - `SESSION_TTL_DAYS` 符合目标环境要求。
+- `CANDIDATE_ACCESS_ENCRYPTION_KEY` 是独立生成的 32 字节 base64url 密钥，并已进入 secret 备份/轮换流程。
 - 如启用候选人邮件发送，`MAILATO_COMMAND` 指向服务器上的 `mailato` wrapper，线上建议为 `/usr/local/bin/mailato`。
 - `MAILATO_DRY_RUN` 仅在本地或演练环境设为 `true`；真实发送环境设为 `false`。
 - 邮件小流量验收、发送历史和重试说明见 `docs/EMAIL_OPERATIONS.md`。
@@ -47,7 +48,9 @@ pnpm db:seed
 - 完整业务 E2E 通过：
 
 ```bash
-pnpm exec playwright test tests/e2e/business-flow.spec.ts --project=chromium
+WHEN2ENTRETIEN_ALLOW_E2E_MUTATION=1 \
+DATABASE_URL='postgresql://.../when2entretien_e2e?schema=public' \
+pnpm exec playwright test --project=chromium --workers=1
 ```
 
 ## Aliyun 远端部署
@@ -87,24 +90,26 @@ curl -fsS https://interviews.example.com/when2entretien/api/health/ready
 
 ```bash
 PUBLIC_ORIGIN=https://interviews.example.com/when2entretien \
-scripts/deploy-aliyun.sh
+scripts/deploy-aliyun.sh --backup-copy-dir /mnt/off-host/when2entretien
 ```
 
 仅首次向空生产数据库创建管理员时，额外传入 `--bootstrap-admin`。常规部署绝不运行 seed。
 
-部署会在每次 migration 前创建 root-only PostgreSQL 备份到
-`/opt/when2entretien/backups/`，默认保留最近 7 份。对于本次排期完整性
-migration：已结束的重叠 OPEN slot 会仅被关闭（保留原 ID、候选人提交和预约
-引用）；任何当前或未来的重叠 OPEN slot 都会中止发布，必须先经人工排期修复。
+部署会在每次 migration 前创建 root-only PostgreSQL custom-format 备份到
+`/opt/when2entretien/backups/`，用 `pg_restore --list` 验证，默认保留最近 7 份。
+生产应通过 `--backup-copy-dir` 再复制到已挂载的异机/对象存储目录，并独立验证恢复演练。
+应用启动或健康检查失败时脚本会恢复之前的 release 软链接并重启旧版本；数据库迁移仍须保持向后兼容。
 
 部署脚本会：
 
 - 上传当前项目到 `/opt/when2entretien/releases/<release>`。
 - 使用远端 PostgreSQL `127.0.0.1:15432`。
 - 首次部署时创建远端数据库和数据库用户；只有显式 `--bootstrap-admin` 才创建一次超级管理员，且既有账号不会被重置、启用或提升权限。
+- 每次发布都会从长期运行环境中删除历史遗留的 `ADMIN_BOOTSTRAP_*` 初始化凭据。
 - 将真实环境变量写入 `/etc/when2entretien/when2entretien.env`。
 - 通过 systemd 启动 `when2entretien-web.service`。
 - 通过 systemd timer 启动 `when2entretien-web-email-outbox.timer`，定期处理负责人通知 outbox。
+- 通过 systemd timer 定期执行确认模式的数据保留清理；运行前先按组织政策设置保留期。
 - 在 nginx 根站点下挂载 `/when2entretien`。
 - 复用远端 `/usr/local/bin/mailato` 和 `/etc/mailato/mailato.env`，不复制邮箱密钥到本仓库。
 
@@ -136,6 +141,8 @@ pnpm auth:revoke -- --confirm
 - `/admin/groups/[id]/candidates`：勾选候选人，发送批量邮件；确认收件人逐个单独发送。
 - `/admin/groups/[id]/candidates/[candidateId]`：安排面试、保存管理员私有备注。
 - `/admin/groups/[id]/candidates/[candidateId]`：给单个候选人发送邮件。
+- `/admin/groups/[id]/members`：添加成员、调整角色、验证最后 OWNER 保护并检查审计。
+- `/admin/projects/[id]` 与 `/schedule`：编辑轮次/面试官并按组、轮次、面试官筛选排期。
 - `/admin/groups/[id]/reviews`：处理候选人的修改申请。
 - `/admin/groups/[id]/appointments`：查看预约并取消预约，确认时间锁释放。
 - `/admin/groups/[id]/overview`：查看时间段汇总。

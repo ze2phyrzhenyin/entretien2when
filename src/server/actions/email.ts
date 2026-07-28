@@ -10,7 +10,10 @@ import { prisma } from "@/lib/db/prisma";
 import { groupSchedulingRoles, requireGroupPermission } from "@/lib/permissions/admin";
 import { formValue, formValues } from "@/lib/validation/common";
 import { candidateEmailActionSchema, retryCandidateEmailSchema } from "@/lib/validation/email";
-import { attemptCandidateEmailDelivery } from "@/server/services/candidate-email";
+import {
+  createCandidateEmailDelivery,
+  requeueCandidateEmailDelivery
+} from "@/server/services/candidate-email";
 
 function sanitizeReturnTo(value: string | undefined, groupId: string) {
   const fallback = `/admin/groups/${groupId}/candidates`;
@@ -26,7 +29,7 @@ function sanitizeReturnTo(value: string | undefined, groupId: string) {
 function redirectWithMailStatus(
   returnTo: string,
   params: {
-    mail: "sent" | "partial" | "error" | "invalid";
+    mail: "queued" | "sent" | "partial" | "error" | "invalid";
     count?: number;
     failed?: number;
     dryRun?: boolean;
@@ -104,53 +107,46 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
   }
 
   const batchId = randomUUID();
-  const results: Array<{
-    candidateId: string;
-    status: "sent" | "preview" | "failure";
-    deliveryId: string;
-    emailId?: string | null;
-    error?: string | null;
-  }> = [];
-
-  for (const candidate of candidates) {
-    const result = await attemptCandidateEmailDelivery({
-      adminId: admin.id,
-      group,
-      candidate,
-      batchId,
-      templateKey: input.templateKey,
-      subject: input.subject,
-      bodyTemplate: input.body,
-      ccEmails: input.ccEmails,
-      templateValues: buildAppointmentEmailContext(candidate.appointments[0], group.timezone)
-    });
-    results.push(result);
-  }
-
-  const failed = results.filter((result) => result.status === "failure").length;
-  const succeeded = results.length - failed;
-  const dryRun = results.some((result) => result.status === "preview");
-
-  await prisma.auditLog.create({
-    data: {
-      actorType: AuditActorType.ADMIN,
-      actorAdminId: admin.id,
-      groupId,
-      action: "admin.send_candidate_email",
-      entityType: "CandidateEmailBatch",
-      entityId: batchId,
-      afterData: {
-        subject: input.subject,
-        ccEmails: input.ccEmails,
-        candidateIds: candidates.map((candidate) => candidate.id),
-        deliveryIds: results.map((result) => result.deliveryId),
-        recipientCount: candidates.length,
-        succeeded,
-        failed,
-        dryRun,
-        results
-      }
+  const deliveryIds = await prisma.$transaction(async (tx) => {
+    const deliveries = [];
+    for (const candidate of candidates) {
+      deliveries.push(
+        await createCandidateEmailDelivery(
+          {
+            adminId: admin.id,
+            group,
+            candidate,
+            batchId,
+            templateKey: input.templateKey,
+            subject: input.subject,
+            bodyTemplate: input.body,
+            ccEmails: input.ccEmails,
+            templateValues: buildAppointmentEmailContext(candidate.appointments[0], group.timezone)
+          },
+          tx
+        )
+      );
     }
+
+    await tx.auditLog.create({
+      data: {
+        actorType: AuditActorType.ADMIN,
+        actorAdminId: admin.id,
+        groupId,
+        action: "admin.queue_candidate_email",
+        entityType: "CandidateEmailBatch",
+        entityId: batchId,
+        afterData: {
+          subject: input.subject,
+          ccEmails: input.ccEmails,
+          candidateIds: candidates.map((candidate) => candidate.id),
+          deliveryIds: deliveries.map((delivery) => delivery.id),
+          recipientCount: candidates.length,
+          status: "queued"
+        }
+      }
+    });
+    return deliveries.map((delivery) => delivery.id);
   });
 
   revalidatePath(`/admin/groups/${groupId}/candidates`);
@@ -158,19 +154,11 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
     revalidatePath(`/admin/groups/${groupId}/candidates/${candidate.id}`);
   }
 
-  if (failed === 0) {
-    redirectWithMailStatus(returnTo, { mail: "sent", count: succeeded, dryRun, batchId });
-  }
-  if (succeeded > 0) {
-    redirectWithMailStatus(returnTo, {
-      mail: "partial",
-      count: succeeded,
-      failed,
-      dryRun,
-      batchId
-    });
-  }
-  redirectWithMailStatus(returnTo, { mail: "error", failed, batchId });
+  redirectWithMailStatus(returnTo, {
+    mail: "queued",
+    count: deliveryIds.length,
+    batchId
+  });
 }
 
 export async function retryCandidateEmailDeliveryAction(
@@ -187,28 +175,12 @@ export async function retryCandidateEmailDeliveryAction(
   const returnTo = sanitizeReturnTo(input.returnTo, groupId);
   const original = await prisma.candidateEmailDelivery.findFirst({
     where: { id: deliveryId, groupId },
-    include: {
-      group: {
-        select: { id: true, name: true, timezone: true }
-      },
-      candidate: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          appointments: {
-            where: { status: "SCHEDULED" },
-            orderBy: { startAt: "desc" },
-            take: 1,
-            select: {
-              startAt: true,
-              endAt: true,
-              meetingLocation: true,
-              candidateVisibleMessage: true
-            }
-          }
-        }
-      }
+    select: {
+      id: true,
+      candidateId: true,
+      subject: true,
+      status: true,
+      idempotencyKey: true
     }
   });
 
@@ -221,27 +193,7 @@ export async function retryCandidateEmailDeliveryAction(
   }
 
   const batchId = randomUUID();
-  const result = await attemptCandidateEmailDelivery({
-    adminId: admin.id,
-    group: original.group,
-    candidate: {
-      id: original.candidate.id,
-      name: original.candidateNameSnapshot,
-      email: original.recipientEmailSnapshot
-    },
-    batchId,
-    templateKey: original.templateKey,
-    subject: original.subject,
-    bodyTemplate: original.bodyTemplate,
-    ccEmails: original.ccEmailSnapshots,
-    templateValues: buildAppointmentEmailContext(
-      original.candidate.appointments[0],
-      original.group.timezone
-    ),
-    deliveryId: original.id
-  });
-  const failed = result.status === "failure" ? 1 : 0;
-  const dryRun = result.status === "preview";
+  await requeueCandidateEmailDelivery(original.id, batchId);
 
   await prisma.auditLog.create({
     data: {
@@ -250,14 +202,13 @@ export async function retryCandidateEmailDeliveryAction(
       groupId,
       action: "admin.retry_candidate_email",
       entityType: "CandidateEmailDelivery",
-      entityId: result.deliveryId,
+      entityId: original.id,
       afterData: {
         originalDeliveryId: original.id,
         candidateId: original.candidateId,
         subject: original.subject,
-        deliveryId: result.deliveryId,
-        failed,
-        dryRun
+        deliveryId: original.id,
+        status: "queued"
       }
     }
   });
@@ -265,8 +216,5 @@ export async function retryCandidateEmailDeliveryAction(
   revalidatePath(`/admin/groups/${groupId}/candidates`);
   revalidatePath(`/admin/groups/${groupId}/candidates/${original.candidateId}`);
 
-  if (failed === 0) {
-    redirectWithMailStatus(returnTo, { mail: "sent", count: 1, dryRun, batchId });
-  }
-  redirectWithMailStatus(returnTo, { mail: "error", failed: 1, batchId });
+  redirectWithMailStatus(returnTo, { mail: "queued", count: 1, batchId });
 }

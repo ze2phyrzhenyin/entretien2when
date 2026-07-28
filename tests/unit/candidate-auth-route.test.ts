@@ -3,12 +3,13 @@ import { NextRequest } from "next/server";
 
 const candidateSessionMocks = vi.hoisted(() => ({
   consumeCandidateAccessToken: vi.fn(),
+  getCandidateSessionCookieName: vi.fn(),
   getCandidateSessionCookieOptions: vi.fn()
 }));
 
 vi.mock("@/lib/auth/candidate-session", () => ({
-  CANDIDATE_SESSION_COOKIE_NAME: "interview_candidate_session",
   consumeCandidateAccessToken: candidateSessionMocks.consumeCandidateAccessToken,
+  getCandidateSessionCookieName: candidateSessionMocks.getCandidateSessionCookieName,
   getCandidateSessionCookieOptions: candidateSessionMocks.getCandidateSessionCookieOptions
 }));
 
@@ -28,6 +29,10 @@ describe("candidate magic-link route", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("APP_URL", "https://example.test/when2entretien");
     candidateSessionMocks.consumeCandidateAccessToken.mockReset();
+    candidateSessionMocks.getCandidateSessionCookieName.mockReset();
+    candidateSessionMocks.getCandidateSessionCookieName.mockReturnValue(
+      "interview_candidate_session_group"
+    );
     candidateSessionMocks.getCandidateSessionCookieOptions.mockReset();
     candidateSessionMocks.getCandidateSessionCookieOptions.mockImplementation(
       (expiresAt: Date, basePath: string) => ({
@@ -52,7 +57,7 @@ describe("candidate magic-link route", () => {
     expect(candidateSessionMocks.consumeCandidateAccessToken).not.toHaveBeenCalled();
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe(
-      `https://example.test/when2entretien/candidate/auth/confirm/${token}`
+      `https://example.test/when2entretien/candidate/auth/confirm#${token}`
     );
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
@@ -72,7 +77,7 @@ describe("candidate magic-link route", () => {
     });
 
     expect(response.headers.get("location")).toBe(
-      `https://example.test/when2entretien/candidate/auth/confirm/${token}`
+      `https://example.test/when2entretien/candidate/auth/confirm#${token}`
     );
   });
 
@@ -81,6 +86,7 @@ describe("candidate magic-link route", () => {
     candidateSessionMocks.consumeCandidateAccessToken.mockResolvedValue({
       sessionToken: "b".repeat(43),
       expiresAt,
+      groupId: "group-a",
       groupCode: "K7Q9-M2TD-8F6P-W4ZX-N3CY"
     });
 
@@ -96,6 +102,8 @@ describe("candidate magic-link route", () => {
       expiresAt,
       "/when2entretien"
     );
+    expect(candidateSessionMocks.getCandidateSessionCookieName).toHaveBeenCalledWith("group-a");
+    expect(response.headers.get("set-cookie")).toContain("interview_candidate_session_group=");
     expect(response.headers.get("set-cookie")).toContain("Path=/when2entretien");
     expect(response.headers.get("set-cookie")).toContain("HttpOnly");
     expect(response.headers.get("set-cookie")).toContain("Secure");

@@ -7,6 +7,11 @@ const groupNavItems: Array<{
   isVisible: (capabilities: GroupCapabilities) => boolean;
 }> = [
   { key: "settings", label: "设置", isVisible: (capabilities) => capabilities.canManageSettings },
+  {
+    key: "members",
+    label: "成员与角色",
+    isVisible: (capabilities) => capabilities.canManageMembers
+  },
   { key: "slots", label: "开放时间", isVisible: (capabilities) => capabilities.canSchedule },
   { key: "candidates", label: "候选人", isVisible: (capabilities) => capabilities.canRead },
   { key: "reviews", label: "修改审核", isVisible: (capabilities) => capabilities.canReview },

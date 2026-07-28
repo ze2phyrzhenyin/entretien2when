@@ -22,6 +22,7 @@ DB_NAME="${DB_NAME:-when2entretien}"
 DB_USER="${DB_USER:-when2entretien}"
 PNPM_VERSION="${PNPM_VERSION:-10.29.2}"
 BACKUP_KEEP="${BACKUP_KEEP:-7}"
+BACKUP_COPY_DIR="${BACKUP_COPY_DIR:-}"
 # Set these only for a dedicated, managed TLS vhost. The fallback keeps the
 # original legacy vhost discovery for existing installations.
 NGINX_CONF="${NGINX_CONF:-}"
@@ -47,6 +48,8 @@ Options:
   --bootstrap-admin      Create the initial super admin only when the production
                          database has no administrators. Never resets an account.
   --backup-keep <count>  Keep this many pre-migration database backups. Default: 7.
+  --backup-copy-dir <path>
+                         Copy each verified backup to a mounted off-host directory.
   --release <name>       Release directory name. Default: timestamp.
   -h, --help             Show this help.
 EOF
@@ -72,6 +75,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --backup-keep)
       BACKUP_KEEP="$2"
+      shift 2
+      ;;
+    --backup-copy-dir)
+      BACKUP_COPY_DIR="$2"
       shift 2
       ;;
     -h | --help)
@@ -132,6 +139,11 @@ fi
 
 if [[ ! "$BACKUP_KEEP" =~ ^[1-9][0-9]*$ ]]; then
   echo "BACKUP_KEEP must be a positive integer." >&2
+  exit 1
+fi
+
+if [[ -n "$BACKUP_COPY_DIR" && ( "$BACKUP_COPY_DIR" != /* || "$BACKUP_COPY_DIR" == "/" || "$BACKUP_COPY_DIR" == *".."* ) ]]; then
+  echo "BACKUP_COPY_DIR must be a specific absolute, non-traversing directory." >&2
   exit 1
 fi
 
@@ -213,7 +225,8 @@ log "Install remote release"
   "$BACKUP_KEEP" \
   "$NGINX_CONF" \
   "$NGINX_BIN" \
-  "$NGINX_MAIN" <<'REMOTE'
+  "$NGINX_MAIN" \
+  "$BACKUP_COPY_DIR" <<'REMOTE'
 set -euo pipefail
 
 REMOTE_ROOT="$1"
@@ -236,6 +249,7 @@ BACKUP_KEEP="${17}"
 REQUESTED_NGINX_CONF="${18}"
 REQUESTED_NGINX_BIN="${19}"
 REQUESTED_NGINX_MAIN="${20}"
+BACKUP_COPY_DIR="${21}"
 PUBLIC_HOST="${PUBLIC_ORIGIN#https://}"
 PUBLIC_HOST="${PUBLIC_HOST%%/*}"
 REMOTE_RELEASE="$REMOTE_ROOT/releases/$RELEASE"
@@ -290,6 +304,10 @@ SESSION_COOKIE_SECURE=true
 TRUST_PROXY=true
 MAILATO_COMMAND=/usr/local/bin/mailato
 MAILATO_DRY_RUN=false
+APPOINTMENT_REMINDER_HOURS=24,1
+AUTH_ARTIFACT_RETENTION_DAYS=7
+EMAIL_CONTENT_RETENTION_DAYS=90
+AUDIT_LOG_RETENTION_DAYS=365
 EOF_ENV
   if [[ "$BOOTSTRAP_ADMIN" == "1" ]]; then
     ADMIN_PASSWORD="$(openssl rand -base64 24 | tr -d '\n')"
@@ -318,6 +336,7 @@ updates = {
     "NEXT_PUBLIC_BASE_PATH": sys.argv[3],
     "SESSION_COOKIE_SECURE": "true",
     "TRUST_PROXY": "true",
+    "ENABLE_HSTS": "true",
 }
 lines = path.read_text().splitlines()
 remaining = set(updates)
@@ -333,6 +352,23 @@ for key in sorted(remaining):
     rewritten.append(f"{key}={updates[key]}")
 path.write_text("\n".join(rewritten) + "\n")
 PY
+chmod 600 "$ENV_FILE"
+
+if ! grep -q '^CANDIDATE_ACCESS_ENCRYPTION_KEY=' "$ENV_FILE"; then
+  ACCESS_ENCRYPTION_KEY="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n')"
+  printf 'CANDIDATE_ACCESS_ENCRYPTION_KEY=%s\n' "$ACCESS_ENCRYPTION_KEY" >> "$ENV_FILE"
+fi
+for default_setting in \
+  'APPOINTMENT_REMINDER_HOURS=24,1' \
+  'AUTH_ARTIFACT_RETENTION_DAYS=7' \
+  'EMAIL_CONTENT_RETENTION_DAYS=90' \
+  'AUDIT_LOG_RETENTION_DAYS=365'
+do
+  setting_key="${default_setting%%=*}"
+  if ! grep -q "^${setting_key}=" "$ENV_FILE"; then
+    printf '%s\n' "$default_setting" >> "$ENV_FILE"
+  fi
+done
 chmod 600 "$ENV_FILE"
 
 set -a
@@ -412,6 +448,19 @@ if ! sudo -iu postgres pg_dump -p "$PG_PORT" -Fc --no-owner --no-privileges -d "
   exit 1
 fi
 chmod 600 "$BACKUP_FILE"
+if ! pg_restore --list "$BACKUP_FILE" >/dev/null; then
+  rm -f -- "$BACKUP_FILE"
+  echo "The pre-migration backup could not be read by pg_restore." >&2
+  exit 1
+fi
+if [[ -n "$BACKUP_COPY_DIR" ]]; then
+  mkdir -p "$BACKUP_COPY_DIR"
+  chmod 700 "$BACKUP_COPY_DIR"
+  BACKUP_COPY_FILE="$BACKUP_COPY_DIR/$(basename "$BACKUP_FILE")"
+  cp -- "$BACKUP_FILE" "$BACKUP_COPY_FILE"
+  chmod 600 "$BACKUP_COPY_FILE"
+  pg_restore --list "$BACKUP_COPY_FILE" >/dev/null
+fi
 find "$BACKUP_ROOT" -maxdepth 1 -type f -name 'pre-migrate-*.dump' -printf '%T@ %p\n' \
   | sort -nr \
   | tail -n +"$((BACKUP_KEEP + 1))" \
@@ -424,11 +473,29 @@ pnpm exec prisma migrate deploy
 
 if [[ "$BOOTSTRAP_ADMIN" == "1" ]]; then
   pnpm db:seed
-  # Bootstrap credentials must not remain in the long-lived runtime environment.
-  sed -i '/^ADMIN_BOOTSTRAP_\(EMAIL\|PASSWORD\|NAME\)=/d' "$ENV_FILE"
 fi
+# Bootstrap credentials must never remain in the long-lived runtime
+# environment. Always remove legacy values as well as values used by an
+# explicit first-run bootstrap.
+sed -i '/^ADMIN_BOOTSTRAP_\(EMAIL\|PASSWORD\|NAME\)=/d' "$ENV_FILE"
+chmod 600 "$ENV_FILE"
+
+PREVIOUS_CURRENT="$(readlink -f "$REMOTE_ROOT/current" 2>/dev/null || true)"
+SWITCHED_RELEASE=0
+DEPLOY_SUCCEEDED=0
+rollback_release() {
+  local exit_code=$?
+  if [[ "$DEPLOY_SUCCEEDED" != "1" && "$SWITCHED_RELEASE" == "1" && -n "$PREVIOUS_CURRENT" && -d "$PREVIOUS_CURRENT" ]]; then
+    echo "Deployment verification failed; restoring previous release: $PREVIOUS_CURRENT" >&2
+    ln -sfn "$PREVIOUS_CURRENT" "$REMOTE_ROOT/current"
+    systemctl restart "$SERVICE_NAME" || true
+  fi
+  exit "$exit_code"
+}
+trap rollback_release EXIT
 
 ln -sfn "$REMOTE_RELEASE" "$REMOTE_ROOT/current"
+SWITCHED_RELEASE=1
 chown -R root:root "$REMOTE_RELEASE"
 chmod -R a+rX "$REMOTE_RELEASE"
 chmod 755 "$REMOTE_ROOT" "$REMOTE_ROOT/releases" "$REMOTE_RELEASE"
@@ -495,6 +562,41 @@ systemctl enable --now "$SERVICE_NAME"
 systemctl restart "$SERVICE_NAME"
 systemctl enable --now "$OUTBOX_TIMER_NAME"
 
+RETENTION_SERVICE_NAME="${SERVICE_NAME%.service}-retention.service"
+RETENTION_TIMER_NAME="${SERVICE_NAME%.service}-retention.timer"
+cat > "/etc/systemd/system/$RETENTION_SERVICE_NAME" <<EOF_RETENTION_SERVICE
+[Unit]
+Description=Interview Scheduler CN Retention Pruner
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=$SERVICE_USER
+Group=$SERVICE_USER
+WorkingDirectory=$REMOTE_ROOT/current
+EnvironmentFile=$ENV_FILE
+ExecStart=$REMOTE_ROOT/current/node_modules/.bin/tsx scripts/prune-retained-data.ts --confirm
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+EOF_RETENTION_SERVICE
+
+cat > "/etc/systemd/system/$RETENTION_TIMER_NAME" <<EOF_RETENTION_TIMER
+[Unit]
+Description=Run Interview Scheduler CN Retention Pruner
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF_RETENTION_TIMER
+
+systemctl daemon-reload
+systemctl enable --now "$RETENTION_TIMER_NAME"
+
 if [[ -n "$REQUESTED_NGINX_CONF" ]]; then
   case "$REQUESTED_NGINX_CONF" in
     /www/server/panel/vhost/nginx/*.conf | /etc/nginx/conf.d/*.conf) ;;
@@ -534,7 +636,42 @@ base_path = sys.argv[2]
 app_port = sys.argv[3]
 text = path.read_text()
 
-block = f"""    location = {base_path} {{
+block = f"""    location ^~ {base_path}/_next/static/ {{
+        proxy_pass http://127.0.0.1:{app_port};
+        proxy_http_version 1.1;
+        proxy_hide_header X-Powered-By;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Prefix {base_path};
+    }}
+
+    location ^~ {base_path}/candidate/auth/ {{
+        access_log off;
+        proxy_pass http://127.0.0.1:{app_port};
+        proxy_http_version 1.1;
+        proxy_cache off;
+        proxy_no_cache 1;
+        proxy_hide_header Cache-Control;
+        proxy_hide_header X-Powered-By;
+        add_header Cache-Control "private, no-store" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header X-Robots-Tag "noindex, noarchive" always;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Prefix {base_path};
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }}
+
+    location = {base_path} {{
         proxy_pass http://127.0.0.1:{app_port};
         proxy_http_version 1.1;
         proxy_cache off;
@@ -545,15 +682,15 @@ block = f"""    location = {base_path} {{
         add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
-        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Referrer-Policy "no-referrer" always;
         add_header Permissions-Policy "camera=(), geolocation=(), microphone=()" always;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Prefix {base_path};
-        proxy_read_timeout 300s;
-        proxy_send_timeout 300s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
     }}
 
     location ^~ {base_path}/ {{
@@ -567,20 +704,20 @@ block = f"""    location = {base_path} {{
         add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
-        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Referrer-Policy "no-referrer" always;
         add_header Permissions-Policy "camera=(), geolocation=(), microphone=()" always;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Prefix {base_path};
-        proxy_read_timeout 300s;
-        proxy_send_timeout 300s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
     }}
 """
 
 escaped = re.escape(base_path)
-pattern = rf"    location = {escaped} \{{\n.*?\n    \}}\n\n    location \^~ {escaped}/ \{{\n.*?\n    \}}\n"
+pattern = rf"(?:    location \^~ {escaped}/_next/static/ \{{\n.*?\n    \}}\n\n)?(?:    location \^~ {escaped}/candidate/auth/ \{{\n.*?\n    \}}\n\n)?    location = {escaped} \{{\n.*?\n    \}}\n\n    location \^~ {escaped}/ \{{\n.*?\n    \}}\n"
 if re.search(pattern, text, flags=re.S):
     text = re.sub(pattern, block, text, count=1, flags=re.S)
 else:
@@ -627,6 +764,7 @@ done
 grep -q 'interview-scheduler-cn' /tmp/when2entretien-health.json
 curl -fsS -H "Host: $PUBLIC_HOST" "http://127.0.0.1$BASE_PATH/api/health/ready" >/tmp/when2entretien-nginx-health.json
 grep -q 'interview-scheduler-cn' /tmp/when2entretien-nginx-health.json
+DEPLOY_SUCCEEDED=1
 
 old_releases="$(ls -1dt "$REMOTE_ROOT"/releases/* 2>/dev/null | tail -n +6 || true)"
 if [[ -n "$old_releases" ]]; then

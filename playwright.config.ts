@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
+import { normalizeBasePath } from "./src/lib/app-url";
 
 // Keep the browser origin aligned with Next's local development origin. A
 // mixture of localhost and 127.0.0.1 creates separate cookie jars and made
@@ -9,6 +10,16 @@ const mailatoCommand =
   process.env.MAILATO_COMMAND ?? path.join(process.cwd(), "scripts/fake-mailato.mjs");
 const mailatoDryRun = process.env.MAILATO_DRY_RUN ?? "true";
 const configuredWorkers = Number.parseInt(process.env.PLAYWRIGHT_WORKERS ?? "1", 10);
+const productionBuild = process.env.PLAYWRIGHT_PRODUCTION_BUILD === "1";
+const configuredBasePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
+const serverReadyUrl = `${baseURL}${configuredBasePath}/join`;
+
+// Local E2E must never inherit a developer's real Mailato credentials from
+// .env. The worker process calls queue processors directly in several suites.
+if (process.env.WHEN2ENTRETIEN_ALLOW_E2E_MUTATION === "1" && !process.env.PLAYWRIGHT_BASE_URL) {
+  process.env.MAILATO_COMMAND = path.join(process.cwd(), "scripts/fake-mailato.mjs");
+  process.env.MAILATO_DRY_RUN = "true";
+}
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -31,16 +42,18 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: "pnpm exec next dev -H 127.0.0.1 -p 3101",
+        command: productionBuild
+          ? "pnpm build && pnpm exec next start -H 127.0.0.1 -p 3101"
+          : "pnpm exec next dev -H 127.0.0.1 -p 3101",
         env: {
           ...process.env,
           MAILATO_COMMAND: mailatoCommand,
           MAILATO_DRY_RUN: mailatoDryRun,
           CANDIDATE_AUTH_DEV_PREVIEW: "true"
         },
-        url: baseURL,
-        reuseExistingServer: true,
-        timeout: 120_000
+        url: serverReadyUrl,
+        reuseExistingServer: !productionBuild,
+        timeout: productionBuild ? 240_000 : 120_000
       },
   projects: [
     {

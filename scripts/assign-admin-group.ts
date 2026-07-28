@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { AdminGroupRole, PrismaClient } from "@prisma/client";
+import { AdminGroupRole, AdminStatus, AuditActorType, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 const prisma = new PrismaClient();
@@ -37,19 +37,57 @@ async function main() {
     })
   ]);
 
-  const membership = await prisma.adminGroupMembership.upsert({
-    where: {
-      adminId_groupId: {
-        adminId: admin.id,
-        groupId: group.id
+  const membership = await prisma.$transaction(async (tx) => {
+    const before = await tx.adminGroupMembership.findUnique({
+      where: {
+        adminId_groupId: { adminId: admin.id, groupId: group.id }
+      },
+      select: { id: true, role: true }
+    });
+    if (before?.role === AdminGroupRole.OWNER && input.role !== AdminGroupRole.OWNER) {
+      const activeOwners = await tx.adminGroupMembership.count({
+        where: {
+          groupId: group.id,
+          role: AdminGroupRole.OWNER,
+          admin: { status: AdminStatus.ACTIVE }
+        }
+      });
+      if (activeOwners <= 1) {
+        throw new Error("Refusing to demote the last active OWNER.");
       }
-    },
-    update: { role: input.role },
-    create: {
-      adminId: admin.id,
-      groupId: group.id,
-      role: input.role
     }
+    const updated = await tx.adminGroupMembership.upsert({
+      where: {
+        adminId_groupId: {
+          adminId: admin.id,
+          groupId: group.id
+        }
+      },
+      update: { role: input.role },
+      create: {
+        adminId: admin.id,
+        groupId: group.id,
+        role: input.role
+      }
+    });
+    await tx.auditLog.create({
+      data: {
+        actorType: AuditActorType.SYSTEM,
+        groupId: group.id,
+        action: before
+          ? "system.update_group_membership_cli"
+          : "system.create_group_membership_cli",
+        entityType: "AdminGroupMembership",
+        entityId: updated.id,
+        beforeData: before ?? undefined,
+        afterData: {
+          adminId: admin.id,
+          email: admin.email,
+          role: updated.role
+        }
+      }
+    });
+    return updated;
   });
 
   console.log(

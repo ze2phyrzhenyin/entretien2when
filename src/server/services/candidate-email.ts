@@ -28,6 +28,8 @@ export type CandidateEmailDeliveryPayload = {
   idempotencyKey: string | null;
   renderedSubject: string | null;
   renderedBody: string | null;
+  attempts: number;
+  maxAttempts: number;
 };
 
 type CandidateEmailDeliveryWriter = Pick<Prisma.TransactionClient, "candidateEmailDelivery">;
@@ -60,6 +62,10 @@ function leaseExpiresAt(now = new Date()) {
   return new Date(now.getTime() + CANDIDATE_EMAIL_LEASE_MS);
 }
 
+function retryAt(attempts: number, now = new Date()) {
+  return new Date(now.getTime() + Math.min(60, Math.max(1, attempts) * 5) * 60 * 1000);
+}
+
 function deliverySelect() {
   return {
     id: true,
@@ -70,15 +76,15 @@ function deliverySelect() {
     ccEmailSnapshots: true,
     idempotencyKey: true,
     renderedSubject: true,
-    renderedBody: true
+    renderedBody: true,
+    attempts: true,
+    maxAttempts: true
   } as const;
 }
 
 /**
- * Persist an immutable, recoverable delivery before any provider call.  The
- * optional transaction client lets a business action create its event and the
- * email record atomically; the caller must dispatch only after that
- * transaction commits.
+ * Persist immutable rendered content before any provider call. Business
+ * actions only enqueue; the minute-level worker claims and sends later.
  */
 export async function createCandidateEmailDelivery(
   input: CreateCandidateEmailDeliveryInput,
@@ -92,8 +98,6 @@ export async function createCandidateEmailDelivery(
     meetingLocation: input.templateValues?.meetingLocation ?? "未填写",
     candidateMessage: input.templateValues?.candidateMessage ?? ""
   };
-  const renderedSubject = renderCandidateEmailTemplate(input.subject, templateValues);
-  const renderedBody = renderCandidateEmailTemplate(input.bodyTemplate, templateValues);
 
   return client.candidateEmailDelivery.create({
     data: {
@@ -104,27 +108,22 @@ export async function createCandidateEmailDelivery(
       templateKey: input.templateKey || null,
       subject: input.subject,
       bodyTemplate: input.bodyTemplate,
-      renderedSubject,
-      renderedBody,
+      renderedSubject: renderCandidateEmailTemplate(input.subject, templateValues),
+      renderedBody: renderCandidateEmailTemplate(input.bodyTemplate, templateValues),
       candidateNameSnapshot: input.candidate.name,
       recipientEmailSnapshot: input.candidate.email,
       ccEmailSnapshots: input.ccEmails ?? [],
-      // Persist all data required for recovery before the external side
-      // effect. A database failure can therefore never make an already
-      // delivered message appear to be a new message.
-      status: CandidateEmailDeliveryStatus.PROCESSING,
+      status: CandidateEmailDeliveryStatus.PENDING,
       idempotencyKey: `candidate-email:${randomUUID()}`,
-      leaseExpiresAt: leaseExpiresAt(),
+      nextAttemptAt: new Date(),
+      leaseExpiresAt: null,
       retriedFromId: input.retriedFromId || null
     },
     select: deliverySelect()
   });
 }
 
-async function deliverClaimedCandidateEmail(
-  delivery: CandidateEmailDeliveryPayload,
-  candidateId = delivery.candidateId
-) {
+async function deliverClaimedCandidateEmail(delivery: CandidateEmailDeliveryPayload) {
   if (
     !delivery.idempotencyKey ||
     !delivery.renderedSubject ||
@@ -145,8 +144,6 @@ async function deliverClaimedCandidateEmail(
       cc: delivery.ccEmailSnapshots.map((email) => ({ email })),
       subject: delivery.renderedSubject,
       body: delivery.renderedBody,
-      // This key is created before any provider call. Provider-side idempotency
-      // makes recovery safe if a request crashes after the provider accepted it.
       idempotencyKey: delivery.idempotencyKey,
       auditId: delivery.idempotencyKey
     });
@@ -165,53 +162,37 @@ async function deliverClaimedCandidateEmail(
 
     return {
       deliveryId: delivery.id,
-      candidateId,
+      candidateId: delivery.candidateId,
       status: result.status,
       emailId: result.emailId ?? null,
       error: null
     };
   } catch (error) {
     const errorMessage = safeErrorMessage(error);
-    // Keep the stable key for both explicit and worker recovery. If this
-    // update itself fails, the finite PROCESSING lease makes the row eligible
-    // for a replay-safe recovery attempt later.
+    const exhausted = delivery.attempts >= delivery.maxAttempts;
     await prisma.candidateEmailDelivery.update({
       where: { id: delivery.id },
       data: {
-        status: CandidateEmailDeliveryStatus.FAILED,
+        status: exhausted
+          ? CandidateEmailDeliveryStatus.FAILED
+          : CandidateEmailDeliveryStatus.PENDING,
         errorMessage,
+        nextAttemptAt: retryAt(delivery.attempts),
         leaseExpiresAt: null
       }
     });
 
     return {
       deliveryId: delivery.id,
-      candidateId,
-      status: "failure" as const,
+      candidateId: delivery.candidateId,
+      status: exhausted ? ("failure" as const) : ("retry" as const),
       emailId: null,
       error: errorMessage
     };
   }
 }
 
-/** Dispatch a delivery that has already been durably persisted as PROCESSING. */
-export async function deliverPersistedCandidateEmailDelivery(deliveryId: string) {
-  const delivery = await prisma.candidateEmailDelivery.findFirst({
-    where: {
-      id: deliveryId,
-      status: CandidateEmailDeliveryStatus.PROCESSING
-    },
-    select: deliverySelect()
-  });
-
-  if (!delivery) {
-    throw new Error("The candidate email delivery is no longer pending.");
-  }
-
-  return deliverClaimedCandidateEmail(delivery);
-}
-
-async function resumeCandidateEmailDelivery(deliveryId: string, batchId: string) {
+export async function requeueCandidateEmailDelivery(deliveryId: string, batchId: string) {
   const resumed = await prisma.candidateEmailDelivery.updateMany({
     where: {
       id: deliveryId,
@@ -221,93 +202,84 @@ async function resumeCandidateEmailDelivery(deliveryId: string, batchId: string)
       renderedBody: { not: null }
     },
     data: {
-      status: CandidateEmailDeliveryStatus.PROCESSING,
+      status: CandidateEmailDeliveryStatus.PENDING,
       errorMessage: null,
       providerMessageId: null,
       batchId,
-      leaseExpiresAt: leaseExpiresAt()
+      attempts: 0,
+      nextAttemptAt: new Date(),
+      leaseExpiresAt: null
     }
   });
-
   if (resumed.count !== 1) {
-    throw new Error("The email delivery is no longer retryable or is already being processed.");
+    throw new Error("The email delivery is no longer retryable or is already queued.");
   }
-
-  return prisma.candidateEmailDelivery.findUniqueOrThrow({
-    where: { id: deliveryId },
-    select: deliverySelect()
-  });
-}
-
-export async function attemptCandidateEmailDelivery(input: {
-  adminId: string;
-  group: EmailGroup;
-  candidate: EmailCandidate;
-  batchId: string;
-  templateKey?: string | null;
-  subject: string;
-  bodyTemplate: string;
-  ccEmails?: string[];
-  templateValues?: Partial<
-    Pick<CandidateEmailTemplateValues, "appointmentTime" | "meetingLocation" | "candidateMessage">
-  >;
-  /** Resume a known failed, idempotent delivery instead of creating a new send. */
-  deliveryId?: string | null;
-  retriedFromId?: string | null;
-}) {
-  let delivery: CandidateEmailDeliveryPayload;
-
-  if (input.deliveryId) {
-    // Retrying must use the original persisted rendered content, not any
-    // mutable appointment/template value supplied by a later page render.
-    delivery = await resumeCandidateEmailDelivery(input.deliveryId, input.batchId);
-  } else {
-    delivery = await createCandidateEmailDelivery(input);
-  }
-
-  return deliverClaimedCandidateEmail(delivery, input.candidate.id);
 }
 
 /**
- * Reclaim deliveries whose sender crashed after persisting the message but
- * before recording the provider result. Only rows with a stable idempotency
- * key plus immutable rendered content are ever retried automatically.
+ * Claim due new work and expired leases. All claims are conditional, so
+ * multiple workers can run without submitting the same row concurrently.
  */
-export async function processCandidateEmailRecoveryBatch({ take = 20 } = {}) {
+export async function processCandidateEmailDeliveryBatch({ take = 20 } = {}) {
   const now = new Date();
   const legacyProcessingStaleAt = new Date(now.getTime() - CANDIDATE_EMAIL_LEASE_MS);
   const safeTake = Number.isFinite(take) ? Math.max(1, Math.min(100, Math.floor(take))) : 20;
   const candidates = await prisma.candidateEmailDelivery.findMany({
     where: {
-      status: CandidateEmailDeliveryStatus.PROCESSING,
       idempotencyKey: { not: null },
       renderedSubject: { not: null },
       renderedBody: { not: null },
+      attempts: { lt: prisma.candidateEmailDelivery.fields.maxAttempts },
       OR: [
-        { leaseExpiresAt: { lte: now } },
-        { leaseExpiresAt: null, updatedAt: { lte: legacyProcessingStaleAt } }
+        {
+          status: CandidateEmailDeliveryStatus.PENDING,
+          nextAttemptAt: { lte: now }
+        },
+        {
+          status: CandidateEmailDeliveryStatus.PROCESSING,
+          OR: [
+            { leaseExpiresAt: { lte: now } },
+            { leaseExpiresAt: null, updatedAt: { lte: legacyProcessingStaleAt } }
+          ]
+        }
       ]
     },
     orderBy: { createdAt: "asc" },
     take: safeTake,
-    select: deliverySelect()
+    select: {
+      ...deliverySelect(),
+      status: true,
+      leaseExpiresAt: true,
+      updatedAt: true
+    }
   });
 
   let sent = 0;
   let failed = 0;
+  let retrying = 0;
   let skipped = 0;
 
   for (const candidate of candidates) {
+    const claimWhere =
+      candidate.status === CandidateEmailDeliveryStatus.PENDING
+        ? {
+            id: candidate.id,
+            status: CandidateEmailDeliveryStatus.PENDING,
+            nextAttemptAt: { lte: now }
+          }
+        : {
+            id: candidate.id,
+            status: CandidateEmailDeliveryStatus.PROCESSING,
+            OR: [
+              { leaseExpiresAt: { lte: now } },
+              { leaseExpiresAt: null, updatedAt: { lte: legacyProcessingStaleAt } }
+            ]
+          };
     const claimed = await prisma.candidateEmailDelivery.updateMany({
-      where: {
-        id: candidate.id,
-        status: CandidateEmailDeliveryStatus.PROCESSING,
-        OR: [
-          { leaseExpiresAt: { lte: now } },
-          { leaseExpiresAt: null, updatedAt: { lte: legacyProcessingStaleAt } }
-        ]
-      },
+      where: claimWhere,
       data: {
+        status: CandidateEmailDeliveryStatus.PROCESSING,
+        attempts: { increment: 1 },
         leaseExpiresAt: leaseExpiresAt(now),
         errorMessage: null
       }
@@ -317,28 +289,41 @@ export async function processCandidateEmailRecoveryBatch({ take = 20 } = {}) {
       continue;
     }
 
-    const result = await deliverClaimedCandidateEmail(candidate);
+    const result = await deliverClaimedCandidateEmail({
+      ...candidate,
+      attempts: candidate.attempts + 1
+    });
     if (result.status === "failure") {
       failed += 1;
+    } else if (result.status === "retry") {
+      retrying += 1;
     } else {
       sent += 1;
     }
 
+    const auditGroup = await prisma.interviewGroup.findUnique({
+      where: { id: candidate.groupId },
+      select: { id: true }
+    });
     await prisma.auditLog.create({
       data: {
         actorType: AuditActorType.SYSTEM,
-        groupId: candidate.groupId,
-        action: "system.recover_candidate_email_delivery",
+        groupId: auditGroup?.id ?? null,
+        action: "system.process_candidate_email_delivery",
         entityType: "CandidateEmailDelivery",
         entityId: candidate.id,
         afterData: {
           status: result.status,
           emailId: result.emailId,
-          error: result.error
+          error: result.error,
+          attempts: candidate.attempts + 1
         }
       }
     });
   }
 
-  return { processed: candidates.length, sent, failed, skipped };
+  return { processed: candidates.length, sent, failed, retrying, skipped };
 }
+
+// Compatibility export for operations code deployed before the queue rename.
+export const processCandidateEmailRecoveryBatch = processCandidateEmailDeliveryBatch;

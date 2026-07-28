@@ -10,6 +10,8 @@ import {
 } from "@prisma/client";
 import { hashPassword } from "../../src/lib/auth/password";
 import { hashCandidateToken } from "../../src/lib/auth/candidate-token";
+import { getCandidateSessionCookieName } from "../../src/lib/auth/candidate-session-cookie";
+import { processEmailOutboxBatch } from "../../src/server/services/email-outbox";
 
 const prisma = new PrismaClient();
 
@@ -89,7 +91,7 @@ async function enterCandidateFromJoin(
   await page.getByLabel("邮箱").fill(email);
   await page.getByLabel("面试组编号").fill(groupCode);
   await page.getByRole("button", { name: "发送访问链接" }).click();
-  await expect(page.getByText("访问链接已发送到邮箱")).toBeVisible();
+  await expect(page.getByText("访问链接已进入发送队列")).toBeVisible();
   await page.getByRole("link", { name: "打开测试访问链接" }).click();
   await expect(page.getByRole("heading", { name: "确认进入候选人页面" })).toBeVisible();
   await page.getByRole("button", { name: "继续进入" }).click();
@@ -259,7 +261,7 @@ test.describe("P0 business flow", () => {
     assertFound(pendingSubmission, "Expected pending modification submission.");
 
     await page.goto(`/admin/groups/${group.id}/reviews`);
-    await expect(page.getByText("1 个待审核")).toBeVisible();
+    await expect(page.getByText("1 个待审核", { exact: true })).toBeVisible();
     await page.goto(`/admin/groups/${group.id}/reviews/${pendingSubmission.id}`);
     await expect(page.getByRole("heading", { name: "审核修改申请" })).toBeVisible();
     await page.getByPlaceholder("审核意见（可选）").fill("E2E 审核通过");
@@ -273,6 +275,7 @@ test.describe("P0 business flow", () => {
     await expect(page.getByText("10:00-10:30")).toBeVisible();
     await expect(page.getByText("10:30-11:00")).toBeVisible();
     await page.getByRole("link", { name: new RegExp(candidateAName) }).click();
+    await page.getByRole("link", { name: "面试排期" }).click();
 
     await page.getByRole("button", { name: "确认安排并锁定时间" }).click();
     await expect(
@@ -343,13 +346,17 @@ test.describe("P0 business flow", () => {
     });
     await fillScheduleForm();
     await scheduleForm.getByRole("button", { name: "确认安排并锁定时间" }).click();
+    await expect(page.getByText("已将 1 封候选人通知写入可靠发送队列")).toBeVisible();
+    await processEmailOutboxBatch();
+    await page.getByRole("link", { name: "面试排期" }).click();
     await expect(page.getByText(/已安排：/)).toBeVisible();
     await expect(page.getByText(`面试官：${interviewerName}`)).toBeVisible();
-    await expect(page.getByText("已发送 1 封候选人通知（测试发送预览）")).toBeVisible();
     await expect(page.getByText("2026/08/03 10:00-10:25", { exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "邮件通知" }).click();
     await expect(
       page.getByText("面试时间：2026/08/03 10:00-10:25（北京时间）", { exact: true })
     ).toBeVisible();
+    await page.getByRole("link", { name: "面试排期" }).click();
 
     const candidate = await prisma.candidate.findUnique({
       where: {
@@ -432,6 +439,7 @@ test.describe("P0 business flow", () => {
         .every((lock) => lock.activeSlotId === null && lock.releasedAt !== null)
     ).toBe(true);
 
+    await page.getByRole("link", { name: "概览与备注" }).click();
     await page.getByPlaceholder("填写内部跟进备注").fill(adminPrivateNote);
     await page.getByRole("button", { name: "保存跟进备注" }).click();
     await expect(page.getByText(adminPrivateNote).first()).toBeVisible();
@@ -444,7 +452,7 @@ test.describe("P0 business flow", () => {
       )
       .toBe(1);
     const candidateSessionCookie = (await page.context().cookies()).find(
-      (cookie) => cookie.name === "interview_candidate_session"
+      (cookie) => cookie.name === getCandidateSessionCookieName(group.id)
     );
     expect(candidateSessionCookie).toMatchObject({ path: "/", secure: false });
     expect(candidateSessionCookie).toBeDefined();
@@ -515,7 +523,7 @@ test.describe("P0 business flow", () => {
     await expect(page.getByText("管理员通过修改申请").first()).toBeVisible();
     await expect(page.getByText("确认面试安排").first()).toBeVisible();
     await expect(page.getByText("调整面试安排").first()).toBeVisible();
-    await expect(page.getByText("发送面试安排通知").first()).toBeVisible();
+    await expect(page.getByText("候选人通知进入发送队列").first()).toBeVisible();
     await expect(page.getByText("保存管理员跟进备注").first()).toBeVisible();
     await expect(page.getByText("取消面试安排").first()).toBeVisible();
   });

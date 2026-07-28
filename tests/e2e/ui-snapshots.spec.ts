@@ -5,8 +5,14 @@ import { prisma } from "@/lib/db/prisma";
 const OUT_DIR = "artifacts/ui-snapshots/frontend-refactor-p0";
 
 async function waitForSettledPage(page: import("@playwright/test").Page) {
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   await page.waitForFunction(() => !document.body.innerText.includes("正在加载"));
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      })
+  );
 }
 
 const pages = [
@@ -48,7 +54,8 @@ async function openCandidatePage(
       expiresAt: new Date(Date.now() + 30 * 60 * 1000)
     }
   });
-  await page.goto(`/candidate/auth/${token}`);
+  await page.goto(`/candidate/auth/confirm#${token}`);
+  await page.getByRole("button", { name: "继续进入" }).click();
   if (input.mode) {
     await page.goto(`/candidate/${input.groupCode}?mode=${input.mode}`);
   }
@@ -59,6 +66,7 @@ test.afterAll(async () => {
 });
 
 test("screenshot authenticated admin pages when demo data is available", async ({ page }) => {
+  test.setTimeout(120_000);
   test.skip(
     !adminEmail || !adminPassword || !groupId,
     "Missing admin demo screenshot environment."
@@ -97,6 +105,31 @@ test("screenshot authenticated admin pages when demo data is available", async (
     await page.goto(`/admin/groups/${groupId}/reviews/${submissionId}`);
     await waitForSettledPage(page);
     await page.screenshot({ path: `${OUT_DIR}/review-detail.png`, fullPage: true });
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/admin");
+  await waitForSettledPage(page);
+  const mobileNavigation = page.locator('nav[aria-label="管理员主导航"]').last();
+  await expect(mobileNavigation).toBeVisible();
+  const [navigationHeight, contentPaddingBottom] = await Promise.all([
+    mobileNavigation.evaluate((element) => element.getBoundingClientRect().height),
+    page
+      .locator("main")
+      .evaluate((element) => Number.parseFloat(window.getComputedStyle(element).paddingBottom))
+  ]);
+  expect(contentPaddingBottom).toBeGreaterThan(navigationHeight);
+  await page.screenshot({ path: `${OUT_DIR}/mobile-admin-dashboard.png`, fullPage: true });
+
+  if (candidateId) {
+    for (const section of ["overview", "scheduling", "email", "history"] as const) {
+      await page.goto(`/admin/groups/${groupId}/candidates/${candidateId}?section=${section}`);
+      await waitForSettledPage(page);
+      await page.screenshot({
+        path: `${OUT_DIR}/mobile-admin-candidate-${section}.png`,
+        fullPage: true
+      });
+    }
   }
 });
 

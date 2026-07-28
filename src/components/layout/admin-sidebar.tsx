@@ -8,13 +8,21 @@ import {
   History,
   Inbox,
   Send,
+  UserCog,
   type LucideIcon
 } from "lucide-react";
 import type { AdminNavigationCapabilities } from "@/lib/permissions/admin";
 import { cn } from "@/lib/utils";
 
 export type AdminShellActive =
-  "groups" | "projects" | "audit" | "reviews" | "appointments" | "emailTemplates" | "mailato";
+  | "groups"
+  | "projects"
+  | "admins"
+  | "audit"
+  | "reviews"
+  | "appointments"
+  | "emailTemplates"
+  | "mailato";
 
 export const adminNavItems: Array<{
   key: AdminShellActive;
@@ -26,6 +34,13 @@ export const adminNavItems: Array<{
 }> = [
   { key: "groups", label: "面试组", href: "/admin", icon: ClipboardList },
   { key: "projects", label: "招聘项目", href: "/admin/projects", icon: BriefcaseBusiness },
+  {
+    key: "admins",
+    label: "管理员",
+    href: "/admin/admins",
+    icon: UserCog,
+    requiresSuperAdmin: true
+  },
   {
     key: "audit",
     label: "审计日志",

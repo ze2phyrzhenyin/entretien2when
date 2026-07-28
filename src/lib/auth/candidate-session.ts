@@ -8,8 +8,12 @@ import {
   hashCandidateToken,
   isCandidateToken
 } from "@/lib/auth/candidate-token";
+import {
+  CANDIDATE_SESSION_COOKIE_NAME,
+  getCandidateSessionCookieName
+} from "@/lib/auth/candidate-session-cookie";
 
-export const CANDIDATE_SESSION_COOKIE_NAME = "interview_candidate_session";
+export { CANDIDATE_SESSION_COOKIE_NAME, getCandidateSessionCookieName };
 
 function getCandidateSessionExpiresAt(now = new Date()) {
   const ttlDays = Number.parseInt(process.env.CANDIDATE_SESSION_TTL_DAYS ?? "14", 10);
@@ -137,6 +141,7 @@ export async function consumeCandidateAccessToken(token: string) {
       return {
         sessionToken: rawSessionToken,
         expiresAt,
+        groupId: accessToken.groupId,
         groupCode: accessToken.group.groupCode
       };
     });
@@ -150,7 +155,13 @@ export async function consumeCandidateAccessToken(token: string) {
 
 export async function getCurrentCandidateSession(groupId?: string) {
   const cookieStore = await cookies();
-  const token = cookieStore.get(CANDIDATE_SESSION_COOKIE_NAME)?.value;
+  const groupToken = groupId
+    ? cookieStore.get(getCandidateSessionCookieName(groupId))?.value
+    : undefined;
+  // Read the historical singleton cookie only as a compatibility path.
+  // New writes are always group-specific so opening another recruitment flow
+  // no longer replaces the current group session.
+  const token = groupToken ?? cookieStore.get(CANDIDATE_SESSION_COOKIE_NAME)?.value;
   if (!token || !isCandidateToken(token)) {
     return null;
   }

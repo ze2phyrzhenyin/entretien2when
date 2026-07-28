@@ -9,6 +9,7 @@ import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { ZonedDateTimeRange } from "@/components/timezone/zoned-time";
 import { Button } from "@/components/ui/button";
 import { ConfirmForm } from "@/components/ui/confirm-form";
+import { PaginationNav } from "@/components/ui/pagination-nav";
 import {
   Table,
   TableBody,
@@ -26,13 +27,17 @@ import {
   requireGroupPermission
 } from "@/lib/permissions/admin";
 import { cancelAppointmentAction } from "@/server/actions/appointment";
+import { createPagination } from "@/lib/pagination";
 
 type AppointmentsPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
 };
 
-export default async function AppointmentsPage({ params }: AppointmentsPageProps) {
-  const { id: groupId } = await params;
+const appointmentsPageSize = 50;
+
+export default async function AppointmentsPage({ params, searchParams }: AppointmentsPageProps) {
+  const [{ id: groupId }, query] = await Promise.all([params, searchParams]);
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, groupSchedulingRoles);
   const capabilities = await getGroupCapabilities(admin, groupId);
@@ -41,9 +46,17 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
     where: { id: groupId },
     select: { name: true, timezone: true }
   });
+  const totalAppointmentCount = await prisma.appointment.count({ where: { groupId } });
+  const pagination = createPagination({
+    page: query.page,
+    pageSize: appointmentsPageSize,
+    totalCount: totalAppointmentCount
+  });
   const appointments = await prisma.appointment.findMany({
     where: { groupId },
     orderBy: { startAt: "asc" },
+    skip: pagination.skip,
+    take: pagination.pageSize,
     include: {
       candidate: {
         select: { id: true, name: true, email: true }
@@ -66,6 +79,7 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
       activeSubmission: { is: { status: "ACTIVE" } }
     },
     orderBy: { updatedAt: "desc" },
+    take: 100,
     select: {
       id: true,
       name: true,
@@ -96,7 +110,7 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
       <GroupNav groupId={groupId} active="appointments" capabilities={capabilities} />
       <PageHeader
         title={`${group.name} · 面试安排`}
-        description="查看已确认的面试安排和候选人提交的可用时间。取消安排会自动释放对应时间锁。"
+        description={`每页显示最多 ${appointmentsPageSize} 个安排，预览最多加载 100 位最近候选人。取消安排会释放时间锁并发送日历取消更新。`}
       />
       <div className="mb-5">
         <TimezoneSwitcher defaultTimezone={group.timezone} />
@@ -220,6 +234,14 @@ export default async function AppointmentsPage({ params }: AppointmentsPageProps
               </TableBody>
             </Table>
           </TableContainer>
+          <div className="mt-4">
+            <PaginationNav
+              pathname={`/admin/groups/${groupId}/appointments`}
+              searchParams={{}}
+              itemLabel="个面试安排"
+              {...pagination}
+            />
+          </div>
         </section>
       ) : null}
     </AdminShell>

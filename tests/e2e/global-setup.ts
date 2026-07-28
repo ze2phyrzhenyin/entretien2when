@@ -10,7 +10,13 @@ export default function globalSetup() {
 
   if (process.env.WHEN2ENTRETIEN_ALLOW_E2E_MUTATION !== "1") {
     throw new Error(
-      "Local E2E needs a disposable database. Run `pnpm test:e2e`, or set WHEN2ENTRETIEN_ALLOW_E2E_MUTATION=1 after confirming DATABASE_URL is safe to migrate."
+      "E2E needs a disposable database. Set WHEN2ENTRETIEN_ALLOW_E2E_MUTATION=1 after confirming DATABASE_URL is isolated."
+    );
+  }
+  const databaseUrl = process.env.DATABASE_URL ?? "";
+  if (!/(e2e|test|audit)/i.test(databaseUrl)) {
+    throw new Error(
+      "Refusing database mutation: DATABASE_URL must visibly identify an isolated e2e/test/audit database."
     );
   }
 

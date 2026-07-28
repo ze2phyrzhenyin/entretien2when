@@ -38,20 +38,19 @@ import { getAppointmentConfirmedEmailTemplate } from "@/lib/mail/email-template-
 import { groupSchedulingRoles, requireGroupPermission } from "@/lib/permissions/admin";
 import { formValue, formValues } from "@/lib/validation/common";
 import { scheduleAppointmentSchema } from "@/lib/validation/appointment";
-import {
-  createCandidateEmailDelivery,
-  deliverPersistedCandidateEmailDelivery
-} from "@/server/services/candidate-email";
+import { createCandidateEmailDelivery } from "@/server/services/candidate-email";
 import { notifyOwnerAboutAppointment } from "@/server/services/owner-notification-email";
+import { queueAppointmentNotifications } from "@/server/services/appointment-notification-email";
 
 function redirectWithScheduleMailStatus(
   groupId: string,
   candidateId: string,
-  params: { mail: "sent" | "error"; dryRun?: boolean; batchId?: string }
+  params: { mail: "queued" | "sent" | "error"; dryRun?: boolean; batchId?: string }
 ): never {
   const url = new URL(`http://local/admin/groups/${groupId}/candidates/${candidateId}`);
+  url.searchParams.set("section", "email");
   url.searchParams.set("mail", params.mail);
-  url.searchParams.set("mailCount", params.mail === "sent" ? "1" : "0");
+  url.searchParams.set("mailCount", params.mail === "error" ? "0" : "1");
   if (params.mail === "error") {
     url.searchParams.set("mailFailed", "1");
   }
@@ -70,6 +69,7 @@ function redirectWithAppointmentStatus(
   appointment: "scheduled" | "rescheduled" | "invalid" | "conflict"
 ): never {
   const url = new URL(`http://local/admin/groups/${groupId}/candidates/${candidateId}`);
+  url.searchParams.set("section", "scheduling");
   url.searchParams.set("appointment", appointment);
   redirect(`${url.pathname}${url.search}`);
 }
@@ -249,10 +249,6 @@ type AppointmentCandidateEmailDraft = {
   ccEmails?: string[];
 };
 
-type PersistedAppointmentCandidateEmail = Pick<AppointmentCandidateEmailDraft, "batchId"> & {
-  deliveryId: string;
-};
-
 async function createAppointmentCandidateEmailDraft(input: {
   emailSubject?: string;
   emailBody?: string;
@@ -266,57 +262,6 @@ async function createAppointmentCandidateEmailDraft(input: {
     bodyTemplate: input.emailBody ?? appointmentEmailTemplate.body,
     ccEmails: input.ccEmails
   };
-}
-
-async function sendPersistedAppointmentCandidateEmailAndRedirect({
-  adminId,
-  groupId,
-  candidate,
-  appointment,
-  delivery
-}: {
-  adminId: string;
-  groupId: string;
-  candidate: { id: string; name: string; email: string };
-  appointment: {
-    id: string;
-  };
-  delivery: PersistedAppointmentCandidateEmail;
-}) {
-  const result = await deliverPersistedCandidateEmailDelivery(delivery.deliveryId);
-
-  await prisma.auditLog.create({
-    data: {
-      actorType: AuditActorType.ADMIN,
-      actorAdminId: adminId,
-      groupId,
-      action: "admin.send_appointment_email",
-      entityType: "CandidateEmailDelivery",
-      entityId: result.deliveryId,
-      afterData: {
-        appointmentId: appointment.id,
-        candidateId: candidate.id,
-        deliveryId: result.deliveryId,
-        status: result.status,
-        emailId: result.emailId,
-        error: result.error,
-        batchId: delivery.batchId
-      }
-    }
-  });
-
-  revalidatePath(`/admin/groups/${groupId}/candidates/${candidate.id}`);
-  if (result.status === "failure") {
-    redirectWithScheduleMailStatus(groupId, candidate.id, {
-      mail: "error",
-      batchId: delivery.batchId
-    });
-  }
-  redirectWithScheduleMailStatus(groupId, candidate.id, {
-    mail: "sent",
-    dryRun: result.status === "preview",
-    batchId: delivery.batchId
-  });
 }
 
 type ScheduleTransactionInput = {
@@ -359,6 +304,9 @@ async function createScheduledAppointment({
               timezone: true,
               projectId: true,
               roundId: true,
+              round: {
+                select: { name: true }
+              },
               interviewDurationMinutes: true
             }
           },
@@ -389,6 +337,13 @@ async function createScheduledAppointment({
       ) {
         throw new SchedulingValidationError("所选面试官不存在、已停用或不属于当前项目。");
       }
+      const selectedInterviewers =
+        interviewerIds.length > 0
+          ? await tx.interviewer.findMany({
+              where: { id: { in: interviewerIds } },
+              select: { name: true, email: true }
+            })
+          : [];
 
       const activeSubmissionSlotIds = new Set(
         candidate.activeSubmission.slots.map((slot) => slot.slotId)
@@ -512,6 +467,26 @@ async function createScheduledAppointment({
           )
         : null;
 
+      if (candidateEmailDelivery && appointmentEmail) {
+        await tx.auditLog.create({
+          data: {
+            actorType: AuditActorType.ADMIN,
+            actorAdminId: adminId,
+            groupId,
+            action: "admin.queue_candidate_email",
+            entityType: "CandidateEmailBatch",
+            entityId: appointmentEmail.batchId,
+            afterData: {
+              candidateIds: [candidate.id],
+              deliveryIds: [candidateEmailDelivery.id],
+              recipientCount: 1,
+              source: "appointment_scheduled",
+              status: "queued"
+            }
+          }
+        });
+      }
+
       await tx.auditLog.create({
         data: {
           actorType: AuditActorType.ADMIN,
@@ -542,6 +517,20 @@ async function createScheduledAppointment({
           meetingLocation: appointment.meetingLocation,
           candidateVisibleMessage: appointment.candidateVisibleMessage,
           scheduledByEmail: adminEmail
+        },
+        tx
+      );
+      await queueAppointmentNotifications(
+        {
+          kind: "scheduled",
+          appointment,
+          group: candidate.group,
+          roundName: candidate.group.round?.name,
+          candidate: {
+            name: candidate.name,
+            email: candidate.email
+          },
+          interviewers: selectedInterviewers
         },
         tx
       );
@@ -604,6 +593,9 @@ async function rescheduleScheduledAppointment({
               timezone: true,
               projectId: true,
               roundId: true,
+              round: {
+                select: { name: true }
+              },
               interviewDurationMinutes: true
             }
           },
@@ -627,6 +619,13 @@ async function rescheduleScheduledAppointment({
       ) {
         throw new SchedulingValidationError("所选面试官不存在、已停用或不属于当前项目。");
       }
+      const selectedInterviewers =
+        interviewerIds.length > 0
+          ? await tx.interviewer.findMany({
+              where: { id: { in: interviewerIds } },
+              select: { name: true, email: true }
+            })
+          : [];
 
       const activeSubmissionSlotIds = new Set(
         candidate.activeSubmission.slots.map((slot) => slot.slotId)
@@ -710,7 +709,8 @@ async function rescheduleScheduledAppointment({
           internalNote: input.internalNote || null,
           scheduledByAdminId: adminId,
           cancelledByAdminId: null,
-          cancelledAt: null
+          cancelledAt: null,
+          calendarSequence: { increment: 1 }
         }
       });
       if (appointmentUpdate.count !== 1) {
@@ -797,6 +797,26 @@ async function rescheduleScheduledAppointment({
           )
         : null;
 
+      if (candidateEmailDelivery && appointmentEmail) {
+        await tx.auditLog.create({
+          data: {
+            actorType: AuditActorType.ADMIN,
+            actorAdminId: adminId,
+            groupId,
+            action: "admin.queue_candidate_email",
+            entityType: "CandidateEmailBatch",
+            entityId: appointmentEmail.batchId,
+            afterData: {
+              candidateIds: [candidate.id],
+              deliveryIds: [candidateEmailDelivery.id],
+              recipientCount: 1,
+              source: "appointment_rescheduled",
+              status: "queued"
+            }
+          }
+        });
+      }
+
       await tx.auditLog.create({
         data: {
           actorType: AuditActorType.ADMIN,
@@ -836,6 +856,20 @@ async function rescheduleScheduledAppointment({
           meetingLocation: appointment.meetingLocation,
           candidateVisibleMessage: appointment.candidateVisibleMessage,
           scheduledByEmail: adminEmail
+        },
+        tx
+      );
+      await queueAppointmentNotifications(
+        {
+          kind: "rescheduled",
+          appointment,
+          group: candidate.group,
+          roundName: candidate.group.round?.name,
+          candidate: {
+            name: candidate.name,
+            email: candidate.email
+          },
+          interviewers: selectedInterviewers
         },
         tx
       );
@@ -916,12 +950,9 @@ export async function scheduleAppointmentAction(
   revalidatePath(`/admin/groups/${groupId}/overview`);
 
   if (scheduled.candidateEmail) {
-    await sendPersistedAppointmentCandidateEmailAndRedirect({
-      adminId: admin.id,
-      groupId,
-      candidate: scheduled.candidate,
-      appointment: scheduled.appointment,
-      delivery: scheduled.candidateEmail
+    redirectWithScheduleMailStatus(groupId, candidateId, {
+      mail: "queued",
+      batchId: scheduled.candidateEmail.batchId
     });
   }
   redirectWithAppointmentStatus(groupId, candidateId, "scheduled");
@@ -986,12 +1017,9 @@ export async function rescheduleAppointmentAction(
   revalidatePath(`/admin/groups/${groupId}/overview`);
 
   if (rescheduled.candidateEmail) {
-    await sendPersistedAppointmentCandidateEmailAndRedirect({
-      adminId: admin.id,
-      groupId,
-      candidate: rescheduled.candidate,
-      appointment: rescheduled.appointment,
-      delivery: rescheduled.candidateEmail
+    redirectWithScheduleMailStatus(groupId, candidateId, {
+      mail: "queued",
+      batchId: rescheduled.candidateEmail.batchId
     });
   }
   redirectWithAppointmentStatus(groupId, candidateId, "rescheduled");
@@ -1014,10 +1042,23 @@ export async function cancelAppointmentAction(groupId: string, appointmentId: st
           },
           include: {
             group: {
-              select: { id: true, name: true, groupCode: true, timezone: true }
+              select: {
+                id: true,
+                name: true,
+                groupCode: true,
+                timezone: true,
+                round: { select: { name: true } }
+              }
             },
             candidate: {
               select: { id: true, name: true, email: true }
+            },
+            interviewers: {
+              select: {
+                interviewer: {
+                  select: { name: true, email: true }
+                }
+              }
             }
           }
         });
@@ -1056,7 +1097,8 @@ export async function cancelAppointmentAction(groupId: string, appointmentId: st
           data: {
             status: AppointmentStatus.CANCELLED,
             cancelledByAdminId: admin.id,
-            cancelledAt
+            cancelledAt,
+            calendarSequence: { increment: 1 }
           }
         });
         if (appointmentUpdate.count !== 1) {
@@ -1127,6 +1169,28 @@ export async function cancelAppointmentAction(groupId: string, appointmentId: st
             meetingLocation: appointment.meetingLocation,
             candidateVisibleMessage: appointment.candidateVisibleMessage,
             scheduledByEmail: admin.email
+          },
+          tx
+        );
+        const cancelledAppointment = await tx.appointment.findUniqueOrThrow({
+          where: { id: appointment.id },
+          select: {
+            id: true,
+            startAt: true,
+            endAt: true,
+            calendarSequence: true,
+            meetingLocation: true,
+            candidateVisibleMessage: true
+          }
+        });
+        await queueAppointmentNotifications(
+          {
+            kind: "cancelled",
+            appointment: cancelledAppointment,
+            group: appointment.group,
+            roundName: appointment.group.round?.name,
+            candidate: appointment.candidate,
+            interviewers: appointment.interviewers.map(({ interviewer }) => interviewer)
           },
           tx
         );

@@ -35,19 +35,25 @@
 
 1. 邮箱密码登录，创建 httpOnly session。
 2. 所有后台入口 `requireAdmin`。
-3. `requireAdmin` 只允许超级管理员进入后台。
-4. 组级操作仍通过 `requireGroupPermission` 二次校验，但当前实现等价于超级管理员校验。
+3. `requireAdmin` 验证有效管理员 session；全局高权限动作再调用 `requireSuperAdmin`。
+4. 普通管理员的读查询在数据库边界应用 `accessibleGroupWhere` / `accessibleProjectWhere`，写操作调用带明确角色矩阵的 `requireGroupPermission`。
+5. `OWNER` 管设置和成员，`SCHEDULER` 管排期与邮件，`REVIEWER` 管审核和候选人跟进，`VIEWER` 只读。
+
+邮件和日历：
+
+1. 页面请求只创建带幂等键的 `EmailOutbox` / `CandidateEmailDelivery`，不等待供应商。
+2. worker 通过 lease 领取、有限重试并跳过已经取消或改约的陈旧提醒。
+3. 候选人访问链接在同一事务创建 token 和加密 outbox；明文 token 不落日志或 URL query。
+4. 预约通知包含 RFC 5545 ICS；候选人和每位面试官分别发送，避免公开收件人列表。
 
 ## 关键风险
 
 - 候选人响应中泄露 `CandidateAdminNote`、`internalNote`、`reasonInternal`。
-- 非超级管理员进入后台。
+- 普通管理员跨组或越角色读取/写入。
 - 预约锁并发导致 double-booking。
 - 修改审核通过时未重新校验 slot 状态。
 - 前端隐藏按钮但服务端未二次校验。
 
 ## 当前实现范围
 
-P0.0-P0.7 已落地：基础项目、Prisma schema、管理员登录、session、密码 hash、seed/create-admin、面试组管理、时间段管理、候选人提交、修改审核、预约锁定、管理员私有备注、核心页面和单测。
-
-P0.8 已生成 UI 截图证据，当前重点是人工走查截图、修正明显文案/交互问题，并为演示环境准备稳定数据。
+P0-P2 已实现：认证与权限、面试组、项目/轮次/面试官、候选人提交和审核、并发安全排期、可靠邮件/日历提醒、审计、数据生命周期和响应式后台。是否已在某个生产环境发布仍以发布清单和该环境的证据为准。

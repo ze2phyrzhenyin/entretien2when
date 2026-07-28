@@ -17,11 +17,13 @@ import { GroupNav } from "@/components/layout/group-nav";
 import { TimezoneSwitcher } from "@/components/timezone/timezone-switcher";
 import { ZonedDateTimeRange } from "@/components/timezone/zoned-time";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmForm } from "@/components/ui/confirm-form";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
+import { TabLink, Tabs, TabsList } from "@/components/ui/tabs";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
@@ -30,6 +32,7 @@ import { getCandidateEmailTemplates } from "@/lib/mail/email-template-store";
 import {
   getGroupCapabilities,
   groupCandidateCareRoles,
+  isSuperAdmin,
   requireGroupPermission
 } from "@/lib/permissions/admin";
 import { candidateSubmissionStatusLabel, candidateSubmissionTypeLabel } from "@/lib/status-labels";
@@ -39,6 +42,7 @@ import {
   scheduleAppointmentAction
 } from "@/server/actions/appointment";
 import { upsertCandidateAdminNoteAction } from "@/server/actions/admin-note";
+import { anonymizeCandidateAction } from "@/server/actions/candidate-data";
 
 type CandidateDetailPageProps = {
   params: Promise<{ id: string; candidateId: string }>;
@@ -50,6 +54,8 @@ type CandidateDetailPageProps = {
     mailDryRun?: string;
     mailBatch?: string;
     appointment?: string;
+    privacy?: string;
+    section?: string;
   }>;
 };
 
@@ -61,6 +67,15 @@ export default async function CandidateDetailPage({
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, groupCandidateCareRoles);
   const capabilities = await getGroupCapabilities(admin, groupId);
+  const requestedSection = query.section;
+  const section =
+    requestedSection === "scheduling" && capabilities.canSchedule
+      ? "scheduling"
+      : requestedSection === "email" && capabilities.canSchedule
+        ? "email"
+        : requestedSection === "history"
+          ? "history"
+          : "overview";
 
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
@@ -115,6 +130,7 @@ export default async function CandidateDetailPage({
       },
       submissions: {
         orderBy: { versionNo: "desc" },
+        take: 20,
         select: {
           id: true,
           versionNo: true,
@@ -230,11 +246,17 @@ export default async function CandidateDetailPage({
   const scheduledAppointmentSlotIds = new Set(
     scheduledAppointment?.slots.map((slot) => slot.slotId) ?? []
   );
+  const relevantSchedulingSlotIds = [
+    ...new Set([
+      ...(candidate.activeSubmission?.slots.map(({ slot }) => slot.id) ?? []),
+      ...scheduledAppointmentSlotIds
+    ])
+  ];
   const scheduledAppointmentInterviewerIds =
     scheduledAppointment?.interviewers.map((assignment) => assignment.interviewerId) ?? [];
   const groupTimeSlots = scheduledAppointment
     ? await prisma.groupTimeSlot.findMany({
-        where: { groupId },
+        where: { groupId, id: { in: relevantSchedulingSlotIds } },
         orderBy: { startAt: "asc" },
         include: {
           activeLock: {
@@ -248,7 +270,7 @@ export default async function CandidateDetailPage({
       ({ slot }) => slot.status === "OPEN" && !slot.activeLock
     ) ?? [];
   const ownNote = candidate.adminNotes.find((note) => note.authorAdminId === admin.id);
-  const returnTo = `/admin/groups/${groupId}/candidates/${candidateId}`;
+  const returnTo = `/admin/groups/${groupId}/candidates/${candidateId}?section=email`;
   const mailCount = Number(query.mailCount ?? 0);
   const mailFailed = Number(query.mailFailed ?? 0);
 
@@ -259,12 +281,19 @@ export default async function CandidateDetailPage({
         title={candidate.name}
         description={candidate.email}
         action={
-          <Link
-            className="text-sm font-medium text-primary"
-            href={`/admin/groups/${groupId}/candidates`}
-          >
-            返回候选人列表
-          </Link>
+          <>
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/admin/groups/${groupId}/candidates/${candidateId}/export`} download>
+                导出候选人数据
+              </Link>
+            </Button>
+            <Link
+              className="text-sm font-medium text-primary"
+              href={`/admin/groups/${groupId}/candidates`}
+            >
+              返回候选人列表
+            </Link>
+          </>
         }
       />
       <div className="mb-5">
@@ -274,6 +303,16 @@ export default async function CandidateDetailPage({
       {query.review ? (
         <InlineNotice tone="success" className="mb-5">
           审核操作已完成。
+        </InlineNotice>
+      ) : null}
+      {query.privacy === "anonymized" ? (
+        <InlineNotice tone="success" className="mb-5">
+          候选人身份、自由文本、会话和邮件内容已匿名化；排期统计事实已保留。
+        </InlineNotice>
+      ) : null}
+      {query.privacy === "invalid" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          匿名化确认文本无效，未修改任何数据。
         </InlineNotice>
       ) : null}
       {capabilities.canSchedule && query.appointment === "scheduled" ? (
@@ -301,6 +340,11 @@ export default async function CandidateDetailPage({
           已发送 {mailCount} 封候选人通知{query.mailDryRun ? "（测试发送预览）" : ""}。
         </InlineNotice>
       ) : null}
+      {capabilities.canSchedule && query.mail === "queued" ? (
+        <InlineNotice tone="success" className="mb-5">
+          已将 {mailCount} 封候选人通知写入可靠发送队列，可安全离开本页。
+        </InlineNotice>
+      ) : null}
       {capabilities.canSchedule && query.mail === "partial" ? (
         <InlineNotice tone="warning" className="mb-5">
           已发送 {mailCount} 封，失败 {mailFailed} 封。请检查 Mailato 配置或发送记录。
@@ -316,51 +360,92 @@ export default async function CandidateDetailPage({
           请填写邮件主题和正文，并确认后再发送。
         </InlineNotice>
       ) : null}
-      {capabilities.canSchedule ? (
+      {capabilities.canSchedule && section === "email" ? (
         <CandidateEmailBatchSummary deliveries={batchDeliveries} />
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="space-y-6">
-          <Card className="p-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-lg font-semibold">当前有效可用时间</h3>
-              <StatusBadge kind="candidate" status={candidate.status} />
-            </div>
-            {candidate.activeSubmission ? (
-              <>
-                <div className="mt-4 grid gap-2 md:grid-cols-2">
-                  {candidate.activeSubmission.slots.map(({ slot }) => (
-                    <div
-                      key={slot.id}
-                      className="rounded-md border border-border bg-slate-50 px-3 py-2 text-sm"
-                    >
-                      <p className="font-medium">
-                        <ZonedDateTimeRange
-                          startAt={slot.startAt.toISOString()}
-                          endAt={slot.endAt.toISOString()}
-                          defaultTimezone={group.timezone}
-                        />
-                      </p>
-                      {slot.activeLock ? (
-                        <p className="mt-1 text-xs text-amber-700">已锁定</p>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-5">
-                  <p className="text-sm font-medium">候选人备注</p>
-                  <p className="mt-2 rounded-md border border-border bg-white p-3 text-sm leading-6 text-muted-foreground">
-                    {candidate.activeSubmission.candidateNote || "未填写"}
-                  </p>
-                </div>
-              </>
-            ) : (
-              <p className="mt-3 text-sm text-muted-foreground">暂无有效提交。</p>
-            )}
-          </Card>
-
+      <Tabs className="mb-6">
+        <TabsList aria-label="候选人详情分区">
+          <TabLink
+            href={`/admin/groups/${groupId}/candidates/${candidateId}?section=overview`}
+            active={section === "overview"}
+          >
+            概览与备注
+          </TabLink>
           {capabilities.canSchedule ? (
+            <TabLink
+              href={`/admin/groups/${groupId}/candidates/${candidateId}?section=scheduling`}
+              active={section === "scheduling"}
+            >
+              面试排期
+            </TabLink>
+          ) : null}
+          {capabilities.canSchedule ? (
+            <TabLink
+              href={`/admin/groups/${groupId}/candidates/${candidateId}?section=email`}
+              active={section === "email"}
+            >
+              邮件通知
+            </TabLink>
+          ) : null}
+          <TabLink
+            href={`/admin/groups/${groupId}/candidates/${candidateId}?section=history`}
+            active={section === "history"}
+          >
+            提交历史
+          </TabLink>
+        </TabsList>
+      </Tabs>
+
+      <div
+        className={
+          section === "overview"
+            ? "grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]"
+            : "max-w-4xl space-y-6"
+        }
+      >
+        <div className="space-y-6">
+          {section === "overview" ? (
+            <Card className="p-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-lg font-semibold">当前有效可用时间</h3>
+                <StatusBadge kind="candidate" status={candidate.status} />
+              </div>
+              {candidate.activeSubmission ? (
+                <>
+                  <div className="mt-4 grid gap-2 md:grid-cols-2">
+                    {candidate.activeSubmission.slots.map(({ slot }) => (
+                      <div
+                        key={slot.id}
+                        className="rounded-md border border-border bg-slate-50 px-3 py-2 text-sm"
+                      >
+                        <p className="font-medium">
+                          <ZonedDateTimeRange
+                            startAt={slot.startAt.toISOString()}
+                            endAt={slot.endAt.toISOString()}
+                            defaultTimezone={group.timezone}
+                          />
+                        </p>
+                        {slot.activeLock ? (
+                          <p className="mt-1 text-xs text-amber-700">已锁定</p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-5">
+                    <p className="text-sm font-medium">候选人备注</p>
+                    <p className="mt-2 rounded-md border border-border bg-white p-3 text-sm leading-6 text-muted-foreground">
+                      {candidate.activeSubmission.candidateNote || "未填写"}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <p className="mt-3 text-sm text-muted-foreground">暂无有效提交。</p>
+              )}
+            </Card>
+          ) : null}
+
+          {capabilities.canSchedule && section === "scheduling" ? (
             <Card className="p-6">
               <h3 className="text-lg font-semibold">安排面试</h3>
               {scheduledAppointment ? (
@@ -516,48 +601,80 @@ export default async function CandidateDetailPage({
             </Card>
           ) : null}
 
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold">提交历史</h3>
-            <div className="mt-4 space-y-3">
-              {candidate.submissions.map((submission) => (
-                <div key={submission.id} className="rounded-md border border-border p-3 text-sm">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">版本 {submission.versionNo}</span>
-                    <Badge tone={submission.status === "ACTIVE" ? "success" : "neutral"}>
-                      {candidateSubmissionStatusLabel[submission.status]}
-                    </Badge>
-                    <span className="text-muted-foreground">
-                      {candidateSubmissionTypeLabel[submission.submissionType]}
-                    </span>
-                  </div>
-                  <div className="mt-2 grid gap-2 md:grid-cols-2">
-                    {submission.slots.map(({ slot }) => (
-                      <span key={slot.id} className="rounded-md bg-slate-50 px-2 py-1">
-                        <ZonedDateTimeRange
-                          startAt={slot.startAt.toISOString()}
-                          endAt={slot.endAt.toISOString()}
-                          defaultTimezone={group.timezone}
-                        />
+          {section === "history" ? (
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold">提交历史</h3>
+              <div className="mt-4 space-y-3">
+                {candidate.submissions.map((submission) => (
+                  <div key={submission.id} className="rounded-md border border-border p-3 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">版本 {submission.versionNo}</span>
+                      <Badge tone={submission.status === "ACTIVE" ? "success" : "neutral"}>
+                        {candidateSubmissionStatusLabel[submission.status]}
+                      </Badge>
+                      <span className="text-muted-foreground">
+                        {candidateSubmissionTypeLabel[submission.submissionType]}
                       </span>
-                    ))}
+                    </div>
+                    <div className="mt-2 grid gap-2 md:grid-cols-2">
+                      {submission.slots.map(({ slot }) => (
+                        <span key={slot.id} className="rounded-md bg-slate-50 px-2 py-1">
+                          <ZonedDateTimeRange
+                            startAt={slot.startAt.toISOString()}
+                            endAt={slot.endAt.toISOString()}
+                            defaultTimezone={group.timezone}
+                          />
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+                ))}
+              </div>
+            </Card>
+          ) : null}
         </div>
 
         <div className="space-y-6">
-          <CandidateAdminNoteEditor
-            defaultValue={ownNote?.body}
-            action={upsertCandidateAdminNoteAction.bind(null, groupId, candidateId)}
-            notes={candidate.adminNotes.map((note) => ({
-              id: note.id,
-              body: note.body,
-              authorName: note.authorAdmin.displayName
-            }))}
-          />
-          {capabilities.canSchedule ? (
+          {section === "overview" ? (
+            <>
+              <CandidateAdminNoteEditor
+                defaultValue={ownNote?.body}
+                action={upsertCandidateAdminNoteAction.bind(null, groupId, candidateId)}
+                notes={candidate.adminNotes.map((note) => ({
+                  id: note.id,
+                  body: note.body,
+                  authorName: note.authorAdmin.displayName
+                }))}
+              />
+              {isSuperAdmin(admin) ? (
+                <Card className="border-red-200 p-6">
+                  <h3 className="text-lg font-semibold text-red-800">隐私数据处理</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    匿名化会撤销候选人会话和链接，删除邮件、备注及自由文本，并保留不含身份的排期统计。
+                    此操作不可恢复。
+                  </p>
+                  <ConfirmForm
+                    className="mt-4 space-y-3"
+                    action={anonymizeCandidateAction.bind(null, groupId, candidateId)}
+                    confirmMessage="确认永久匿名化该候选人的个人数据吗？此操作不可恢复。"
+                  >
+                    <FormField id="anonymizeConfirmation" label="输入 ANONYMIZE 确认">
+                      <Input
+                        id="anonymizeConfirmation"
+                        name="confirmation"
+                        autoComplete="off"
+                        required
+                      />
+                    </FormField>
+                    <SubmitButton variant="danger" pendingText="正在匿名化">
+                      永久匿名化候选人
+                    </SubmitButton>
+                  </ConfirmForm>
+                </Card>
+              ) : null}
+            </>
+          ) : null}
+          {capabilities.canSchedule && section === "email" ? (
             <>
               <CandidateEmailComposer
                 groupId={groupId}

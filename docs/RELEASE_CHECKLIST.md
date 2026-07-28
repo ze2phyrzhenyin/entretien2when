@@ -32,6 +32,9 @@ cp .env.example .env
 - `CANDIDATE_SESSION_TTL_DAYS`：候选人访问 session 有效天数。
 - `CANDIDATE_AUTH_DEV_PREVIEW`：仅本地/E2E 可设为 `true`，生产必须为 `false`。
 - `EMAIL_OUTBOX_BATCH_SIZE`：邮件 outbox 每批处理数量。
+- `CANDIDATE_ACCESS_ENCRYPTION_KEY`：生产必填的 32 字节 base64url 密钥。
+- `APPOINTMENT_REMINDER_HOURS`：预约自动提醒时点，默认 `24,1`。
+- `*_RETENTION_DAYS`：认证、邮件和审计保留期；先 dry-run 确认组织政策。
 
 ## 数据库初始化
 
@@ -91,6 +94,8 @@ pnpm check
 完整业务 E2E（串行，避免共享测试库并发冷启动造成假阴性）：
 
 ```bash
+WHEN2ENTRETIEN_ALLOW_E2E_MUTATION=1 \
+DATABASE_URL='postgresql://.../when2entretien_e2e?schema=public' \
 PLAYWRIGHT_WORKERS=1 pnpm exec playwright test --project=chromium
 ```
 
@@ -99,7 +104,7 @@ PLAYWRIGHT_WORKERS=1 pnpm exec playwright test --project=chromium
 ## 发布前必过项
 
 - `pnpm check` 通过。
-- `PLAYWRIGHT_WORKERS=1 pnpm exec playwright test --project=chromium` 通过。
+- 使用上面的隔离数据库命令运行完整 Playwright E2E 并通过。
 - `bash scripts/ui-snapshots.sh` 通过并完成截图人工走查。
 - 生产环境 `.env` 不使用示例管理员密码。
 - 数据库 migration 已在目标环境执行。
@@ -110,6 +115,11 @@ PLAYWRIGHT_WORKERS=1 pnpm exec playwright test --project=chromium
 - `/admin/audit` 可查看本次验收的建组、提交、修改申请、审核、预约、取消预约等审计记录。
 - `/admin/projects` 只显示授权组的轮次/统计；项目级面试官池只对授权组的 `OWNER`/`SCHEDULER` 作为共享排期资源可见。
 - 安排面试时选择面试官；同一面试官已有重叠 `SCHEDULED` 预约时必须被服务端拒绝。
+- `/admin/groups/[id]/members` 的最后一个有效 OWNER 不可撤权或降级；最后一个有效超级管理员不可停用或降级。
+- 预约、改约和取消邮件包含正确 ICS，面试官各自收信，到期提醒不会发送陈旧排期。
+- 同一浏览器分别进入两个面试组后，两边候选人会话都保持有效。
+- 移动端后台卡片不被底部导航遮挡，候选人详情四个标签可以独立操作。
+- 候选人 JSON 导出受组权限限制；匿名化仅超级管理员可执行并记录审计。
 - `/api/health/ready` 返回 ready，负责人通知 outbox 可通过 `pnpm email:outbox` 处理；没有活跃组 OWNER 时不得向全局/个人邮箱外发候选人信息。
 
 ## 启动

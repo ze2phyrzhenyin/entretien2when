@@ -175,59 +175,92 @@ export default async function AdminDashboardPage({ searchParams }: AdminDashboar
         </Card>
       ) : (
         <div className="space-y-4">
-          <TableContainer>
-            <Table>
-              <TableHeader>
-                <tr>
-                  <TableHead>面试组名称</TableHead>
-                  <TableHead>项目/轮次</TableHead>
-                  <TableHead>面试组编号</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>候选人</TableHead>
-                  <TableHead>面试安排</TableHead>
-                  <TableHead>操作</TableHead>
-                </tr>
-              </TableHeader>
-              <TableBody>
-                {groups.map((group) => (
-                  <TableRow key={group.id}>
-                    <TableCell className="font-medium">{group.name}</TableCell>
-                    <TableCell className="min-w-48">
-                      {group.project ? (
-                        <div>
-                          <Link
-                            href={`/admin/projects/${group.project.id}`}
-                            className="font-medium text-primary"
-                          >
-                            {group.project.name}
-                          </Link>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {group.round?.name ?? "未关联轮次"}
-                          </p>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">未关联项目</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{group.groupCode}</TableCell>
-                    <TableCell>
-                      <StatusBadge kind="group" status={group.status} />
-                    </TableCell>
-                    <TableCell>{group._count.candidates}</TableCell>
-                    <TableCell>{group._count.appointments}</TableCell>
-                    <TableCell>
-                      <Link
-                        className="font-medium text-primary"
-                        href={`/admin/groups/${group.id}/candidates`}
-                      >
-                        查看
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <div className="space-y-3 md:hidden">
+            {groups.map((group) => (
+              <Card key={group.id} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{group.name}</p>
+                    <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                      {group.groupCode}
+                    </p>
+                  </div>
+                  <StatusBadge kind="group" status={group.status} />
+                </div>
+                {group.project ? (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {group.project.name} · {group.round?.name ?? "未关联轮次"}
+                  </p>
+                ) : null}
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <span>候选人 {group._count.candidates}</span>
+                  <span>面试安排 {group._count.appointments}</span>
+                  <span>提交版本 {group._count.submissions}</span>
+                </div>
+                <Link
+                  className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-md bg-primary-soft text-sm font-medium text-primary"
+                  href={`/admin/groups/${group.id}/candidates`}
+                >
+                  进入面试组
+                </Link>
+              </Card>
+            ))}
+          </div>
+          <div className="hidden md:block">
+            <TableContainer>
+              <Table>
+                <TableHeader>
+                  <tr>
+                    <TableHead>面试组名称</TableHead>
+                    <TableHead>项目/轮次</TableHead>
+                    <TableHead>面试组编号</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>候选人</TableHead>
+                    <TableHead>面试安排</TableHead>
+                    <TableHead>操作</TableHead>
+                  </tr>
+                </TableHeader>
+                <TableBody>
+                  {groups.map((group) => (
+                    <TableRow key={group.id}>
+                      <TableCell className="font-medium">{group.name}</TableCell>
+                      <TableCell className="min-w-48">
+                        {group.project ? (
+                          <div>
+                            <Link
+                              href={`/admin/projects/${group.project.id}`}
+                              className="font-medium text-primary"
+                            >
+                              {group.project.name}
+                            </Link>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {group.round?.name ?? "未关联轮次"}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">未关联项目</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{group.groupCode}</TableCell>
+                      <TableCell>
+                        <StatusBadge kind="group" status={group.status} />
+                      </TableCell>
+                      <TableCell>{group._count.candidates}</TableCell>
+                      <TableCell>{group._count.appointments}</TableCell>
+                      <TableCell>
+                        <Link
+                          className="font-medium text-primary"
+                          href={`/admin/groups/${group.id}/candidates`}
+                        >
+                          查看
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </div>
           <PaginationNav
             pathname="/admin"
             searchParams={{ q: q || undefined }}

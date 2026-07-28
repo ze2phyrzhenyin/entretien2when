@@ -11,9 +11,9 @@ import {
   InterviewGroupStatus
 } from "@prisma/client";
 import { getPublicAppUrl, withBasePath } from "@/lib/app-url";
+import { encryptCandidateAccessContent } from "@/lib/auth/access-link-encryption";
 import { getCurrentCandidateSession } from "@/lib/auth/candidate-session";
 import { generateCandidateToken, hashCandidateToken } from "@/lib/auth/candidate-token";
-import { sendMailatoEmail } from "@/lib/mail/mailato";
 import {
   assertRateLimit,
   createRateLimitKey,
@@ -32,6 +32,7 @@ import {
   candidateAvailabilitySessionSchema
 } from "@/lib/validation/candidate";
 import { notifyOwnerAboutSubmission } from "@/server/services/owner-notification-email";
+import { enqueueCandidateAccessEmail } from "@/server/services/email-outbox";
 import {
   assertSlotSelectionCount,
   assertSlotsSelectable,
@@ -148,7 +149,10 @@ export async function requestCandidateAccessAction(
 
   const rawToken = generateCandidateToken();
   const expiresAt = getCandidateAccessTokenExpiresAt();
-  const accessPath = `/candidate/auth/${rawToken}`;
+  // URL fragments are not sent in HTTP requests or Referer headers. The
+  // confirmation page moves the bearer token into a POST body only after the
+  // candidate explicitly continues.
+  const accessPath = `/candidate/auth/confirm#${rawToken}`;
   let accessUrl: string;
 
   try {
@@ -159,77 +163,66 @@ export async function requestCandidateAccessAction(
     return { status: "error", message: "服务访问地址未安全配置，请联系招聘方。" };
   }
 
-  const accessToken = await prisma.candidateAccessToken.create({
-    data: {
-      groupId: group.id,
-      tokenHash: hashCandidateToken(rawToken),
-      name: input.name,
-      email: input.email,
-      normalizedEmail: input.email,
-      expiresAt
-    },
-    select: { id: true }
-  });
-
   const email = candidateAccessEmail({
     groupName: group.name,
     candidateName: input.name,
     accessUrl,
     expiresAt
   });
-  const devPreview = isCandidateAuthDevPreviewEnabled();
-
   try {
-    const result = await sendMailatoEmail({
-      recipient: {
-        email: input.email,
-        name: input.name
-      },
-      subject: email.subject,
-      body: email.body,
-      auditId: `candidate-access:${accessToken.id}`,
-      timeoutMs: 15_000
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        actorType: AuditActorType.SYSTEM,
-        groupId: group.id,
-        action: "system.send_candidate_access_link",
-        entityType: "CandidateAccessToken",
-        entityId: accessToken.id,
-        afterData: {
+    await prisma.$transaction(async (tx) => {
+      const accessToken = await tx.candidateAccessToken.create({
+        data: {
+          groupId: group.id,
+          tokenHash: hashCandidateToken(rawToken),
+          name: input.name,
+          email: input.email,
           normalizedEmail: input.email,
-          status: result.status,
-          dryRun: result.dryRun,
-          emailId: result.emailId ?? null
+          expiresAt
+        },
+        select: { id: true }
+      });
+      const outbox = await enqueueCandidateAccessEmail(
+        {
+          kind: "candidate-access",
+          groupId: group.id,
+          accessTokenId: accessToken.id,
+          recipientEmail: input.email,
+          recipientName: input.name,
+          subject: email.subject,
+          encryptedBody: encryptCandidateAccessContent(email.body)
+        },
+        tx
+      );
+      await tx.auditLog.create({
+        data: {
+          actorType: AuditActorType.SYSTEM,
+          groupId: group.id,
+          action: "system.queue_candidate_access_link",
+          entityType: "CandidateAccessToken",
+          entityId: accessToken.id,
+          afterData: {
+            status: "queued",
+            outboxId: outbox.id
+          }
         }
-      }
+      });
     });
   } catch (error) {
-    await prisma.auditLog.create({
-      data: {
-        actorType: AuditActorType.SYSTEM,
+    console.error(
+      JSON.stringify({
+        event: "candidate_access_queue_failure",
         groupId: group.id,
-        action: "system.send_candidate_access_link",
-        entityType: "CandidateAccessToken",
-        entityId: accessToken.id,
-        afterData: {
-          normalizedEmail: input.email,
-          status: "failure",
-          errorMessage: error instanceof Error ? error.message.slice(0, 240) : "发送失败"
-        }
-      }
-    });
-
-    if (!devPreview) {
-      return { status: "error", message: "访问链接发送失败，请联系招聘方。" };
-    }
+        error: error instanceof Error ? error.message.slice(0, 240) : "queue failure"
+      })
+    );
+    return { status: "error", message: "访问链接发送服务暂不可用，请联系招聘方。" };
   }
 
+  const devPreview = isCandidateAuthDevPreviewEnabled();
   return {
     status: "success",
-    message: "访问链接已发送到邮箱，请从邮件中的链接进入。",
+    message: "访问链接已进入发送队列，请稍后从邮件中的链接进入。",
     previewHref: devPreview ? withBasePath(accessPath) : undefined
   };
 }

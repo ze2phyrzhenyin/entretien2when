@@ -1,4 +1,4 @@
-import { AdminRole, AdminStatus, PrismaClient } from "@prisma/client";
+import { AdminRole, AdminStatus, AuditActorType, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { hashPassword } from "../src/lib/auth/password";
 
@@ -27,19 +27,31 @@ function parseArgs() {
 async function main() {
   const input = parseArgs();
 
-  const admin = await prisma.admin.create({
-    data: {
-      email: input.email,
-      passwordHash: await hashPassword(input.password),
-      displayName: input.displayName,
-      role: input.role,
-      status: AdminStatus.ACTIVE
-    },
-    select: {
-      id: true,
-      email: true,
-      role: true
-    }
+  const admin = await prisma.$transaction(async (tx) => {
+    const created = await tx.admin.create({
+      data: {
+        email: input.email,
+        passwordHash: await hashPassword(input.password),
+        displayName: input.displayName,
+        role: input.role,
+        status: AdminStatus.ACTIVE
+      },
+      select: {
+        id: true,
+        email: true,
+        role: true
+      }
+    });
+    await tx.auditLog.create({
+      data: {
+        actorType: AuditActorType.SYSTEM,
+        action: "system.create_administrator_cli",
+        entityType: "Admin",
+        entityId: created.id,
+        afterData: created
+      }
+    });
+    return created;
   });
 
   console.log(`Created admin ${admin.email} (${admin.role}) id=${admin.id}`);

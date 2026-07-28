@@ -33,6 +33,7 @@ type AdminForPermission = Pick<Admin, "id" | "role">;
 export type GroupCapabilities = {
   canRead: boolean;
   canManageSettings: boolean;
+  canManageMembers: boolean;
   canSchedule: boolean;
   canReview: boolean;
   canManageCandidates: boolean;
@@ -48,6 +49,7 @@ export type AdminNavigationCapabilities = {
 const noGroupCapabilities: GroupCapabilities = {
   canRead: false,
   canManageSettings: false,
+  canManageMembers: false,
   canSchedule: false,
   canReview: false,
   canManageCandidates: false
@@ -56,6 +58,7 @@ const noGroupCapabilities: GroupCapabilities = {
 const fullGroupCapabilities: GroupCapabilities = {
   canRead: true,
   canManageSettings: true,
+  canManageMembers: true,
   canSchedule: true,
   canReview: true,
   canManageCandidates: true
@@ -106,6 +109,7 @@ export async function getGroupCapabilities(
   return {
     canRead: true,
     canManageSettings: roleIsIncluded(role, groupOwnerRoles),
+    canManageMembers: roleIsIncluded(role, groupOwnerRoles),
     canSchedule: roleIsIncluded(role, groupSchedulingRoles),
     canReview: roleIsIncluded(role, groupReviewRoles),
     canManageCandidates: roleIsIncluded(role, groupCandidateCareRoles)

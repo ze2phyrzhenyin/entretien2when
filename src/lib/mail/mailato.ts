@@ -21,6 +21,10 @@ export type MailatoSendInput = {
   idempotencyKey?: string;
   auditId?: string;
   timeoutMs?: number;
+  attachments?: Array<{
+    filename: string;
+    content: string;
+  }>;
 };
 
 export type MailatoSendResult = {
@@ -67,6 +71,7 @@ export function buildMailatoArgs({
   bodyFile,
   idempotencyKey,
   auditId,
+  attachmentFiles,
   dryRun
 }: {
   recipient?: MailatoRecipient;
@@ -77,6 +82,7 @@ export function buildMailatoArgs({
   bodyFile: string;
   idempotencyKey?: string;
   auditId?: string;
+  attachmentFiles?: string[];
   dryRun: boolean;
 }) {
   const toRecipients = recipients?.length ? recipients : recipient ? [recipient] : [];
@@ -117,6 +123,10 @@ export function buildMailatoArgs({
     args.push("--audit-id", auditId);
   }
 
+  for (const attachmentFile of attachmentFiles ?? []) {
+    args.push("--file", attachmentFile);
+  }
+
   if (dryRun) {
     args.push("--dry-run-json");
   } else {
@@ -133,6 +143,16 @@ export async function sendMailatoEmail(input: MailatoSendInput): Promise<Mailato
 
   try {
     await writeFile(bodyFile, input.body, "utf8");
+    const attachmentFiles = [];
+    for (const attachment of input.attachments ?? []) {
+      const filename = path.basename(attachment.filename).replace(/[^A-Za-z0-9._-]/g, "_");
+      if (!filename || filename === "." || filename === "..") {
+        throw new Error("Mailato attachment filename is invalid.");
+      }
+      const attachmentFile = path.join(tempDir, filename);
+      await writeFile(attachmentFile, attachment.content, "utf8");
+      attachmentFiles.push(attachmentFile);
+    }
     let stdout: string;
     try {
       ({ stdout } = await execFileAsync(
@@ -146,6 +166,7 @@ export async function sendMailatoEmail(input: MailatoSendInput): Promise<Mailato
           bodyFile,
           idempotencyKey: input.idempotencyKey,
           auditId: input.auditId,
+          attachmentFiles,
           dryRun
         }),
         {

@@ -18,23 +18,27 @@ pnpm dev
 ```bash
 pnpm check
 pnpm test
+WHEN2ENTRETIEN_ALLOW_E2E_MUTATION=1 \
+DATABASE_URL='postgresql://.../when2entretien_e2e?schema=public' \
 pnpm test:e2e
-pnpm doctor
+pnpm run app:doctor
 ```
 
 ## 当前阶段
 
 - P0 主流程已在隔离数据库完成代码级验收：管理员登录、建组、候选人邮箱访问链接、提交、修改申请、审核、预约、取消预约、隐私隔离。
-- P1.1 已实现管理员操作日志页 `/admin/audit`，覆盖建组、时间段、候选人提交、修改审核、预约、取消预约、管理员备注等审计记录。
-- P1.2 已落地组级管理员成员权限、负责人通知 outbox、候选人访问 session、ready health check 和固定面试时长预约。
-- P2 已落地招聘项目/默认轮次/面试官池底座，后台新增 `/admin/projects`，预约/改约支持面试官选择和重叠冲突检测。
-- 安全加固已覆盖 HTTPS/basePath Cookie、跨组权限、一次性链接原子消费、排期数据库约束、DST、邮件恢复与共享限流；线上 TLS 配置、凭据轮换和目标库迁移仍须按发布清单由有权限的运维人员执行。
-- CI 已包含 `pnpm check` 和关键串行 E2E job。
+- 管理员与组成员 UI 已支持创建、启停、角色调整、撤权、密码重置、最后一个 `SUPER_ADMIN`/`OWNER` 保护和完整审计。
+- 项目页已支持项目复用、轮次编辑、面试官池、按组/轮次/面试官/状态筛选的项目排期视图。
+- 候选人和面试官邮件通过可靠队列发送；预约、改约、取消均生成 ICS 与 Google/Outlook 快捷链接，并支持自动提醒。
+- 候选人认证链接使用 URL fragment + POST 消费；每个面试组使用独立 Cookie，同一浏览器可并行参加多场招聘流程。
+- 移动后台采用卡片/标签式详情和安全区底部留白，长列表均使用服务端分页或受限时间窗。
+- 安全与运维已覆盖 HTTPS/basePath、权限隔离、并发排期约束、邮件恢复、数据保留、候选人导出/匿名化、部署回滚和备份校验；线上 TLS、凭据轮换和目标库迁移仍须由有权限的运维人员执行。
+- CI 包含依赖审计、完整检查、关键串行 E2E 和真实 production basePath 浏览器验证。
 
 ## 验收证据
 
 - `pnpm check` 已通过 format、lint、typecheck、unit tests 与 production build；完整 E2E 必须在显式指定的隔离数据库中串行运行。
-- 单测覆盖 group code、password hash、group/project permissions、candidate DTO 隐私边界、slot selection、submission review、appointment lock。
+- 单测覆盖权限、隐私边界、一次性认证、加密 outbox、ICS、slot selection、submission review 和 appointment lock。
 - UI 截图位于 `artifacts/ui-snapshots/`。
 
 完整产品、权限、隐私、测试和工程循环见 `docs/`。

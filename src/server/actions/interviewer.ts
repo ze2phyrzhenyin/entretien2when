@@ -9,7 +9,10 @@ import { groupSchedulingRoles, requireProjectPermission } from "@/lib/permission
 import { formValue } from "@/lib/validation/common";
 import { interviewerFormSchema } from "@/lib/validation/interviewer";
 
-function redirectWithInterviewerStatus(projectId: string, status: "created" | "invalid"): never {
+function redirectWithInterviewerStatus(
+  projectId: string,
+  status: "created" | "invalid" | "activated" | "deactivated"
+): never {
   const url = new URL(`http://local/admin/projects/${projectId}`);
   url.searchParams.set("interviewer", status);
   redirect(`${url.pathname}${url.search}`);
@@ -68,4 +71,48 @@ export async function createInterviewerAction(projectId: string, formData: FormD
 
   revalidatePath(`/admin/projects/${projectId}`);
   redirectWithInterviewerStatus(projectId, "created");
+}
+
+export async function updateInterviewerStatusAction(
+  projectId: string,
+  interviewerId: string,
+  formData: FormData
+) {
+  const admin = await requireAdmin();
+  await requireProjectPermission(admin, projectId, groupSchedulingRoles);
+  const statusValue = formValue(formData, "status");
+  if (!(statusValue in InterviewerStatus)) {
+    redirectWithInterviewerStatus(projectId, "invalid");
+  }
+  const status = statusValue as InterviewerStatus;
+
+  const before = await prisma.interviewer.findFirstOrThrow({
+    where: { id: interviewerId, projectId },
+    select: { id: true, name: true, email: true, status: true }
+  });
+  const after = await prisma.$transaction(async (tx) => {
+    const updated = await tx.interviewer.update({
+      where: { id: before.id },
+      data: { status },
+      select: { id: true, name: true, email: true, status: true }
+    });
+    await tx.auditLog.create({
+      data: {
+        actorType: AuditActorType.ADMIN,
+        actorAdminId: admin.id,
+        action: "admin.update_interviewer_status",
+        entityType: "Interviewer",
+        entityId: updated.id,
+        beforeData: before,
+        afterData: updated
+      }
+    });
+    return updated;
+  });
+
+  revalidatePath(`/admin/projects/${projectId}`);
+  redirectWithInterviewerStatus(
+    projectId,
+    after.status === InterviewerStatus.ACTIVE ? "activated" : "deactivated"
+  );
 }

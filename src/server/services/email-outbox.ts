@@ -1,8 +1,9 @@
-import { AuditActorType, EmailOutboxStatus, type Prisma } from "@prisma/client";
-import { sendMailatoEmail } from "@/lib/mail/mailato";
+import { AppointmentStatus, AuditActorType, EmailOutboxStatus, type Prisma } from "@prisma/client";
+import { decryptCandidateAccessContent } from "@/lib/auth/access-link-encryption";
+import { sendMailatoEmail, type MailatoRecipient } from "@/lib/mail/mailato";
 import { prisma } from "@/lib/db/prisma";
 import { pruneExpiredRateLimitBuckets } from "@/lib/rate-limit";
-import { processCandidateEmailRecoveryBatch } from "@/server/services/candidate-email";
+import { processCandidateEmailDeliveryBatch } from "@/server/services/candidate-email";
 
 export type OwnerNotificationOutboxPayload = {
   kind: "owner-notification";
@@ -15,7 +16,46 @@ export type OwnerNotificationOutboxPayload = {
   body: string;
 };
 
+export type CandidateAccessOutboxPayload = {
+  kind: "candidate-access";
+  groupId: string;
+  accessTokenId: string;
+  recipientEmail: string;
+  recipientName: string;
+  subject: string;
+  encryptedBody: string;
+};
+
+export type AppointmentEmailOutboxPayload = {
+  kind: "appointment-email";
+  category: "scheduled" | "rescheduled" | "cancelled" | "reminder";
+  groupId: string;
+  appointmentId: string;
+  expectedStartAt: string;
+  calendarSequence: number;
+  recipientEmail: string;
+  recipientName: string;
+  subject: string;
+  body: string;
+  icsFilename: string;
+  icsContent: string;
+};
+
 type EmailOutboxClient = Pick<Prisma.TransactionClient, "emailOutbox">;
+type ResolvedEmail = {
+  recipient: MailatoRecipient;
+  cc: MailatoRecipient[];
+  subject: string;
+  body: string;
+  attachments?: Array<{ filename: string; content: string }>;
+  groupId: string;
+  entityType: string;
+  entityId: string;
+  event: string;
+  auditAction: string;
+  idempotencyNamespace: string;
+  skipReason?: string;
+};
 
 const OUTBOX_LEASE_MS = 2 * 60 * 1000;
 
@@ -31,6 +71,41 @@ export async function enqueueOwnerNotificationEmail(
     data: {
       type: payload.kind,
       payload
+    },
+    select: { id: true }
+  });
+}
+
+export async function enqueueCandidateAccessEmail(
+  payload: CandidateAccessOutboxPayload,
+  client: EmailOutboxClient = prisma
+) {
+  return client.emailOutbox.create({
+    data: {
+      dedupeKey: `candidate-access:${payload.accessTokenId}`,
+      type: payload.kind,
+      payload
+    },
+    select: { id: true }
+  });
+}
+
+export async function enqueueAppointmentEmail(
+  input: {
+    dedupeKey: string;
+    payload: AppointmentEmailOutboxPayload;
+    nextAttemptAt?: Date;
+  },
+  client: EmailOutboxClient = prisma
+) {
+  return client.emailOutbox.upsert({
+    where: { dedupeKey: input.dedupeKey },
+    update: {},
+    create: {
+      dedupeKey: input.dedupeKey,
+      type: input.payload.kind,
+      payload: input.payload,
+      nextAttemptAt: input.nextAttemptAt ?? new Date()
     },
     select: { id: true }
   });
@@ -65,9 +140,151 @@ function parseOwnerNotificationPayload(value: unknown): OwnerNotificationOutboxP
   return payload;
 }
 
+function parseCandidateAccessPayload(value: unknown): CandidateAccessOutboxPayload | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const payload = value as CandidateAccessOutboxPayload;
+  if (
+    payload.kind !== "candidate-access" ||
+    !payload.groupId ||
+    !payload.accessTokenId ||
+    !payload.recipientEmail ||
+    !payload.recipientName ||
+    !payload.subject ||
+    !payload.encryptedBody
+  ) {
+    return null;
+  }
+  return payload;
+}
+
+function parseAppointmentEmailPayload(value: unknown): AppointmentEmailOutboxPayload | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const payload = value as AppointmentEmailOutboxPayload;
+  if (
+    payload.kind !== "appointment-email" ||
+    !["scheduled", "rescheduled", "cancelled", "reminder"].includes(payload.category) ||
+    !payload.groupId ||
+    !payload.appointmentId ||
+    !payload.expectedStartAt ||
+    !Number.isSafeInteger(payload.calendarSequence) ||
+    !payload.recipientEmail ||
+    !payload.recipientName ||
+    !payload.subject ||
+    !payload.body ||
+    !payload.icsFilename ||
+    !payload.icsContent
+  ) {
+    return null;
+  }
+  return payload;
+}
+
+async function resolveEmail(payloadValue: unknown): Promise<ResolvedEmail | null> {
+  const owner = parseOwnerNotificationPayload(payloadValue);
+  if (owner) {
+    const [primaryRecipient, ...ccRecipients] = owner.recipients;
+    if (!primaryRecipient) {
+      return null;
+    }
+    return {
+      recipient: { email: primaryRecipient, name: "Interview Scheduler" },
+      cc: ccRecipients.map((email) => ({ email })),
+      subject: owner.subject,
+      body: owner.body,
+      groupId: owner.groupId,
+      entityType: owner.entityType,
+      entityId: owner.entityId,
+      event: owner.event,
+      auditAction: "system.owner_notification_email",
+      idempotencyNamespace: "owner-notification"
+    };
+  }
+
+  const candidateAccess = parseCandidateAccessPayload(payloadValue);
+  if (candidateAccess) {
+    return {
+      recipient: {
+        email: candidateAccess.recipientEmail,
+        name: candidateAccess.recipientName
+      },
+      cc: [],
+      subject: candidateAccess.subject,
+      body: decryptCandidateAccessContent(candidateAccess.encryptedBody),
+      groupId: candidateAccess.groupId,
+      entityType: "CandidateAccessToken",
+      entityId: candidateAccess.accessTokenId,
+      event: "candidate.request_access_link",
+      auditAction: "system.candidate_access_email",
+      idempotencyNamespace: "candidate-access"
+    };
+  }
+
+  const appointmentEmail = parseAppointmentEmailPayload(payloadValue);
+  if (!appointmentEmail) {
+    return null;
+  }
+
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentEmail.appointmentId },
+    select: {
+      groupId: true,
+      startAt: true,
+      status: true,
+      calendarSequence: true
+    }
+  });
+  const expectsCancellation = appointmentEmail.category === "cancelled";
+  const expectedStatus = expectsCancellation
+    ? AppointmentStatus.CANCELLED
+    : AppointmentStatus.SCHEDULED;
+  const stale =
+    !appointment ||
+    appointment.groupId !== appointmentEmail.groupId ||
+    appointment.status !== expectedStatus ||
+    appointment.calendarSequence !== appointmentEmail.calendarSequence ||
+    appointment.startAt.toISOString() !== appointmentEmail.expectedStartAt;
+
+  return {
+    recipient: {
+      email: appointmentEmail.recipientEmail,
+      name: appointmentEmail.recipientName
+    },
+    cc: [],
+    subject: appointmentEmail.subject,
+    body: appointmentEmail.body,
+    attachments: [
+      {
+        filename: appointmentEmail.icsFilename,
+        content: appointmentEmail.icsContent
+      }
+    ],
+    groupId: appointmentEmail.groupId,
+    entityType: "Appointment",
+    entityId: appointmentEmail.appointmentId,
+    event: `appointment.${appointmentEmail.category}`,
+    auditAction: "system.appointment_email",
+    idempotencyNamespace: "appointment-email",
+    skipReason: stale ? "appointment_state_changed" : undefined
+  };
+}
+
+async function markInvalidPayload(itemId: string, now: Date, error: unknown) {
+  await prisma.emailOutbox.update({
+    where: { id: itemId },
+    data: {
+      status: EmailOutboxStatus.FAILED,
+      lastError: safeErrorMessage(error),
+      nextAttemptAt: new Date(now.getTime() + 60 * 60 * 1000),
+      leaseExpiresAt: null
+    }
+  });
+}
+
 export async function processEmailOutboxBatch({ take = 20 } = {}) {
-  // The systemd timer invokes this worker once per minute in production. Keep
-  // short-lived shared rate-limit buckets pruned without another daemon.
   await pruneExpiredRateLimitBuckets();
   const now = new Date();
   const leaseExpiresAt = new Date(now.getTime() + OUTBOX_LEASE_MS);
@@ -91,7 +308,7 @@ export async function processEmailOutboxBatch({ take = 20 } = {}) {
         }
       ]
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ nextAttemptAt: "asc" }, { createdAt: "asc" }],
     take: safeTake
   });
 
@@ -112,12 +329,11 @@ export async function processEmailOutboxBatch({ take = 20 } = {}) {
           }
         : {
             id: item.id,
-            status: item.status
+            status: item.status,
+            nextAttemptAt: { lte: now }
           };
     const claimed = await prisma.emailOutbox.updateMany({
-      where: {
-        ...claimWhere
-      },
+      where: claimWhere,
       data: {
         status: EmailOutboxStatus.PROCESSING,
         attempts: { increment: 1 },
@@ -125,54 +341,72 @@ export async function processEmailOutboxBatch({ take = 20 } = {}) {
         leaseExpiresAt
       }
     });
-
     if (claimed.count !== 1) {
       skipped += 1;
       continue;
     }
 
-    const payload = parseOwnerNotificationPayload(item.payload);
-    if (!payload) {
-      await prisma.emailOutbox.update({
-        where: { id: item.id },
-        data: {
-          status: EmailOutboxStatus.FAILED,
-          lastError: "Invalid email outbox payload.",
-          nextAttemptAt: new Date(now.getTime() + 60 * 60 * 1000),
-          leaseExpiresAt: null
-        }
-      });
+    let email: ResolvedEmail | null;
+    try {
+      email = await resolveEmail(item.payload);
+    } catch (error) {
+      await markInvalidPayload(item.id, now, error);
       failed += 1;
       continue;
     }
+    if (!email) {
+      await markInvalidPayload(item.id, now, new Error("Invalid email outbox payload."));
+      failed += 1;
+      continue;
+    }
+    const auditGroup = await prisma.interviewGroup.findUnique({
+      where: { id: email.groupId },
+      select: { id: true }
+    });
+    const auditGroupId = auditGroup?.id ?? null;
+    if (!auditGroup) {
+      email.skipReason = "group_deleted";
+    }
 
-    const [primaryRecipient, ...ccRecipients] = payload.recipients;
-    if (!primaryRecipient) {
-      await prisma.emailOutbox.update({
-        where: { id: item.id },
-        data: {
-          status: EmailOutboxStatus.SENT,
-          processedAt: new Date(),
-          leaseExpiresAt: null
-        }
-      });
+    if (email.skipReason) {
+      await prisma.$transaction([
+        prisma.emailOutbox.update({
+          where: { id: item.id },
+          data: {
+            status: EmailOutboxStatus.SENT,
+            processedAt: new Date(),
+            lastError: email.skipReason,
+            leaseExpiresAt: null
+          }
+        }),
+        prisma.auditLog.create({
+          data: {
+            actorType: AuditActorType.SYSTEM,
+            groupId: auditGroupId,
+            action: "system.appointment_email_skipped",
+            entityType: email.entityType,
+            entityId: email.entityId,
+            afterData: {
+              event: email.event,
+              reason: email.skipReason,
+              outboxId: item.id
+            }
+          }
+        })
+      ]);
       skipped += 1;
       continue;
     }
 
     try {
       const result = await sendMailatoEmail({
-        recipient: {
-          email: primaryRecipient,
-          name: "Interview Scheduler"
-        },
-        cc: ccRecipients.map((email) => ({ email })),
-        subject: payload.subject,
-        body: payload.body,
-        // The outbox id is durable before the provider call, so retries use the
-        // same provider idempotency key even if this worker crashes mid-send.
-        idempotencyKey: `owner-notification:${item.id}`,
-        auditId: `owner-notification:${item.id}`,
+        recipient: email.recipient,
+        cc: email.cc,
+        subject: email.subject,
+        body: email.body,
+        attachments: email.attachments,
+        idempotencyKey: `${email.idempotencyNamespace}:${item.id}`,
+        auditId: `${email.idempotencyNamespace}:${item.id}`,
         timeoutMs: 15_000
       });
 
@@ -189,13 +423,13 @@ export async function processEmailOutboxBatch({ take = 20 } = {}) {
         prisma.auditLog.create({
           data: {
             actorType: AuditActorType.SYSTEM,
-            groupId: payload.groupId,
-            action: "system.owner_notification_email",
-            entityType: payload.entityType,
-            entityId: payload.entityId,
+            groupId: auditGroupId,
+            action: email.auditAction,
+            entityType: email.entityType,
+            entityId: email.entityId,
             afterData: {
-              event: payload.event,
-              recipients: payload.recipients,
+              event: email.event,
+              recipientCount: 1 + email.cc.length,
               status: result.status,
               emailId: result.emailId ?? null,
               dryRun: result.dryRun,
@@ -222,13 +456,13 @@ export async function processEmailOutboxBatch({ take = 20 } = {}) {
         prisma.auditLog.create({
           data: {
             actorType: AuditActorType.SYSTEM,
-            groupId: payload.groupId,
-            action: "system.owner_notification_email",
-            entityType: payload.entityType,
-            entityId: payload.entityId,
+            groupId: auditGroupId,
+            action: email.auditAction,
+            entityType: email.entityType,
+            entityId: email.entityId,
             afterData: {
-              event: payload.event,
-              recipients: payload.recipients,
+              event: email.event,
+              recipientCount: 1 + email.cc.length,
               status: "failure",
               errorMessage,
               outboxId: item.id
@@ -240,6 +474,6 @@ export async function processEmailOutboxBatch({ take = 20 } = {}) {
     }
   }
 
-  const candidateRecovery = await processCandidateEmailRecoveryBatch({ take: safeTake });
-  return { processed: items.length, sent, failed, skipped, candidateRecovery };
+  const candidateDeliveries = await processCandidateEmailDeliveryBatch({ take: safeTake });
+  return { processed: items.length, sent, failed, skipped, candidateDeliveries };
 }

@@ -61,6 +61,13 @@ function readGroupFormValues(formData: FormData) {
   };
 }
 
+function readProjectBinding(formData: FormData) {
+  return {
+    projectId: formValue(formData, "projectId"),
+    roundId: formValue(formData, "roundId")
+  };
+}
+
 function getGroupFormStateFromError(error: z.ZodError): GroupFormState {
   const flattenedErrors = error.flatten().fieldErrors;
   const fieldErrors: GroupFormFieldErrors = {};
@@ -90,27 +97,41 @@ export async function createGroupAction(
     return getGroupFormStateFromError(parsed.error);
   }
   const input = parsed.data;
+  const binding = readProjectBinding(formData);
+  if (Boolean(binding.projectId) !== Boolean(binding.roundId)) {
+    return { status: "error", message: "复用项目时必须选择该项目下的轮次。" };
+  }
 
   const groupCode = await generateUniqueGroupCode();
   const group = await prisma.$transaction(async (tx) => {
-    const project = await tx.interviewProject.create({
-      data: {
-        name: input.name,
-        publicDescription: input.publicDescription || null,
-        createdByAdminId: admin.id
-      },
-      select: { id: true }
-    });
-    const round = await tx.interviewRound.create({
-      data: {
-        projectId: project.id,
-        name: "默认轮次",
-        orderIndex: 1,
-        description: input.publicDescription || null,
-        interviewDurationMinutes: input.interviewDurationMinutes
-      },
-      select: { id: true }
-    });
+    const project = binding.projectId
+      ? await tx.interviewProject.findFirstOrThrow({
+          where: { id: binding.projectId, status: "ACTIVE" },
+          select: { id: true }
+        })
+      : await tx.interviewProject.create({
+          data: {
+            name: input.name,
+            publicDescription: input.publicDescription || null,
+            createdByAdminId: admin.id
+          },
+          select: { id: true }
+        });
+    const round = binding.roundId
+      ? await tx.interviewRound.findFirstOrThrow({
+          where: { id: binding.roundId, projectId: project.id },
+          select: { id: true }
+        })
+      : await tx.interviewRound.create({
+          data: {
+            projectId: project.id,
+            name: "默认轮次",
+            orderIndex: 1,
+            description: input.publicDescription || null,
+            interviewDurationMinutes: input.interviewDurationMinutes
+          },
+          select: { id: true }
+        });
     const createdGroup = await tx.interviewGroup.create({
       data: {
         ...input,

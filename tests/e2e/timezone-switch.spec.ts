@@ -101,7 +101,7 @@ test("candidate can switch display timezone without changing stored slots", asyn
       expiresAt: new Date(Date.now() + 30 * 60 * 1000)
     }
   });
-  await page.goto(`/candidate/auth/${token}`);
+  await page.goto(`/candidate/auth/confirm#${token}`);
 
   await expect(page.getByRole("heading", { name: "确认进入候选人页面" })).toBeVisible();
   await page.getByRole("button", { name: "继续进入" }).click();

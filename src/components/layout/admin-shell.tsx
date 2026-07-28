@@ -8,6 +8,7 @@ import { getAdminNavigationCapabilities } from "@/lib/permissions/admin";
 const shellTitle: Record<AdminShellActive, string> = {
   groups: "面试组管理",
   projects: "招聘项目",
+  admins: "管理员与角色",
   audit: "审计日志",
   reviews: "修改审核",
   appointments: "面试安排",

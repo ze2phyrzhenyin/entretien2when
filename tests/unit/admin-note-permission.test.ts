@@ -9,12 +9,7 @@ const mocks = vi.hoisted(() => ({
   noteFindFirst: vi.fn(),
   noteCreate: vi.fn(),
   noteUpdate: vi.fn(),
-  auditCreate: vi.fn(),
-  revalidatePath: vi.fn()
-}));
-
-vi.mock("next/cache", () => ({
-  revalidatePath: mocks.revalidatePath
+  auditCreate: vi.fn()
 }));
 
 vi.mock("@/lib/auth/session", () => ({
@@ -62,6 +57,7 @@ describe("candidate admin-note authorization", () => {
 
     mocks.requireAdmin.mockResolvedValue({
       id: "admin_a",
+      displayName: "管理员 A",
       role: AdminRole.ADMIN
     });
     mocks.requireGroupPermission.mockResolvedValue(undefined);
@@ -72,7 +68,7 @@ describe("candidate admin-note authorization", () => {
     mocks.candidateFindFirst.mockResolvedValue(null);
 
     await expect(
-      upsertCandidateAdminNoteAction("group_a", "candidate_b", noteFormData())
+      upsertCandidateAdminNoteAction("group_a", "candidate_b", {}, noteFormData())
     ).rejects.toThrow("候选人不属于该面试组");
 
     expect(mocks.candidateFindFirst).toHaveBeenCalledWith({
@@ -83,16 +79,24 @@ describe("candidate admin-note authorization", () => {
     expect(mocks.noteCreate).not.toHaveBeenCalled();
     expect(mocks.noteUpdate).not.toHaveBeenCalled();
     expect(mocks.auditCreate).not.toHaveBeenCalled();
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it("writes a note and audit entry only after candidate/group binding succeeds", async () => {
     mocks.candidateFindFirst.mockResolvedValue({ id: "candidate_a" });
     mocks.noteFindFirst.mockResolvedValue(null);
-    mocks.noteCreate.mockResolvedValue({ id: "note_a" });
+    mocks.noteCreate.mockResolvedValue({ id: "note_a", body: "跟进备注" });
     mocks.auditCreate.mockResolvedValue({ id: "audit_a" });
 
-    await upsertCandidateAdminNoteAction("group_a", "candidate_a", noteFormData());
+    await expect(
+      upsertCandidateAdminNoteAction("group_a", "candidate_a", {}, noteFormData())
+    ).resolves.toMatchObject({
+      status: "success",
+      note: {
+        id: "note_a",
+        body: "跟进备注",
+        authorName: "管理员 A"
+      }
+    });
 
     expect(mocks.noteCreate).toHaveBeenCalledWith({
       data: {
@@ -109,8 +113,5 @@ describe("candidate admin-note authorization", () => {
         action: "admin.upsert_candidate_admin_note"
       })
     });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith(
-      "/admin/groups/group_a/candidates/candidate_a"
-    );
   });
 });

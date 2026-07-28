@@ -376,3 +376,295 @@ test("approve and reject racing on one submission leave a coherent candidate sta
     await Promise.all([approveContext.close(), rejectContext.close()]);
   }
 });
+
+test("two candidates racing for the same slot produce exactly one appointment and one active lock", async ({
+  browser
+}) => {
+  test.setTimeout(60_000);
+  const runId = Date.now().toString(36);
+  const admin = await prisma.admin.upsert({
+    where: { email: adminEmail },
+    update: { role: AdminRole.SUPER_ADMIN, status: AdminStatus.ACTIVE },
+    create: {
+      email: adminEmail,
+      passwordHash: "not-used-by-cookie-test",
+      displayName: "排期完整性测试管理员",
+      role: AdminRole.SUPER_ADMIN,
+      status: AdminStatus.ACTIVE
+    }
+  });
+  const groupName = `${prefix}同时间竞态 ${runId}`;
+  const project = await prisma.interviewProject.create({
+    data: { name: groupName, createdByAdminId: admin.id }
+  });
+  const round = await prisma.interviewRound.create({
+    data: {
+      projectId: project.id,
+      name: "第一轮",
+      orderIndex: 1,
+      interviewDurationMinutes: 30
+    }
+  });
+  const group = await prisma.interviewGroup.create({
+    data: {
+      projectId: project.id,
+      roundId: round.id,
+      name: groupName,
+      groupCode: generateGroupCode(),
+      status: InterviewGroupStatus.OPEN,
+      interviewDurationMinutes: 30,
+      createdByAdminId: admin.id
+    }
+  });
+  const slot = await prisma.groupTimeSlot.create({
+    data: {
+      groupId: group.id,
+      startAt: new Date("2026-10-04T01:00:00.000Z"),
+      endAt: new Date("2026-10-04T01:30:00.000Z"),
+      status: GroupTimeSlotStatus.OPEN
+    }
+  });
+  const candidates = await Promise.all(
+    ["one", "two"].map(async (label, index) => {
+      const candidate = await prisma.candidate.create({
+        data: {
+          groupId: group.id,
+          name: `同时间候选人 ${label}`,
+          email: `same-slot-${label}-${runId}@example.test`,
+          normalizedEmail: `same-slot-${label}-${runId}@example.test`,
+          status: CandidateStatus.SUBMITTED
+        }
+      });
+      const submission = await prisma.candidateSubmission.create({
+        data: {
+          candidateId: candidate.id,
+          groupId: group.id,
+          versionNo: index + 1,
+          submissionType: "INITIAL",
+          candidateNameSnapshot: candidate.name,
+          candidateEmailSnapshot: candidate.email,
+          status: "ACTIVE",
+          slots: {
+            create: {
+              candidateId: candidate.id,
+              groupId: group.id,
+              slotId: slot.id
+            }
+          }
+        }
+      });
+      await prisma.candidate.update({
+        where: { id: candidate.id },
+        data: { activeSubmissionId: submission.id }
+      });
+      return candidate;
+    })
+  );
+
+  const token = await createAdminSessionForBrowser(admin.id);
+  const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
+  try {
+    await Promise.all(contexts.map((context) => authenticateAdminContext(context, token)));
+    const pages = await Promise.all(contexts.map((context) => context.newPage()));
+    await Promise.all(
+      pages.map((page, index) =>
+        page.goto(
+          `/admin/groups/${group.id}/candidates/${candidates[index]!.id}?section=scheduling`
+        )
+      )
+    );
+    for (const page of pages) {
+      await page.getByLabel(/选择 2026\/10\/04 09:00-09:30/).check();
+      await page.getByLabel("确认安排后发送标准面试安排通知").uncheck();
+    }
+    await Promise.allSettled(
+      pages.map((page) => page.getByRole("button", { name: "确认安排并锁定时间" }).click())
+    );
+
+    await expect
+      .poll(() =>
+        prisma.appointment.count({
+          where: { groupId: group.id, status: AppointmentStatus.SCHEDULED }
+        })
+      )
+      .toBe(1);
+    await expect(
+      prisma.timeSlotLock.count({
+        where: { groupId: group.id, activeSlotId: { not: null }, releasedAt: null }
+      })
+    ).resolves.toBe(1);
+    await expect(
+      prisma.candidate.count({
+        where: { groupId: group.id, status: CandidateStatus.SCHEDULED }
+      })
+    ).resolves.toBe(1);
+  } finally {
+    await Promise.all(contexts.map((context) => context.close()));
+  }
+});
+
+test("cancel and reschedule racing leave appointment, candidate, and locks coherent", async ({
+  browser
+}) => {
+  test.setTimeout(60_000);
+  const runId = Date.now().toString(36);
+  const admin = await prisma.admin.upsert({
+    where: { email: adminEmail },
+    update: { role: AdminRole.SUPER_ADMIN, status: AdminStatus.ACTIVE },
+    create: {
+      email: adminEmail,
+      passwordHash: "not-used-by-cookie-test",
+      displayName: "排期完整性测试管理员",
+      role: AdminRole.SUPER_ADMIN,
+      status: AdminStatus.ACTIVE
+    }
+  });
+  const groupName = `${prefix}取消改约竞态 ${runId}`;
+  const project = await prisma.interviewProject.create({
+    data: { name: groupName, createdByAdminId: admin.id }
+  });
+  const round = await prisma.interviewRound.create({
+    data: {
+      projectId: project.id,
+      name: "第一轮",
+      orderIndex: 1,
+      interviewDurationMinutes: 30
+    }
+  });
+  const group = await prisma.interviewGroup.create({
+    data: {
+      projectId: project.id,
+      roundId: round.id,
+      name: groupName,
+      groupCode: generateGroupCode(),
+      status: InterviewGroupStatus.OPEN,
+      interviewDurationMinutes: 30,
+      createdByAdminId: admin.id
+    }
+  });
+  const [oldSlot, newSlot] = await Promise.all([
+    prisma.groupTimeSlot.create({
+      data: {
+        groupId: group.id,
+        startAt: new Date("2026-10-03T01:00:00.000Z"),
+        endAt: new Date("2026-10-03T01:30:00.000Z"),
+        status: GroupTimeSlotStatus.OPEN
+      }
+    }),
+    prisma.groupTimeSlot.create({
+      data: {
+        groupId: group.id,
+        startAt: new Date("2026-10-03T02:00:00.000Z"),
+        endAt: new Date("2026-10-03T02:30:00.000Z"),
+        status: GroupTimeSlotStatus.OPEN
+      }
+    })
+  ]);
+  const candidate = await prisma.candidate.create({
+    data: {
+      groupId: group.id,
+      name: "取消改约竞态候选人",
+      email: `cancel-reschedule-${runId}@example.test`,
+      normalizedEmail: `cancel-reschedule-${runId}@example.test`,
+      status: CandidateStatus.SCHEDULED
+    }
+  });
+  const submission = await prisma.candidateSubmission.create({
+    data: {
+      candidateId: candidate.id,
+      groupId: group.id,
+      versionNo: 1,
+      submissionType: "INITIAL",
+      candidateNameSnapshot: candidate.name,
+      candidateEmailSnapshot: candidate.email,
+      status: "ACTIVE",
+      slots: {
+        create: [oldSlot, newSlot].map((slot) => ({
+          candidateId: candidate.id,
+          groupId: group.id,
+          slotId: slot.id
+        }))
+      }
+    }
+  });
+  await prisma.candidate.update({
+    where: { id: candidate.id },
+    data: { activeSubmissionId: submission.id }
+  });
+  const appointment = await prisma.appointment.create({
+    data: {
+      groupId: group.id,
+      roundId: round.id,
+      candidateId: candidate.id,
+      startAt: oldSlot.startAt,
+      endAt: oldSlot.endAt,
+      status: AppointmentStatus.SCHEDULED,
+      scheduledByAdminId: admin.id,
+      slots: { create: { slotId: oldSlot.id } },
+      locks: {
+        create: {
+          groupId: group.id,
+          slotId: oldSlot.id,
+          activeSlotId: oldSlot.id,
+          lockType: "APPOINTMENT",
+          reasonInternal: `已安排给 ${candidate.name}`,
+          lockedByAdminId: admin.id
+        }
+      }
+    }
+  });
+
+  const token = await createAdminSessionForBrowser(admin.id);
+  const rescheduleContext = await browser.newContext();
+  const cancelContext = await browser.newContext();
+  try {
+    await Promise.all([
+      authenticateAdminContext(rescheduleContext, token),
+      authenticateAdminContext(cancelContext, token)
+    ]);
+    const [reschedulePage, cancelPage] = await Promise.all([
+      rescheduleContext.newPage(),
+      cancelContext.newPage()
+    ]);
+    await Promise.all([
+      reschedulePage.goto(
+        `/admin/groups/${group.id}/candidates/${candidate.id}?section=scheduling`
+      ),
+      cancelPage.goto(`/admin/groups/${group.id}/appointments`)
+    ]);
+    await reschedulePage.getByText("调整面试时间").click();
+    await reschedulePage.getByLabel(/选择 2026\/10\/03 09:00-09:30/).uncheck();
+    await reschedulePage.getByLabel(/选择 2026\/10\/03 10:00-10:30/).check();
+    await reschedulePage.getByLabel("保存后发送标准面试安排通知").uncheck();
+    cancelPage.once("dialog", (dialog) => dialog.accept());
+
+    await Promise.allSettled([
+      reschedulePage.getByRole("button", { name: "保存调整并锁定时间" }).click(),
+      cancelPage.getByRole("table").getByRole("button", { name: "取消" }).click()
+    ]);
+
+    const resolved = await prisma.appointment.findUniqueOrThrow({
+      where: { id: appointment.id },
+      include: {
+        slots: true,
+        locks: true,
+        candidate: { select: { status: true } }
+      }
+    });
+    const activeLocks = resolved.locks.filter(
+      (lock) => lock.activeSlotId !== null && lock.releasedAt === null
+    );
+    if (resolved.status === AppointmentStatus.CANCELLED) {
+      expect(activeLocks).toHaveLength(0);
+      expect(resolved.candidate.status).toBe(CandidateStatus.SUBMITTED);
+    } else {
+      expect(resolved.status).toBe(AppointmentStatus.SCHEDULED);
+      expect(activeLocks.map((lock) => lock.slotId).sort()).toEqual(
+        resolved.slots.map((slot) => slot.slotId).sort()
+      );
+      expect(resolved.candidate.status).toBe(CandidateStatus.SCHEDULED);
+    }
+  } finally {
+    await Promise.all([rescheduleContext.close(), cancelContext.close()]);
+  }
+});

@@ -1,8 +1,8 @@
-import "dotenv/config";
 import { expect, test } from "@playwright/test";
 import { AdminRole, AdminStatus, InterviewGroupStatus, PrismaClient } from "@prisma/client";
 import { generateCandidateToken, hashCandidateToken } from "../../src/lib/auth/candidate-token";
 import { hashPassword } from "../../src/lib/auth/password";
+import { generateGroupCode } from "../../src/lib/group-code/generate";
 
 const prisma = new PrismaClient();
 const adminEmail = "e2e-candidate-auth-security@example.com";
@@ -17,7 +17,7 @@ async function createOpenGroup(adminId: string) {
   return prisma.interviewGroup.create({
     data: {
       name: `${groupNamePrefix}${suffix}`,
-      groupCode: `AUTH-${suffix}`,
+      groupCode: generateGroupCode(),
       status: InterviewGroupStatus.OPEN,
       createdByAdminId: adminId
     },
@@ -75,7 +75,7 @@ test.describe("candidate magic-link security", () => {
     await prisma.$disconnect();
   });
 
-  test("GET is a non-consuming preview and concurrent POSTs claim one session only", async ({
+  test("legacy GET moves the token to a fragment and concurrent body POSTs claim one session only", async ({
     request
   }) => {
     const group = await createOpenGroup(adminId);
@@ -83,7 +83,7 @@ test.describe("candidate magic-link security", () => {
 
     const preview = await request.get(`/candidate/auth/${token}`, { maxRedirects: 0 });
     expect(preview.status()).toBe(302);
-    expect(preview.headers()["location"]).toContain(`/candidate/auth/confirm/${token}`);
+    expect(preview.headers()["location"]).toContain(`/candidate/auth/confirm#${token}`);
     await expect
       .poll(() =>
         prisma.candidateAccessToken.findUnique({
@@ -95,7 +95,10 @@ test.describe("candidate magic-link security", () => {
 
     const attempts = await Promise.all(
       Array.from({ length: 12 }, () =>
-        request.post(`/candidate/auth/${token}`, { maxRedirects: 0 })
+        request.post("/candidate/auth/consume", {
+          form: { token },
+          maxRedirects: 0
+        })
       )
     );
     const successfulAttempts = attempts.filter((response) =>
@@ -131,7 +134,10 @@ test.describe("candidate magic-link security", () => {
       data: { status: InterviewGroupStatus.CLOSED }
     });
 
-    const response = await request.post(`/candidate/auth/${token}`, { maxRedirects: 0 });
+    const response = await request.post("/candidate/auth/consume", {
+      form: { token },
+      maxRedirects: 0
+    });
     expect(response.status()).toBe(303);
     expect(response.headers()["location"]).toContain("/join?access=invalid");
     await expect
@@ -149,5 +155,41 @@ test.describe("candidate magic-link security", () => {
         })
       )
       .toBe(0);
+  });
+
+  test("one browser keeps independent candidate sessions for multiple groups", async ({
+    request
+  }) => {
+    const [firstGroup, secondGroup] = await Promise.all([
+      createOpenGroup(adminId),
+      createOpenGroup(adminId)
+    ]);
+    const [firstAccess, secondAccess] = await Promise.all([
+      createAccessToken(firstGroup.id),
+      createAccessToken(secondGroup.id)
+    ]);
+
+    for (const token of [firstAccess.token, secondAccess.token]) {
+      const response = await request.post("/candidate/auth/consume", {
+        form: { token },
+        maxRedirects: 0
+      });
+      expect(response.status()).toBe(303);
+    }
+
+    const [firstPage, secondPage] = await Promise.all([
+      request.get(`/candidate/${firstGroup.groupCode}`),
+      request.get(`/candidate/${secondGroup.groupCode}`)
+    ]);
+    expect(firstPage.status()).toBe(200);
+    expect(secondPage.status()).toBe(200);
+    expect(await firstPage.text()).toContain("认证测试候选人");
+    expect(await secondPage.text()).toContain("认证测试候选人");
+    await expect(
+      prisma.candidateSession.groupBy({
+        by: ["groupId"],
+        where: { groupId: { in: [firstGroup.id, secondGroup.id] } }
+      })
+    ).resolves.toHaveLength(2);
   });
 });

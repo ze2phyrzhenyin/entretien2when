@@ -26,6 +26,7 @@ type CandidateEmailBatchSummaryProps = {
 };
 
 const statusLabel: Record<CandidateEmailDeliveryStatus, string> = {
+  PENDING: "已进入发送队列",
   PROCESSING: "投递处理中",
   SENT: "已发送",
   PREVIEW: "测试发送预览",
@@ -33,6 +34,7 @@ const statusLabel: Record<CandidateEmailDeliveryStatus, string> = {
 };
 
 const statusTone: Record<CandidateEmailDeliveryStatus, BadgeTone> = {
+  PENDING: "info",
   PROCESSING: "warning",
   SENT: "success",
   PREVIEW: "info",

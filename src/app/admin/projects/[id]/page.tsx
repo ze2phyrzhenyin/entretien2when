@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Mail, Plus, Users } from "lucide-react";
+import { CalendarRange, Mail, Plus, Users } from "lucide-react";
+import { AdminRole, InterviewRoundStatus, InterviewerStatus } from "@prisma/client";
 import { InlineNotice } from "@/components/design-system/inline-notice";
 import { MetricCard } from "@/components/design-system/metric-card";
 import { PageHeader } from "@/components/design-system/page-header";
@@ -10,6 +11,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -28,11 +31,15 @@ import {
   groupSchedulingRoles,
   requireProjectPermission
 } from "@/lib/permissions/admin";
-import { createInterviewerAction } from "@/server/actions/interviewer";
+import {
+  createInterviewerAction,
+  updateInterviewerStatusAction
+} from "@/server/actions/interviewer";
+import { createRoundAction, updateRoundAction } from "@/server/actions/project";
 
 type ProjectDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ interviewer?: string }>;
+  searchParams: Promise<{ interviewer?: string; round?: string }>;
 };
 
 export default async function ProjectDetailPage({ params, searchParams }: ProjectDetailPageProps) {
@@ -41,6 +48,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
   await requireProjectPermission(admin, projectId);
   const groupAccessWhere = accessibleGroupWhere(admin);
   const canEditInterviewers = await canAccessProject(admin, projectId, groupSchedulingRoles);
+  const canEditRounds = admin.role === AdminRole.SUPER_ADMIN;
 
   const project = await prisma.interviewProject.findFirstOrThrow({
     where: {
@@ -48,11 +56,13 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
     },
     include: {
       rounds: {
-        where: {
-          groups: {
-            some: groupAccessWhere
-          }
-        },
+        where: canEditRounds
+          ? {}
+          : {
+              groups: {
+                some: groupAccessWhere
+              }
+            },
         orderBy: { orderIndex: "asc" }
       },
       groups: {
@@ -106,9 +116,18 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             : "这个项目由历史面试组自动生成，仅显示你获授权访问的面试组和轮次。")
         }
         action={
-          <Link className="text-sm font-medium text-primary" href="/admin/projects">
-            返回项目列表
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              className="inline-flex items-center gap-2 text-sm font-medium text-primary"
+              href={`/admin/projects/${projectId}/schedule`}
+            >
+              <CalendarRange className="h-4 w-4" aria-hidden="true" />
+              项目排期
+            </Link>
+            <Link className="text-sm font-medium text-primary" href="/admin/projects">
+              返回项目列表
+            </Link>
+          </div>
         }
       />
 
@@ -120,6 +139,26 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       {canEditInterviewers && query.interviewer === "invalid" ? (
         <InlineNotice tone="danger" className="mb-5">
           面试官姓名或邮箱格式不正确。
+        </InlineNotice>
+      ) : null}
+      {canEditInterviewers && query.interviewer === "activated" ? (
+        <InlineNotice tone="success" className="mb-5">
+          面试官已启用。
+        </InlineNotice>
+      ) : null}
+      {canEditInterviewers && query.interviewer === "deactivated" ? (
+        <InlineNotice tone="success" className="mb-5">
+          面试官已停用，历史安排不受影响。
+        </InlineNotice>
+      ) : null}
+      {query.round === "created" || query.round === "updated" ? (
+        <InlineNotice tone="success" className="mb-5">
+          轮次已保存并写入审计日志。
+        </InlineNotice>
+      ) : null}
+      {query.round === "invalid" || query.round === "order-conflict" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          轮次信息无效，或排序编号与同项目其他轮次冲突。
         </InlineNotice>
       ) : null}
 
@@ -155,10 +194,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       >
         <div className="space-y-6">
           <Card className="p-5">
-            <SectionHeader
-              title="轮次"
-              description="默认轮次会继承面试组时长，后续可扩展为多轮面试流程。"
-            />
+            <SectionHeader title="轮次" description="维护项目内的轮次顺序、状态与面试时长。" />
             <div className="mt-4 space-y-3">
               {project.rounds.map((round) => {
                 const stats = roundStats.get(round.id) ?? {
@@ -169,7 +205,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                 return (
                   <div
                     key={round.id}
-                    className="rounded-lg border border-border bg-surface-subtle px-4 py-3"
+                    className="rounded-lg border border-border bg-surface-subtle p-4"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
@@ -189,10 +225,88 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                     <p className="mt-2 text-xs text-muted-foreground">
                       关联 {stats.groupCount} 个获授权面试组，{stats.appointmentCount} 个面试安排
                     </p>
+                    {canEditRounds ? (
+                      <details className="mt-3 rounded-md border border-border bg-white p-3">
+                        <summary className="cursor-pointer text-sm font-medium">编辑轮次</summary>
+                        <form
+                          action={updateRoundAction.bind(null, projectId)}
+                          className="mt-3 grid gap-3 md:grid-cols-2"
+                        >
+                          <input type="hidden" name="roundId" value={round.id} />
+                          <Input name="name" defaultValue={round.name} required />
+                          <Input
+                            name="orderIndex"
+                            type="number"
+                            min={1}
+                            defaultValue={round.orderIndex}
+                            required
+                          />
+                          <Input
+                            name="interviewDurationMinutes"
+                            type="number"
+                            min={5}
+                            max={480}
+                            defaultValue={round.interviewDurationMinutes ?? 30}
+                            required
+                          />
+                          <Select name="status" defaultValue={round.status}>
+                            {Object.values(InterviewRoundStatus).map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </Select>
+                          <Textarea
+                            name="description"
+                            defaultValue={round.description ?? ""}
+                            placeholder="轮次说明"
+                            className="md:col-span-2"
+                          />
+                          <SubmitButton variant="secondary" className="md:col-span-2">
+                            保存轮次
+                          </SubmitButton>
+                        </form>
+                      </details>
+                    ) : null}
                   </div>
                 );
               })}
             </div>
+            {canEditRounds ? (
+              <details className="mt-4 rounded-lg border border-dashed border-border p-4">
+                <summary className="cursor-pointer text-sm font-semibold">新增轮次</summary>
+                <form
+                  action={createRoundAction.bind(null, projectId)}
+                  className="mt-4 grid gap-3 md:grid-cols-2"
+                >
+                  <Input name="name" placeholder="例如：第二轮" required />
+                  <Input
+                    name="orderIndex"
+                    type="number"
+                    min={1}
+                    defaultValue={project.rounds.length + 1}
+                    required
+                  />
+                  <Input
+                    name="interviewDurationMinutes"
+                    type="number"
+                    min={5}
+                    max={480}
+                    defaultValue={30}
+                    required
+                  />
+                  <Select name="status" defaultValue={InterviewRoundStatus.ACTIVE}>
+                    {Object.values(InterviewRoundStatus).map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </Select>
+                  <Textarea name="description" placeholder="轮次说明" className="md:col-span-2" />
+                  <SubmitButton className="md:col-span-2">新增轮次</SubmitButton>
+                </form>
+              </details>
+            ) : null}
           </Card>
 
           <Card className="p-5">
@@ -256,6 +370,23 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                         {interviewer.email}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">{interviewer.status}</p>
+                      <form
+                        action={updateInterviewerStatusAction.bind(null, projectId, interviewer.id)}
+                        className="mt-2"
+                      >
+                        <input
+                          type="hidden"
+                          name="status"
+                          value={
+                            interviewer.status === InterviewerStatus.ACTIVE
+                              ? InterviewerStatus.INACTIVE
+                              : InterviewerStatus.ACTIVE
+                          }
+                        />
+                        <SubmitButton size="sm" variant="secondary">
+                          {interviewer.status === InterviewerStatus.ACTIVE ? "停用" : "启用"}
+                        </SubmitButton>
+                      </form>
                     </div>
                   ))}
                 </div>

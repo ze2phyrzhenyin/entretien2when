@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicAppUrl, getRequestBasePath, withBasePath } from "@/lib/app-url";
 import {
-  CANDIDATE_SESSION_COOKIE_NAME,
   consumeCandidateAccessToken,
+  getCandidateSessionCookieName,
   getCandidateSessionCookieOptions
 } from "@/lib/auth/candidate-session";
 import { isCandidateToken } from "@/lib/auth/candidate-token";
@@ -34,9 +34,9 @@ function redirectForRequest(request: NextRequest, pathAndSearch: string, status:
 }
 
 /**
- * GET intentionally does not consume a magic link. Email security scanners
- * and link previews commonly issue GETs; consumption happens only after the
- * candidate confirms with the POST form on the intermediate page.
+ * Compatibility route for links issued before fragment-based tokens. A legacy
+ * request may already have exposed its token to an access log, so immediately
+ * move it into a fragment and issue no new legacy links.
  */
 export async function GET(request: NextRequest, { params }: CandidateAuthRouteProps) {
   const { token } = await params;
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest, { params }: CandidateAuthRoutePr
     return redirectForRequest(request, "/join?access=invalid");
   }
 
-  return redirectForRequest(request, `/candidate/auth/confirm/${encodeURIComponent(token)}`, 302);
+  return redirectForRequest(request, `/candidate/auth/confirm#${encodeURIComponent(token)}`, 302);
 }
 
 export async function POST(request: NextRequest, { params }: CandidateAuthRouteProps) {
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest, { params }: CandidateAuthRouteP
   const basePath = getRequestBasePath(request.nextUrl.basePath);
   const response = redirectForRequest(request, `/candidate/${consumed.groupCode}`);
   response.cookies.set(
-    CANDIDATE_SESSION_COOKIE_NAME,
+    getCandidateSessionCookieName(consumed.groupId),
     consumed.sessionToken,
     getCandidateSessionCookieOptions(consumed.expiresAt, basePath)
   );

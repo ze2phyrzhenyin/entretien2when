@@ -28,6 +28,7 @@ describe("mailato adapter", () => {
       bodyFile: "/tmp/body.txt",
       idempotencyKey: "candidate-email-delivery-1",
       auditId: "audit-1",
+      attachmentFiles: ["/tmp/interview.ics"],
       dryRun: true
     });
 
@@ -51,6 +52,8 @@ describe("mailato adapter", () => {
       "candidate-email-delivery-1",
       "--audit-id",
       "audit-1",
+      "--file",
+      "/tmp/interview.ics",
       "--dry-run-json"
     ]);
   });

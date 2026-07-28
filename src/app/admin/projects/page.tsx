@@ -93,11 +93,13 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       _count: {
         select: {
           rounds: {
-            where: {
-              groups: {
-                some: groupAccessWhere
-              }
-            }
+            where: superAdmin
+              ? {}
+              : {
+                  groups: {
+                    some: groupAccessWhere
+                  }
+                }
           },
           groups: {
             where: groupAccessWhere

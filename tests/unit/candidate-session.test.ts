@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InterviewGroupStatus } from "@prisma/client";
 import {
+  getCandidateSessionCookieName,
   getCandidateSessionCookieOptions,
   isCandidateSessionUsable
 } from "@/lib/auth/candidate-session";
@@ -50,5 +51,15 @@ describe("candidate session boundary", () => {
       secure: true,
       path: "/when2entretien"
     });
+  });
+
+  it("derives stable, non-secret cookie names per group", () => {
+    const groupACookie = getCandidateSessionCookieName("group-a");
+    const groupBCookie = getCandidateSessionCookieName("group-b");
+
+    expect(groupACookie).toMatch(/^interview_candidate_session_[A-Za-z0-9_-]{18}$/);
+    expect(groupACookie).not.toContain("group-a");
+    expect(groupACookie).not.toBe(groupBCookie);
+    expect(getCandidateSessionCookieName("group-a")).toBe(groupACookie);
   });
 });

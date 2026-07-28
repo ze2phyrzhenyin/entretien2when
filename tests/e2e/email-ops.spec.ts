@@ -3,6 +3,7 @@ import { AdminRole, AdminStatus, CandidateStatus, InterviewGroupStatus } from "@
 import { hashPassword } from "@/lib/auth/password";
 import { generateGroupCode } from "@/lib/group-code/generate";
 import { prisma } from "@/lib/db/prisma";
+import { processEmailOutboxBatch } from "@/server/services/email-outbox";
 
 const adminEmail = "email-ops-admin@example.com";
 const adminPassword = "Email_Ops_StrongPassword_123!";
@@ -124,15 +125,19 @@ test("admin sends candidate email with preview, delivery history, and batch summ
   await expect(page.getByText("发送候选人通知")).toHaveCount(0);
   await expect(page.getByText("邮件测试候选人")).toBeVisible();
 
-  await page.goto(`/admin/groups/${group.id}/candidates/${candidate.id}`);
+  await page.goto(`/admin/groups/${group.id}/candidates/${candidate.id}?section=email`);
   await expect(page.getByRole("heading", { name: "发送候选人通知" })).toBeVisible();
   await expect(page.getByText(`${group.name} 面试安排通知`).first()).toBeVisible();
   await page.getByLabel(/我已确认收件人/).check();
   await page.getByRole("button", { name: "发送通知" }).click();
 
-  await expect(page.getByText("已发送 1 封候选人通知（测试发送预览）")).toBeVisible();
+  await expect(page.getByText("已将 1 封候选人通知写入可靠发送队列")).toBeVisible();
   await expect(page.getByText("本次通知发送结果")).toBeVisible();
   await expect(page.getByText("邮件测试候选人").first()).toBeVisible();
+  await expect(page.getByText("已进入发送队列").first()).toBeVisible();
+
+  await processEmailOutboxBatch();
+  await page.reload();
   await expect(page.getByText("测试发送预览").first()).toBeVisible();
 
   const delivery = await prisma.candidateEmailDelivery.findFirstOrThrow({
@@ -174,13 +179,14 @@ test("admin updates global candidate email template and send form uses it", asyn
   await templateForm.getByRole("button", { name: "保存模板" }).click();
   await expect(page.getByText("邮件模板已保存。")).toBeVisible();
 
-  await page.goto(`/admin/groups/${group.id}/candidates/${candidate.id}`);
+  await page.goto(`/admin/groups/${group.id}/candidates/${candidate.id}?section=email`);
   await expect(page.getByText(`${group.name} 全局自定义通知`).first()).toBeVisible();
   await expect(page.getByText("你好 邮件测试候选人，这是全局模板。").first()).toBeVisible();
   await page.getByLabel(/我已确认收件人/).check();
   await page.getByRole("button", { name: "发送通知" }).click();
 
-  await expect(page.getByText("已发送 1 封候选人通知（测试发送预览）")).toBeVisible();
+  await expect(page.getByText("已将 1 封候选人通知写入可靠发送队列")).toBeVisible();
+  await processEmailOutboxBatch();
   const delivery = await prisma.candidateEmailDelivery.findFirstOrThrow({
     where: {
       groupId: group.id,

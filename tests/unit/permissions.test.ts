@@ -86,6 +86,7 @@ describe("permission helpers", () => {
     ).resolves.toEqual({
       canRead: true,
       canManageSettings: false,
+      canManageMembers: false,
       canSchedule: false,
       canReview: true,
       canManageCandidates: true
@@ -105,6 +106,7 @@ describe("permission helpers", () => {
     ).resolves.toEqual({
       canRead: true,
       canManageSettings: true,
+      canManageMembers: true,
       canSchedule: true,
       canReview: true,
       canManageCandidates: true

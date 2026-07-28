@@ -4,11 +4,25 @@ import { Card } from "@/components/ui/card";
 import { requireAdmin } from "@/lib/auth/session";
 import { timezoneOptionsWith } from "@/lib/date/timezone";
 import { requireSuperAdmin } from "@/lib/permissions/admin";
+import { prisma } from "@/lib/db/prisma";
 import { NewGroupForm } from "./new-group-form";
 
 export default async function NewGroupPage() {
   const admin = await requireAdmin();
   requireSuperAdmin(admin);
+  const projects = await prisma.interviewProject.findMany({
+    where: { status: "ACTIVE" },
+    orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      rounds: {
+        where: { status: "ACTIVE" },
+        orderBy: { orderIndex: "asc" },
+        select: { id: true, name: true, orderIndex: true }
+      }
+    }
+  });
 
   return (
     <AdminShell admin={admin}>
@@ -18,7 +32,7 @@ export default async function NewGroupPage() {
       />
 
       <Card className="max-w-3xl p-6">
-        <NewGroupForm timezoneOptions={timezoneOptionsWith("Asia/Shanghai")} />
+        <NewGroupForm timezoneOptions={timezoneOptionsWith("Asia/Shanghai")} projects={projects} />
       </Card>
     </AdminShell>
   );

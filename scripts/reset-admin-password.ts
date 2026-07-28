@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { AuditActorType, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { hashPassword } from "../src/lib/auth/password";
 
@@ -36,6 +36,19 @@ async function main() {
 
     const sessions = await tx.adminSession.deleteMany({
       where: { admin: { email: input.email } }
+    });
+    const target = await tx.admin.findUniqueOrThrow({
+      where: { email: input.email },
+      select: { id: true }
+    });
+    await tx.auditLog.create({
+      data: {
+        actorType: AuditActorType.SYSTEM,
+        action: "system.reset_administrator_password_cli",
+        entityType: "Admin",
+        entityId: target.id,
+        afterData: { revokedSessions: sessions.count }
+      }
     });
     return { revokedSessions: sessions.count };
   });

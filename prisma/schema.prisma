@@ -107,6 +107,7 @@ enum AuditActorType {
 }
 
 enum CandidateEmailDeliveryStatus {
+  PENDING
   PROCESSING
   SENT
   PREVIEW
@@ -435,6 +436,7 @@ model Appointment {
   candidateVisibleMessage String?
   meetingLocation         String?
   internalNote            String?
+  calendarSequence        Int               @default(0)
   scheduledByAdminId      String
   scheduledAt             DateTime          @default(now())
   cancelledByAdminId      String?
@@ -540,6 +542,9 @@ model CandidateEmailDelivery {
   idempotencyKey         String?                      @unique
   providerMessageId      String?
   errorMessage           String?
+  attempts               Int                          @default(0)
+  maxAttempts            Int                          @default(3)
+  nextAttemptAt          DateTime                     @default(now())
   leaseExpiresAt         DateTime?
   retriedFromId          String?
   createdAt              DateTime                     @default(now())
@@ -556,6 +561,7 @@ model CandidateEmailDelivery {
   @@index([sentByAdminId])
   @@index([batchId])
   @@index([status, createdAt])
+  @@index([status, nextAttemptAt])
   @@index([status, leaseExpiresAt])
 }
 
@@ -575,18 +581,19 @@ model EmailTemplate {
 }
 
 model EmailOutbox {
-  id            String            @id @default(cuid())
-  status        EmailOutboxStatus @default(PENDING)
-  type          String
-  payload       Json
-  attempts      Int               @default(0)
-  maxAttempts   Int               @default(3)
-  lastError     String?
-  nextAttemptAt DateTime          @default(now())
+  id             String            @id @default(cuid())
+  dedupeKey      String?           @unique
+  status         EmailOutboxStatus @default(PENDING)
+  type           String
+  payload        Json
+  attempts       Int               @default(0)
+  maxAttempts    Int               @default(3)
+  lastError      String?
+  nextAttemptAt  DateTime          @default(now())
   leaseExpiresAt DateTime?
-  processedAt   DateTime?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  processedAt    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@index([status, nextAttemptAt])
   @@index([status, leaseExpiresAt])

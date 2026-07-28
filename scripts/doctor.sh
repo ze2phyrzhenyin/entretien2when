@@ -4,6 +4,13 @@ set -euo pipefail
 echo "Node: $(node --version 2>/dev/null || echo missing)"
 echo "pnpm: $(pnpm --version 2>/dev/null || echo missing)"
 
+if [[ -z "${DATABASE_URL:-}" && -f .env ]]; then
+  app_database_url="$(node --env-file=.env -p 'process.env.DATABASE_URL || ""')"
+  if [[ -n "$app_database_url" ]]; then
+    export DATABASE_URL="$app_database_url"
+  fi
+fi
+
 if [[ -z "${DATABASE_URL:-}" ]]; then
   echo "DATABASE_URL: missing in current shell; copy .env.example to .env before db commands"
 else

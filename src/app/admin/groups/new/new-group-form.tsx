@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Plus } from "lucide-react";
 import { FormField } from "@/components/design-system/form-field";
@@ -29,12 +29,62 @@ function SubmitButton() {
   );
 }
 
-export function NewGroupForm({ timezoneOptions }: { timezoneOptions: TimezoneOption[] }) {
+type ProjectOption = {
+  id: string;
+  name: string;
+  rounds: Array<{ id: string; name: string; orderIndex: number }>;
+};
+
+export function NewGroupForm({
+  timezoneOptions,
+  projects
+}: {
+  timezoneOptions: TimezoneOption[];
+  projects: ProjectOption[];
+}) {
   const [state, formAction] = useActionState(createGroupAction, initialState);
+  const [projectId, setProjectId] = useState("");
   const errors = state.fieldErrors ?? {};
+  const rounds = useMemo(
+    () => projects.find((project) => project.id === projectId)?.rounds ?? [],
+    [projectId, projects]
+  );
 
   return (
     <form action={formAction} className="grid gap-5" noValidate>
+      <div className="rounded-lg border border-border bg-surface-subtle p-4">
+        <p className="font-medium">项目与轮次</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          可以创建全新项目，也可以把本面试组加入现有项目和轮次。
+        </p>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <FormField id="projectId" label="招聘项目">
+            <Select
+              id="projectId"
+              name="projectId"
+              value={projectId}
+              onChange={(event) => setProjectId(event.target.value)}
+            >
+              <option value="">创建新项目和默认轮次</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField id="roundId" label="轮次">
+            <Select id="roundId" name="roundId" disabled={!projectId} required={Boolean(projectId)}>
+              <option value="">{projectId ? "选择轮次" : "将自动创建默认轮次"}</option>
+              {rounds.map((round) => (
+                <option key={round.id} value={round.id}>
+                  {round.orderIndex}. {round.name}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+        </div>
+      </div>
       <FormField id="name" label="面试组名称" error={errors.name}>
         <Input
           id="name"
