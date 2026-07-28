@@ -786,7 +786,8 @@ for i in $(seq 1 60); do
   sleep 1
 done
 grep -q 'interview-scheduler-cn' /tmp/when2entretien-health.json
-curl -fsS -H "Host: $PUBLIC_HOST" "http://127.0.0.1$BASE_PATH/api/health/ready" >/tmp/when2entretien-nginx-health.json
+curl -fsS --noproxy '*' --resolve "$PUBLIC_HOST:443:127.0.0.1" \
+  "$PUBLIC_ORIGIN/api/health/ready" >/tmp/when2entretien-nginx-health.json
 grep -q 'interview-scheduler-cn' /tmp/when2entretien-nginx-health.json
 DEPLOY_SUCCEEDED=1
 
