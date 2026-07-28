@@ -352,7 +352,7 @@ updates = {
 }
 lines = path.read_text().splitlines()
 remaining = set(updates)
-rewritten: list[str] = []
+rewritten = []
 for line in lines:
     key, separator, _ = line.partition("=")
     if separator and key in updates:
