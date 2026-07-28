@@ -162,16 +162,28 @@ log() {
 }
 
 log "Verify public HTTPS and HTTP redirect"
-https_status="$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' "$PUBLIC_ORIGIN/" || true)"
+https_status=""
+for attempt in $(seq 1 10); do
+  https_status="$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' "$PUBLIC_ORIGIN/" || true)"
+  [[ "$https_status" != "000" && -n "$https_status" ]] && break
+  sleep 1
+done
 if [[ "$https_status" == "000" || -z "$https_status" ]]; then
   echo "PUBLIC_ORIGIN must already serve a certificate-validated HTTPS endpoint before deployment." >&2
   exit 1
 fi
 
 http_origin="http://${PUBLIC_ORIGIN#https://}"
-http_headers="$(curl --silent --show-error --max-time 20 --dump-header - --output /dev/null "$http_origin/" || true)"
-http_status="$(printf '%s\n' "$http_headers" | awk 'NR == 1 { print $2 }')"
-http_location="$(printf '%s\n' "$http_headers" | awk 'BEGIN { IGNORECASE = 1 } /^location:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit }')"
+http_headers=""
+http_status=""
+http_location=""
+for attempt in $(seq 1 10); do
+  http_headers="$(curl --silent --show-error --max-time 20 --dump-header - --output /dev/null "$http_origin/" || true)"
+  http_status="$(printf '%s\n' "$http_headers" | awk 'NR == 1 { print $2 }')"
+  http_location="$(printf '%s\n' "$http_headers" | awk 'BEGIN { IGNORECASE = 1 } /^location:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit }')"
+  [[ "$http_status" =~ ^(301|302|307|308)$ && "$http_location" == "$PUBLIC_ORIGIN"* ]] && break
+  sleep 1
+done
 if [[ ! "$http_status" =~ ^(301|302|307|308)$ || "$http_location" != "$PUBLIC_ORIGIN"* ]]; then
   echo "The HTTP endpoint must redirect to the configured HTTPS origin before deployment." >&2
   exit 1
