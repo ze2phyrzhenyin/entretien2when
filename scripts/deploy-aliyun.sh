@@ -180,7 +180,7 @@ http_location=""
 for attempt in $(seq 1 10); do
   http_headers="$(curl --silent --show-error --max-time 20 --dump-header - --output /dev/null "$http_origin/" || true)"
   http_status="$(printf '%s\n' "$http_headers" | awk 'NR == 1 { print $2 }')"
-  http_location="$(printf '%s\n' "$http_headers" | awk 'BEGIN { IGNORECASE = 1 } /^location:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit }')"
+  http_location="$(printf '%s\n' "$http_headers" | awk 'tolower($0) ~ /^location:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit }')"
   [[ "$http_status" =~ ^(301|302|307|308)$ && "$http_location" == "$PUBLIC_ORIGIN"* ]] && break
   sleep 1
 done
