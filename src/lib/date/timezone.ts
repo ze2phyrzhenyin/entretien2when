@@ -1,15 +1,19 @@
+import type { MessageKey } from "@/i18n/catalogs";
+
 export const DEFAULT_TIMEZONE = "Asia/Shanghai";
 
-export const commonTimezones = [
-  { value: "Asia/Shanghai", label: "中国时间 / 上海" },
-  { value: "Europe/Paris", label: "法国时间 / 巴黎" },
+export type TimezoneOption = { value: string; label?: string; labelKey?: MessageKey };
+
+export const commonTimezones: ReadonlyArray<TimezoneOption> = [
+  { value: "Asia/Shanghai", labelKey: "legacy.china_time_shanghai.b67dd764" },
+  { value: "Europe/Paris", labelKey: "legacy.france_time_paris.04282080" },
   { value: "UTC", label: "UTC" },
-  { value: "Asia/Tokyo", label: "日本时间 / 东京" },
-  { value: "Asia/Singapore", label: "新加坡时间" },
-  { value: "America/New_York", label: "美国东部 / 纽约" },
-  { value: "America/Los_Angeles", label: "美国西部 / 洛杉矶" },
-  { value: "Europe/London", label: "英国时间 / 伦敦" }
-] as const;
+  { value: "Asia/Tokyo", labelKey: "legacy.japan_time_tokyo.8315cacf" },
+  { value: "Asia/Singapore", labelKey: "legacy.singapore_time.eb287b8f" },
+  { value: "America/New_York", labelKey: "legacy.us_eastern_new_york.4eba6509" },
+  { value: "America/Los_Angeles", labelKey: "legacy.us_pacific_los_angeles.019b8a89" },
+  { value: "Europe/London", labelKey: "legacy.uk_time_london.0332904e" }
+];
 
 export function isValidTimezone(timezone: string) {
   try {
@@ -21,15 +25,15 @@ export function isValidTimezone(timezone: string) {
 }
 
 export function timezoneOptionsWith(timezone: string) {
-  const options = [...commonTimezones];
+  const options: TimezoneOption[] = [...commonTimezones];
   if (timezone && isValidTimezone(timezone) && !options.some((item) => item.value === timezone)) {
     return [{ value: timezone, label: timezone }, ...options];
   }
   return options;
 }
 
-export function formatDateTime(date: Date, timezone = "Asia/Shanghai") {
-  return new Intl.DateTimeFormat("zh-CN", {
+export function formatDateTime(date: Date, timezone = "Asia/Shanghai", locale = "zh-CN") {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: timezone,
     year: "numeric",
     month: "2-digit",
@@ -40,8 +44,8 @@ export function formatDateTime(date: Date, timezone = "Asia/Shanghai") {
   }).format(date);
 }
 
-export function formatDate(date: Date, timezone = "Asia/Shanghai") {
-  return new Intl.DateTimeFormat("zh-CN", {
+export function formatDate(date: Date, timezone = "Asia/Shanghai", locale = "zh-CN") {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: timezone,
     year: "numeric",
     month: "2-digit",
@@ -49,8 +53,8 @@ export function formatDate(date: Date, timezone = "Asia/Shanghai") {
   }).format(date);
 }
 
-export function formatTime(date: Date, timezone = "Asia/Shanghai") {
-  return new Intl.DateTimeFormat("zh-CN", {
+export function formatTime(date: Date, timezone = "Asia/Shanghai", locale = "zh-CN") {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: timezone,
     hour: "2-digit",
     minute: "2-digit",
@@ -58,16 +62,54 @@ export function formatTime(date: Date, timezone = "Asia/Shanghai") {
   }).format(date);
 }
 
-export function formatDateTimeRange(startAt: Date, endAt: Date, timezone = "Asia/Shanghai") {
-  const sameDate = formatDate(startAt, timezone) === formatDate(endAt, timezone);
+export function formatDateTimeRange(
+  startAt: Date,
+  endAt: Date,
+  timezone = "Asia/Shanghai",
+  locale = "zh-CN"
+) {
+  const sameDate = formatDate(startAt, timezone, locale) === formatDate(endAt, timezone, locale);
   if (sameDate) {
-    return `${formatDate(startAt, timezone)} ${formatTime(startAt, timezone)}-${formatTime(
-      endAt,
-      timezone
-    )}`;
+    return `${formatDate(startAt, timezone, locale)} ${formatTime(
+      startAt,
+      timezone,
+      locale
+    )}-${formatTime(endAt, timezone, locale)}`;
   }
 
-  return `${formatDateTime(startAt, timezone)} - ${formatDateTime(endAt, timezone)}`;
+  return `${formatDateTime(startAt, timezone, locale)} - ${formatDateTime(
+    endAt,
+    timezone,
+    locale
+  )}`;
+}
+
+export function timezoneDisplayName(timezone: string, locale = "zh-CN") {
+  if (timezone === "Asia/Shanghai") {
+    return locale.startsWith("en") ? "China Standard Time" : "北京时间";
+  }
+  return timezone;
+}
+
+export function formatDateTimeWithTimezone(
+  date: Date,
+  timezone = "Asia/Shanghai",
+  locale = "zh-CN"
+) {
+  const formatted = formatDateTime(date, timezone, locale);
+  const zone = timezoneDisplayName(timezone, locale);
+  return locale.startsWith("en") ? `${formatted} (${zone})` : `${formatted}（${zone}）`;
+}
+
+export function formatDateTimeRangeWithTimezone(
+  startAt: Date,
+  endAt: Date,
+  timezone = "Asia/Shanghai",
+  locale = "zh-CN"
+) {
+  const formatted = formatDateTimeRange(startAt, endAt, timezone, locale);
+  const zone = timezoneDisplayName(timezone, locale);
+  return locale.startsWith("en") ? `${formatted} (${zone})` : `${formatted}（${zone}）`;
 }
 
 function getTimezoneParts(date: Date, timezone: string) {

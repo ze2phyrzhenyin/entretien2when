@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import Link from "next/link";
 import { CandidateSubmissionStatus } from "@prisma/client";
 import { PageHeader } from "@/components/design-system/page-header";
@@ -25,20 +26,21 @@ import {
   requireGroupPermission
 } from "@/lib/permissions/admin";
 import { createPagination } from "@/lib/pagination";
-
 type ReviewsPageProps = {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ page?: string }>;
+  params: Promise<{
+    id: string;
+  }>;
+  searchParams: Promise<{
+    page?: string;
+  }>;
 };
-
 const reviewsPageSize = 50;
-
 export default async function ReviewsPage({ params, searchParams }: ReviewsPageProps) {
+  const { t } = await getServerTranslator();
   const [{ id: groupId }, query] = await Promise.all([params, searchParams]);
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, groupReviewRoles);
   const capabilities = await getGroupCapabilities(admin, groupId);
-
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
     select: { name: true, timezone: true }
@@ -75,16 +77,17 @@ export default async function ReviewsPage({ params, searchParams }: ReviewsPageP
       }
     }
   });
-
   return (
     <AdminShell admin={admin}>
       <GroupNav groupId={groupId} active="reviews" capabilities={capabilities} />
       <PageHeader
-        title={`${group.name} · 修改审核`}
-        description="审核通过后，新版本才会替换候选人当前有效版本。"
+        title={t("legacy.value0_modification_review.c22bfcc1", { value0: group.name })}
+        description={t(
+          "legacy.only_after_the_review_is_passed_the_new_version_will_replace_the_candida.d4f01257"
+        )}
         action={
           <Badge tone={submissions.length > 0 ? "warning" : "neutral"}>
-            {totalSubmissionCount} 个待审核
+            {t("review.pendingCount", { count: totalSubmissionCount })}
           </Badge>
         }
       />
@@ -93,18 +96,23 @@ export default async function ReviewsPage({ params, searchParams }: ReviewsPageP
       </div>
 
       {submissions.length === 0 ? (
-        <EmptyState title="没有待审核修改" description="候选人提交修改申请后，会出现在这里。" />
+        <EmptyState
+          title={t("legacy.no_changes_pending_review.2b175a5a")}
+          description={t(
+            "legacy.once_a_candidate_submits_a_revision_application_it_will_appear_here.d6471328"
+          )}
+        />
       ) : (
         <div>
           <TableContainer>
             <Table>
               <TableHeader>
                 <tr>
-                  <TableHead>候选人</TableHead>
-                  <TableHead>版本</TableHead>
-                  <TableHead>选择数量</TableHead>
-                  <TableHead>提交时间</TableHead>
-                  <TableHead>操作</TableHead>
+                  <TableHead>{t("legacy.candidates.ea62aaa5")}</TableHead>
+                  <TableHead>{t("legacy.version.5f76b2bf")}</TableHead>
+                  <TableHead>{t("legacy.select_quantity.da4c9867")}</TableHead>
+                  <TableHead>{t("legacy.submission_time.6bc352ca")}</TableHead>
+                  <TableHead>{t("legacy.actions.ed31fbb4")}</TableHead>
                 </tr>
               </TableHeader>
               <TableBody>
@@ -114,7 +122,9 @@ export default async function ReviewsPage({ params, searchParams }: ReviewsPageP
                       <p className="font-medium">{submission.candidate.name}</p>
                       <p className="text-muted-foreground">{submission.candidate.email}</p>
                     </TableCell>
-                    <TableCell>版本 {submission.versionNo}</TableCell>
+                    <TableCell>
+                      {t("submission.versionLabel", { version: submission.versionNo })}
+                    </TableCell>
                     <TableCell>{submission.slots.length}</TableCell>
                     <TableCell>
                       <ZonedDateTime
@@ -127,7 +137,7 @@ export default async function ReviewsPage({ params, searchParams }: ReviewsPageP
                         className="font-medium text-primary"
                         href={`/admin/groups/${groupId}/reviews/${submission.id}`}
                       >
-                        审核
+                        {t("legacy.review.948c5c16")}
                       </Link>
                     </TableCell>
                   </TableRow>
@@ -139,7 +149,7 @@ export default async function ReviewsPage({ params, searchParams }: ReviewsPageP
             <PaginationNav
               pathname={`/admin/groups/${groupId}/reviews`}
               searchParams={{}}
-              itemLabel="个待审核修改"
+              itemLabel={t("legacy.modifications_pending_review.f3888394")}
               {...pagination}
             />
           </div>

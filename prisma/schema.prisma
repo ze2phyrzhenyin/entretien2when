@@ -324,6 +324,7 @@ model Candidate {
   email              String
   normalizedEmail    String
   status             CandidateStatus @default(SUBMITTED)
+  preferredLocale    String          @default("zh-CN")
   activeSubmissionId String?         @unique
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
@@ -350,6 +351,7 @@ model CandidateAccessToken {
   name            String
   email           String
   normalizedEmail String
+  locale          String    @default("zh-CN")
   expiresAt       DateTime
   consumedAt      DateTime?
   createdAt       DateTime  @default(now())
@@ -368,6 +370,7 @@ model CandidateSession {
   name            String
   email           String
   normalizedEmail String
+  locale          String   @default("zh-CN")
   expiresAt       DateTime
   createdAt       DateTime @default(now())
 
@@ -538,6 +541,7 @@ model CandidateEmailDelivery {
   candidateNameSnapshot  String
   recipientEmailSnapshot String
   ccEmailSnapshots       String[]                     @default([])
+  locale                 String                       @default("zh-CN")
   status                 CandidateEmailDeliveryStatus
   idempotencyKey         String?                      @unique
   providerMessageId      String?
@@ -567,7 +571,8 @@ model CandidateEmailDelivery {
 
 model EmailTemplate {
   id               String   @id @default(cuid())
-  key              String   @unique
+  key              String
+  locale           String   @default("zh-CN")
   label            String
   subject          String
   body             String
@@ -577,6 +582,8 @@ model EmailTemplate {
 
   updatedByAdmin Admin? @relation("EmailTemplateUpdater", fields: [updatedByAdminId], references: [id], onDelete: SetNull)
 
+  @@unique([key, locale])
+  @@index([locale])
   @@index([updatedByAdminId])
 }
 

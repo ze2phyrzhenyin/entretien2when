@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import Link from "next/link";
 import { AppointmentStatus, type Prisma } from "@prisma/client";
 import { PageHeader } from "@/components/design-system/page-header";
@@ -26,9 +27,11 @@ import {
   requireProjectPermission
 } from "@/lib/permissions/admin";
 import { createPagination } from "@/lib/pagination";
-
+import { appointmentStatusLabel } from "@/lib/status-labels";
 type ProjectSchedulePageProps = {
-  params: Promise<{ id: string }>;
+  params: Promise<{
+    id: string;
+  }>;
   searchParams: Promise<{
     from?: string;
     to?: string;
@@ -39,14 +42,11 @@ type ProjectSchedulePageProps = {
     page?: string;
   }>;
 };
-
 const pageSize = 50;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-
 function dateOnly(value: Date) {
   return value.toISOString().slice(0, 10);
 }
-
 function resolveWindow(from?: string, to?: string) {
   const now = new Date();
   const defaultStart = new Date(
@@ -74,11 +74,11 @@ function resolveWindow(from?: string, to?: string) {
     adjusted: invalid
   };
 }
-
 export default async function ProjectSchedulePage({
   params,
   searchParams
 }: ProjectSchedulePageProps) {
+  const { t } = await getServerTranslator();
   const [{ id: projectId }, query, admin] = await Promise.all([
     params,
     searchParams,
@@ -179,60 +179,90 @@ export default async function ProjectSchedulePage({
     interviewerId,
     status
   };
-
   return (
     <AdminShell admin={admin} active="projects">
       <PageHeader
-        title={`${project.name} · 项目排期`}
-        description={`按日期、面试组、轮次、面试官和状态筛选。每页最多 ${pageSize} 条，日期窗口最多 90 天。`}
+        title={t("legacy.value0_project_scheduling.7f23c270", { value0: project.name })}
+        description={t(
+          "legacy.filter_by_date_interview_group_round_interviewer_and_status_maximum_valu.e53184f3",
+          { value0: pageSize }
+        )}
         action={
           <Link className="text-sm font-medium text-primary" href={`/admin/projects/${projectId}`}>
-            返回项目
+            {t("legacy.return_items.514a2a27")}
           </Link>
         }
       />
       {window.adjusted ? (
         <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          日期范围无效或超过 90 天，已恢复默认窗口。
+          {t(
+            "legacy.date_range_is_invalid_or_older_than_90_days_default_window_has_been_rest.2e2c4d4f"
+          )}
         </p>
       ) : null}
       <Card className="mb-5 p-4">
         <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
-          <Input name="from" type="date" defaultValue={window.from} aria-label="开始日期" />
-          <Input name="to" type="date" defaultValue={window.to} aria-label="结束日期" />
-          <Select name="groupId" defaultValue={groupId ?? ""} aria-label="面试组">
-            <option value="">全部面试组</option>
+          <Input
+            name="from"
+            type="date"
+            defaultValue={window.from}
+            aria-label={t("legacy.start_date.76050649")}
+          />
+          <Input
+            name="to"
+            type="date"
+            defaultValue={window.to}
+            aria-label={t("legacy.end_date.895cd52f")}
+          />
+          <Select
+            name="groupId"
+            defaultValue={groupId ?? ""}
+            aria-label={t("legacy.interview_groups.e677802f")}
+          >
+            <option value="">{t("legacy.all_interview_groups.f0e3213c")}</option>
             {groups.map((group) => (
               <option key={group.id} value={group.id}>
                 {group.name}
               </option>
             ))}
           </Select>
-          <Select name="roundId" defaultValue={roundId ?? ""} aria-label="轮次">
-            <option value="">全部轮次</option>
+          <Select
+            name="roundId"
+            defaultValue={roundId ?? ""}
+            aria-label={t("legacy.round.4890584b")}
+          >
+            <option value="">{t("legacy.all_rounds.ee302df5")}</option>
             {rounds.map((round) => (
               <option key={round.id} value={round.id}>
                 {round.orderIndex}. {round.name}
               </option>
             ))}
           </Select>
-          <Select name="interviewerId" defaultValue={interviewerId ?? ""} aria-label="面试官">
-            <option value="">全部面试官</option>
+          <Select
+            name="interviewerId"
+            defaultValue={interviewerId ?? ""}
+            aria-label={t("legacy.interviewers.5e6ecb10")}
+          >
+            <option value="">{t("legacy.all_interviewers.086459bf")}</option>
             {interviewers.map((interviewer) => (
               <option key={interviewer.id} value={interviewer.id}>
                 {interviewer.name}
               </option>
             ))}
           </Select>
-          <Select name="status" defaultValue={status ?? ""} aria-label="预约状态">
-            <option value="">全部状态</option>
+          <Select
+            name="status"
+            defaultValue={status ?? ""}
+            aria-label={t("legacy.appointment_status.26643ff0")}
+          >
+            <option value="">{t("legacy.all_status.0a379c1e")}</option>
             {Object.values(AppointmentStatus).map((item) => (
               <option key={item} value={item}>
-                {item}
+                {t(appointmentStatusLabel[item])}
               </option>
             ))}
           </Select>
-          <Button type="submit">筛选</Button>
+          <Button type="submit">{t("legacy.filter.b5f15473")}</Button>
         </form>
       </Card>
 
@@ -254,15 +284,30 @@ export default async function ProjectSchedulePage({
               />
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              {appointment.round?.name ?? "未关联轮次"} ·{" "}
-              {appointment.interviewers.map(({ interviewer }) => interviewer.name).join("、") ||
-                "未指定面试官"}
+              {appointment.round
+                ? appointment.interviewers.length > 0
+                  ? t("schedule.assignmentSummary", {
+                      roundName: appointment.round.name,
+                      interviewerNames: appointment.interviewers
+                        .map(({ interviewer }) => interviewer.name)
+                        .join(", ")
+                    })
+                  : t("schedule.assignmentSummaryNoInterviewer", {
+                      roundName: appointment.round.name
+                    })
+                : appointment.interviewers.length > 0
+                  ? t("schedule.assignmentSummaryNoRound", {
+                      interviewerNames: appointment.interviewers
+                        .map(({ interviewer }) => interviewer.name)
+                        .join(", ")
+                    })
+                  : t("schedule.assignmentSummaryNoRoundOrInterviewer")}
             </p>
             <Link
               className="mt-3 inline-flex text-sm font-medium text-primary"
               href={`/admin/groups/${appointment.group.id}/candidates/${appointment.candidate.id}`}
             >
-              查看候选人
+              {t("legacy.view_candidates.8c06d66f")}
             </Link>
           </Card>
         ))}
@@ -273,12 +318,12 @@ export default async function ProjectSchedulePage({
           <Table>
             <TableHeader>
               <tr>
-                <TableHead>时间</TableHead>
-                <TableHead>候选人</TableHead>
-                <TableHead>面试组 / 轮次</TableHead>
-                <TableHead>面试官</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>操作</TableHead>
+                <TableHead>{t("legacy.time.8b6ff498")}</TableHead>
+                <TableHead>{t("legacy.candidates.ea62aaa5")}</TableHead>
+                <TableHead>{t("legacy.interview_group_round.5f351a68")}</TableHead>
+                <TableHead>{t("legacy.interviewers.5e6ecb10")}</TableHead>
+                <TableHead>{t("legacy.status.6320b4a8")}</TableHead>
+                <TableHead>{t("legacy.actions.ed31fbb4")}</TableHead>
               </tr>
             </TableHeader>
             <TableBody>
@@ -298,13 +343,13 @@ export default async function ProjectSchedulePage({
                   <TableCell>
                     <p>{appointment.group.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {appointment.round?.name ?? "未关联轮次"}
+                      {appointment.round?.name ?? t("legacy.unassociated_rounds.f21aa45d")}
                     </p>
                   </TableCell>
                   <TableCell>
                     {appointment.interviewers
                       .map(({ interviewer }) => interviewer.name)
-                      .join("、") || "未指定"}
+                      .join(", ") || t("legacy.not_specified.7409a608")}
                   </TableCell>
                   <TableCell>
                     <StatusBadge kind="appointment" status={appointment.status} />
@@ -314,7 +359,7 @@ export default async function ProjectSchedulePage({
                       className="font-medium text-primary"
                       href={`/admin/groups/${appointment.group.id}/candidates/${appointment.candidate.id}`}
                     >
-                      查看
+                      {t("legacy.check.db8db053")}
                     </Link>
                   </TableCell>
                 </TableRow>
@@ -327,7 +372,8 @@ export default async function ProjectSchedulePage({
         <PaginationNav
           pathname={`/admin/projects/${projectId}/schedule`}
           searchParams={filterSearchParams}
-          itemLabel="个面试安排"
+          itemLabel={t("pagination.appointment.other")}
+          itemLabelOne={t("pagination.appointment.one")}
           {...pagination}
         />
       </div>

@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import Link from "next/link";
 import { AppointmentPreview } from "@/components/admin/appointment-preview";
 import { PageHeader } from "@/components/design-system/page-header";
@@ -28,20 +29,21 @@ import {
 } from "@/lib/permissions/admin";
 import { cancelAppointmentAction } from "@/server/actions/appointment";
 import { createPagination } from "@/lib/pagination";
-
 type AppointmentsPageProps = {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ page?: string }>;
+  params: Promise<{
+    id: string;
+  }>;
+  searchParams: Promise<{
+    page?: string;
+  }>;
 };
-
 const appointmentsPageSize = 50;
-
 export default async function AppointmentsPage({ params, searchParams }: AppointmentsPageProps) {
+  const { t } = await getServerTranslator();
   const [{ id: groupId }, query] = await Promise.all([params, searchParams]);
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, groupSchedulingRoles);
   const capabilities = await getGroupCapabilities(admin, groupId);
-
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
     select: { name: true, timezone: true }
@@ -104,20 +106,27 @@ export default async function AppointmentsPage({ params, searchParams }: Appoint
       }
     }
   });
-
   return (
     <AdminShell admin={admin}>
       <GroupNav groupId={groupId} active="appointments" capabilities={capabilities} />
       <PageHeader
-        title={`${group.name} · 面试安排`}
-        description={`每页显示最多 ${appointmentsPageSize} 个安排，预览最多加载 100 位最近候选人。取消安排会释放时间锁并发送日历取消更新。`}
+        title={t("legacy.value0_interview_arrangement.10c9aae4", { value0: group.name })}
+        description={t(
+          "legacy.displays_up_to_value0_placements_per_page_with_preview_loading_up_to_100.abf842e0",
+          { value0: appointmentsPageSize }
+        )}
       />
       <div className="mb-5">
         <TimezoneSwitcher defaultTimezone={group.timezone} />
       </div>
 
       <section className="mb-6">
-        <SectionHeader title="安排预览" description="同时展示已安排面试和候选人提交的可用时间。" />
+        <SectionHeader
+          title={t("legacy.schedule_a_preview.e4e58260")}
+          description={t(
+            "legacy.also_displays_available_times_for_scheduled_interviews_and_candidate_sub.31236c1e"
+          )}
+        />
         <AppointmentPreview
           groupId={groupId}
           appointments={appointments.map((appointment) => ({
@@ -134,7 +143,6 @@ export default async function AppointmentsPage({ params, searchParams }: Appoint
             if (!candidate.activeSubmission || candidate.activeSubmission.slots.length === 0) {
               return [];
             }
-
             return [
               {
                 candidateId: candidate.id,
@@ -159,19 +167,24 @@ export default async function AppointmentsPage({ params, searchParams }: Appoint
 
       {appointments.length > 0 ? (
         <section>
-          <SectionHeader title="安排明细" description="包含已取消和已完成记录。" />
+          <SectionHeader
+            title={t("legacy.arrangement_details.6e7c18cb")}
+            description={t("legacy.contains_canceled_and_completed_records.b81af528")}
+          />
           <TableContainer>
             <Table className="min-w-[1000px]">
               <TableHeader>
                 <tr>
-                  <TableHead>候选人</TableHead>
-                  <TableHead>时间</TableHead>
-                  <TableHead>面试官</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>地点/链接</TableHead>
-                  <TableHead>给候选人的说明</TableHead>
-                  <TableHead>内部备注（仅管理员可见）</TableHead>
-                  <TableHead>操作</TableHead>
+                  <TableHead>{t("legacy.candidates.ea62aaa5")}</TableHead>
+                  <TableHead>{t("legacy.time.8b6ff498")}</TableHead>
+                  <TableHead>{t("legacy.interviewers.5e6ecb10")}</TableHead>
+                  <TableHead>{t("legacy.status.6320b4a8")}</TableHead>
+                  <TableHead>{t("legacy.location_link.80508f83")}</TableHead>
+                  <TableHead>{t("legacy.instructions_to_candidates.3768407d")}</TableHead>
+                  <TableHead>
+                    {t("legacy.internal_notes_visible_only_to_administrators.00bef15d")}
+                  </TableHead>
+                  <TableHead>{t("legacy.actions.ed31fbb4")}</TableHead>
                 </tr>
               </TableHeader>
               <TableBody>
@@ -219,10 +232,12 @@ export default async function AppointmentsPage({ params, searchParams }: Appoint
                       {appointment.status === "SCHEDULED" ? (
                         <ConfirmForm
                           action={cancelAppointmentAction.bind(null, groupId, appointment.id)}
-                          confirmMessage="确认取消这场面试并释放对应时间吗？候选人安排会立即失效。"
+                          confirmMessage={t(
+                            "legacy.are_you_sure_to_cancel_this_interview_and_release_the_corresponding_time.cc501a5f"
+                          )}
                         >
                           <Button type="submit" variant="danger" size="sm">
-                            取消
+                            {t("legacy.cancel.2cd0f3be")}
                           </Button>
                         </ConfirmForm>
                       ) : (
@@ -238,7 +253,8 @@ export default async function AppointmentsPage({ params, searchParams }: Appoint
             <PaginationNav
               pathname={`/admin/groups/${groupId}/appointments`}
               searchParams={{}}
-              itemLabel="个面试安排"
+              itemLabel={t("pagination.appointment.other")}
+              itemLabelOne={t("pagination.appointment.one")}
               {...pagination}
             />
           </div>

@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { AuditActorType, type Prisma } from "@prisma/client";
@@ -25,13 +26,16 @@ import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { accessibleGroupWhere, groupOwnerRoles, isSuperAdmin } from "@/lib/permissions/admin";
 import { createPagination } from "@/lib/pagination";
-
+import type { MessageKey, Translator } from "@/i18n/catalogs";
 type AdminAuditPageProps = {
-  searchParams: Promise<{ q?: string; actor?: string; groupId?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    actor?: string;
+    groupId?: string;
+    page?: string;
+  }>;
 };
-
 const auditLogsPageSize = 100;
-
 const auditLogInclude = {
   actorAdmin: {
     select: {
@@ -61,80 +65,78 @@ const auditLogInclude = {
     }
   }
 } satisfies Prisma.AuditLogInclude;
-
-type AuditLogRow = Prisma.AuditLogGetPayload<{ include: typeof auditLogInclude }>;
+type AuditLogRow = Prisma.AuditLogGetPayload<{
+  include: typeof auditLogInclude;
+}>;
 type BadgeTone = "neutral" | "success" | "warning" | "danger" | "primary";
-
-const actorTypeLabel: Record<AuditActorType, string> = {
-  ADMIN: "管理员",
-  CANDIDATE: "候选人",
-  SYSTEM: "系统"
+const actorTypeLabel: Record<AuditActorType, MessageKey> = {
+  ADMIN: "legacy.administrator.e1979671",
+  CANDIDATE: "legacy.candidates.ea62aaa5",
+  SYSTEM: "legacy.system.5b50d7c4"
 };
-
 const actorTone: Record<AuditActorType, BadgeTone> = {
   ADMIN: "primary",
   CANDIDATE: "warning",
   SYSTEM: "neutral"
 };
-
-const auditActionLabel: Record<string, string> = {
-  "admin.create_group": "创建面试组",
-  "admin.update_group": "更新面试组设置",
-  "admin.batch_generate_slots": "批量生成开放时间",
-  "admin.update_slot_status": "更新开放时间状态",
-  "admin.batch_delete_slots": "批量删除开放时间",
-  "admin.clear_slots": "清空开放时间",
-  "candidate.submit_initial_availability": "候选人首次提交",
-  "candidate.request_submission_modification": "候选人申请修改",
-  "admin.approve_submission_modification": "管理员通过修改申请",
-  "admin.reject_submission_modification": "管理员拒绝修改申请",
-  "admin.schedule_appointment": "确认面试安排",
-  "admin.reschedule_appointment": "调整面试安排",
-  "admin.cancel_appointment": "取消面试安排",
-  "admin.upsert_candidate_admin_note": "保存管理员跟进备注",
-  "admin.send_candidate_email": "发送候选人通知",
-  "admin.queue_candidate_email": "候选人通知进入发送队列",
-  "admin.send_appointment_email": "发送面试安排通知",
-  "admin.retry_candidate_email": "重试候选人通知",
-  "admin.send_mailato_email": "发送邮件",
-  "admin.update_email_template": "更新邮件模板",
-  "admin.reset_email_template": "恢复默认邮件模板",
-  "admin.create_administrator": "创建管理员",
-  "admin.update_administrator": "更新管理员角色或状态",
-  "admin.reset_administrator_password": "重置管理员密码",
-  "admin.create_group_membership": "添加组成员",
-  "admin.update_group_membership": "更新组成员角色",
-  "admin.revoke_group_membership": "撤销组成员权限",
-  "admin.create_interview_round": "创建面试轮次",
-  "admin.update_interview_round": "更新面试轮次",
-  "admin.upsert_interviewer": "添加或更新面试官",
-  "admin.update_interviewer_status": "更新面试官状态",
-  "admin.export_candidate_data": "导出候选人数据",
-  "admin.anonymize_candidate": "匿名化候选人数据",
-  "system.admin_login_failed": "管理员登录失败",
-  "system.appointment_email_skipped": "跳过失效的排期邮件",
-  "system.owner_notification_not_queued": "负责人通知未入队",
-  "system.process_candidate_email_delivery": "处理候选人邮件队列",
-  "system.queue_candidate_access_link": "候选人访问链接入队"
+const auditActionLabel: Record<string, MessageKey> = {
+  "admin.create_group": "legacy.create_interview_group.b24fbbc5",
+  "admin.update_group": "legacy.update_interview_group_settings.2d4b312e",
+  "admin.batch_generate_slots": "legacy.batch_generation_opening_hours.06539024",
+  "admin.update_slot_status": "legacy.update_opening_hours_status.b6607a23",
+  "admin.batch_delete_slots": "legacy.delete_opening_hours_in_batches.2ccfa1c1",
+  "admin.clear_slots": "legacy.clear_opening_hours.3fe63c16",
+  "candidate.submit_initial_availability": "legacy.candidate_s_first_submission.070a159c",
+  "candidate.request_submission_modification": "legacy.candidate_application_modification.1971427e",
+  "admin.approve_submission_modification": "legacy.admin_applies_through_modifications.a2b2e3f0",
+  "admin.reject_submission_modification":
+    "legacy.the_administrator_rejected_the_modification_request.8c33262c",
+  "admin.schedule_appointment": "legacy.confirm_interview_schedule.4b0df711",
+  "admin.reschedule_appointment": "legacy.adjust_interview_schedule.30512cbe",
+  "admin.cancel_appointment": "legacy.cancel_interview_schedule.154c9384",
+  "admin.upsert_candidate_admin_note": "legacy.save_administrator_follow_up_notes.99f85f89",
+  "admin.send_candidate_email": "legacy.send_candidate_notification.ffe8f9df",
+  "admin.queue_candidate_email": "legacy.candidate_notification_enters_sending_queue.f896b794",
+  "admin.send_appointment_email": "legacy.send_interview_schedule_notification.b4c9314e",
+  "admin.retry_candidate_email": "legacy.retry_candidate_notification.2628ffa2",
+  "admin.send_mailato_email": "legacy.send_email.c268c1b1",
+  "admin.update_email_template": "legacy.update_email_template.5c8daf3a",
+  "admin.reset_email_template": "legacy.restore_default_email_template.ec6067df",
+  "admin.create_administrator": "legacy.create_administrator.09728129",
+  "admin.update_administrator": "legacy.update_administrator_role_or_status.60d2ad6c",
+  "admin.reset_administrator_password": "legacy.reset_administrator_password.f8460de9",
+  "admin.create_group_membership": "legacy.add_group_members.b31a8a36",
+  "admin.update_group_membership": "legacy.update_group_member_roles.94b28649",
+  "admin.revoke_group_membership": "legacy.revoke_group_member_permissions.fd9f8bf5",
+  "admin.create_interview_round": "legacy.create_interview_rounds.cc7c25c7",
+  "admin.update_interview_round": "legacy.update_interview_rounds.8213cbae",
+  "admin.upsert_interviewer": "legacy.add_or_update_interviewers.2bc5ad94",
+  "admin.update_interviewer_status": "legacy.update_interviewer_status.b6e30b47",
+  "admin.export_candidate_data": "legacy.export_candidate_data.e743f7c5",
+  "admin.anonymize_candidate": "legacy.anonymize_candidate_data.41c992cd",
+  "system.admin_login_failed": "legacy.administrator_login_failed.fb2c5d2a",
+  "system.appointment_email_skipped": "legacy.skip_expired_scheduled_emails.9ea6957c",
+  "system.owner_notification_not_queued":
+    "legacy.notification_from_the_person_in_charge_of_not_joining_the_team.a7bd6e98",
+  "system.process_candidate_email_delivery": "legacy.process_the_candidate_mail_queue.fbba91d7",
+  "system.queue_candidate_access_link": "legacy.candidate_access_link_to_join_the_team.810205d6"
 };
-
-const entityTypeLabel: Record<string, string> = {
-  InterviewGroup: "面试组",
-  GroupTimeSlot: "开放时间",
-  CandidateSubmission: "候选人提交",
-  Appointment: "面试安排",
-  CandidateAdminNote: "管理员跟进备注",
-  CandidateEmailBatch: "候选人通知批次",
-  CandidateEmailDelivery: "候选人通知记录",
-  EmailTemplate: "邮件模板",
-  MailatoEmail: "邮件发送记录",
-  Admin: "管理员",
-  AdminGroupMembership: "组成员权限",
-  InterviewRound: "面试轮次",
-  Interviewer: "面试官",
-  Candidate: "候选人"
+const entityTypeLabel: Record<string, MessageKey> = {
+  InterviewGroup: "legacy.interview_groups.e677802f",
+  GroupTimeSlot: "legacy.available_slots.73199769",
+  CandidateSubmission: "legacy.candidate_submission.198713f2",
+  Appointment: "legacy.interviews.2e9d0020",
+  CandidateAdminNote: "legacy.administrator_follow_up_notes.a49ca10e",
+  CandidateEmailBatch: "legacy.candidate_notification_batch.f6b91b63",
+  CandidateEmailDelivery: "legacy.candidate_notification_record.6b16c87f",
+  EmailTemplate: "legacy.email_templates.3e24ad26",
+  MailatoEmail: "legacy.email_sending_record.e15cef5b",
+  Admin: "legacy.administrator.e1979671",
+  AdminGroupMembership: "legacy.group_membership_permissions.6c545533",
+  InterviewRound: "legacy.interview_rounds.f084efaf",
+  Interviewer: "legacy.interviewers.5e6ecb10",
+  Candidate: "legacy.candidates.ea62aaa5"
 };
-
 function parseActorType(value: string | undefined) {
   if (
     value === AuditActorType.ADMIN ||
@@ -143,55 +145,46 @@ function parseActorType(value: string | undefined) {
   ) {
     return value;
   }
-
   return undefined;
 }
-
 function shortId(value: string) {
   return value.length > 12 ? `${value.slice(0, 8)}...` : value;
 }
-
 function formatJson(value: Prisma.JsonValue | null) {
   if (value === null) {
     return "";
   }
-
   const text = JSON.stringify(value);
   return text.length > 120 ? `${text.slice(0, 117)}...` : text;
 }
-
-function getActorDisplay(log: AuditLogRow) {
+function getActorDisplay(log: AuditLogRow, t: Translator) {
   if (log.actorType === AuditActorType.ADMIN && log.actorAdmin) {
     return {
       primary: log.actorAdmin.displayName,
       secondary: log.actorAdmin.email
     };
   }
-
   if (log.actorType === AuditActorType.CANDIDATE && log.actorCandidate) {
     return {
       primary: log.actorCandidate.name,
       secondary: log.actorCandidate.email
     };
   }
-
   return {
-    primary: actorTypeLabel[log.actorType],
+    primary: t(actorTypeLabel[log.actorType]),
     secondary: ""
   };
 }
-
 function getGroupDisplay(log: AuditLogRow) {
   return log.group ?? log.actorCandidate?.group ?? null;
 }
-
 export default async function AdminAuditPage({ searchParams }: AdminAuditPageProps) {
+  const { t } = await getServerTranslator();
   const [admin, query] = await Promise.all([requireAdmin(), searchParams]);
   const q = query.q?.trim() ?? "";
   const actorType = parseActorType(query.actor);
   const selectedGroupId = query.groupId?.trim() ?? "";
   const superAdmin = isSuperAdmin(admin);
-
   const accessibleGroups = await prisma.interviewGroup.findMany({
     // Audit payloads may contain candidate and operator PII. They are an
     // ownership/governance surface rather than a generic group-read surface.
@@ -204,9 +197,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
     }
   });
   const accessibleGroupIds = new Set(accessibleGroups.map((group) => group.id));
-
   const filters: Prisma.AuditLogWhereInput[] = [];
-
   if (!superAdmin) {
     filters.push({
       groupId: {
@@ -214,17 +205,14 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
       }
     });
   }
-
   if (actorType) {
     filters.push({ actorType });
   }
-
   if (selectedGroupId && (superAdmin || accessibleGroupIds.has(selectedGroupId))) {
     filters.push({ groupId: selectedGroupId });
   } else if (selectedGroupId) {
     filters.push({ groupId: "__no_access__" });
   }
-
   if (q) {
     filters.push({
       OR: [
@@ -264,7 +252,6 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
       ]
     });
   }
-
   const where: Prisma.AuditLogWhereInput = filters.length > 0 ? { AND: filters } : {};
   const totalCount = await prisma.auditLog.count({ where });
   const pagination = createPagination({
@@ -279,17 +266,20 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
     take: pagination.pageSize,
     include: auditLogInclude
   });
-
   return (
     <AdminShell admin={admin} active="audit">
       <PageHeader
-        title="审计日志"
+        title={t("legacy.audit_log.a0f79e91")}
         description={
-          superAdmin ? "查看全部关键业务审计记录。" : "仅查看你作为负责人管理的面试组审计记录。"
+          superAdmin
+            ? t("legacy.view_all_key_business_audit_records.bb327f3f")
+            : t(
+                "legacy.view_audit_records_only_for_the_interview_groups_you_manage_as_a_princip.db8f3d02"
+              )
         }
         action={
           <p className="text-sm text-muted-foreground">
-            显示最近 {logs.length} 条，共 {totalCount} 条
+            {t("audit.countSummary", { shown: logs.length, total: totalCount })}
           </p>
         }
       />
@@ -301,7 +291,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
         <form className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_240px_auto_auto]">
           <div className="relative">
             <label className="sr-only" htmlFor="auditSearch">
-              搜索审计日志
+              {t("legacy.search_audit_logs.e824b6c9")}
             </label>
             <Search
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -311,29 +301,29 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
               id="auditSearch"
               name="q"
               defaultValue={q}
-              placeholder="搜索动作、对象、人员或编号"
+              placeholder={t("legacy.search_for_actions_objects_people_or_numbers.337a5ab3")}
               className="pl-9"
             />
           </div>
 
           <div>
             <label className="sr-only" htmlFor="auditActor">
-              操作者类型
+              {t("legacy.operator_type.c02fe8d1")}
             </label>
             <Select id="auditActor" name="actor" defaultValue={actorType ?? ""}>
-              <option value="">全部操作者</option>
-              <option value={AuditActorType.ADMIN}>管理员</option>
-              <option value={AuditActorType.CANDIDATE}>候选人</option>
-              <option value={AuditActorType.SYSTEM}>系统</option>
+              <option value="">{t("legacy.all_operators.655d3c9d")}</option>
+              <option value={AuditActorType.ADMIN}>{t("legacy.administrator.e1979671")}</option>
+              <option value={AuditActorType.CANDIDATE}>{t("legacy.candidates.ea62aaa5")}</option>
+              <option value={AuditActorType.SYSTEM}>{t("legacy.system.5b50d7c4")}</option>
             </Select>
           </div>
 
           <div>
             <label className="sr-only" htmlFor="auditGroup">
-              面试组
+              {t("legacy.interview_groups.e677802f")}
             </label>
             <Select id="auditGroup" name="groupId" defaultValue={selectedGroupId}>
-              <option value="">全部面试组</option>
+              <option value="">{t("legacy.all_interview_groups.f0e3213c")}</option>
               {accessibleGroups.map((group) => (
                 <option key={group.id} value={group.id}>
                   {group.name} · {group.groupCode}
@@ -344,14 +334,14 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
 
           <Button type="submit" variant="secondary" className="h-11">
             <Search className="mr-2 h-4 w-4" aria-hidden="true" />
-            搜索
+            {t("legacy.search.44ce7ae9")}
           </Button>
           {q || actorType || selectedGroupId ? (
             <Link
               href="/admin/audit"
               className="inline-flex h-11 items-center justify-center rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-muted"
             >
-              清除
+              {t("legacy.clear.bce23772")}
             </Link>
           ) : null}
         </form>
@@ -359,8 +349,10 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
 
       {logs.length === 0 ? (
         <EmptyState
-          title="暂无审计记录"
-          description="当管理员或候选人完成提交、审核、面试安排、取消安排等动作后，这里会显示审计记录。"
+          title={t("legacy.no_audit_records_yet.1fbef39b")}
+          description={t(
+            "legacy.when_the_administrator_or_candidate_completes_submission_review_intervie.466481c1"
+          )}
         />
       ) : (
         <div className="space-y-4">
@@ -368,21 +360,22 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
             <Table className="min-w-[980px]">
               <TableHeader>
                 <tr>
-                  <TableHead>时间</TableHead>
-                  <TableHead>操作</TableHead>
-                  <TableHead>操作者</TableHead>
-                  <TableHead>面试组</TableHead>
-                  <TableHead>对象</TableHead>
-                  <TableHead>数据</TableHead>
+                  <TableHead>{t("legacy.time.8b6ff498")}</TableHead>
+                  <TableHead>{t("legacy.actions.ed31fbb4")}</TableHead>
+                  <TableHead>{t("legacy.operator.e18e3f8a")}</TableHead>
+                  <TableHead>{t("legacy.interview_groups.e677802f")}</TableHead>
+                  <TableHead>{t("legacy.object.53f92c06")}</TableHead>
+                  <TableHead>{t("legacy.data.5440f742")}</TableHead>
                 </tr>
               </TableHeader>
               <TableBody>
                 {logs.map((log) => {
-                  const actor = getActorDisplay(log);
+                  const actor = getActorDisplay(log, t);
+                  const actionLabel = auditActionLabel[log.action];
+                  const entityLabel = entityTypeLabel[log.entityType];
                   const group = getGroupDisplay(log);
                   const beforeData = formatJson(log.beforeData);
                   const afterData = formatJson(log.afterData);
-
                   return (
                     <TableRow key={log.id} className="align-top">
                       <TableCell className="whitespace-nowrap text-muted-foreground">
@@ -392,13 +385,13 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                         />
                       </TableCell>
                       <TableCell>
-                        <p className="font-medium">{auditActionLabel[log.action] ?? log.action}</p>
+                        <p className="font-medium">{actionLabel ? t(actionLabel) : log.action}</p>
                         <p className="mt-1 font-mono text-xs text-muted-foreground">{log.action}</p>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col items-start gap-1">
                           <Badge tone={actorTone[log.actorType]}>
-                            {actorTypeLabel[log.actorType]}
+                            {t(actorTypeLabel[log.actorType])}
                           </Badge>
                           <p className="font-medium">{actor.primary}</p>
                           {actor.secondary ? (
@@ -422,7 +415,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                         )}
                       </TableCell>
                       <TableCell>
-                        <p>{entityTypeLabel[log.entityType] ?? log.entityType}</p>
+                        <p>{entityLabel ? t(entityLabel) : log.entityType}</p>
                         <p className="mt-1 font-mono text-xs text-muted-foreground">
                           {shortId(log.entityId)}
                         </p>
@@ -432,12 +425,12 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                           <div className="space-y-1">
                             {beforeData ? (
                               <p className="truncate font-mono text-xs" title={beforeData}>
-                                前：{beforeData}
+                                {t("audit.changeBefore", { value: beforeData })}
                               </p>
                             ) : null}
                             {afterData ? (
                               <p className="truncate font-mono text-xs" title={afterData}>
-                                后：{afterData}
+                                {t("audit.changeAfter", { value: afterData })}
                               </p>
                             ) : null}
                           </div>
@@ -458,7 +451,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
               actor: actorType ?? undefined,
               groupId: selectedGroupId || undefined
             }}
-            itemLabel="条审计记录"
+            itemLabel={t("legacy.audit_records.c6ed100a")}
             {...pagination}
           />
         </div>

@@ -31,11 +31,11 @@ describe("slot deletion safety", () => {
     expect(result.blocked).toEqual([
       {
         id: "slot_with_submission",
-        reasons: ["已有候选人提交引用"]
+        reasons: ["candidate-submission-reference"]
       },
       {
         id: "slot_with_lock",
-        reasons: ["当前已锁定", "存在锁定记录"]
+        reasons: ["active-lock", "lock-history"]
       }
     ]);
   });

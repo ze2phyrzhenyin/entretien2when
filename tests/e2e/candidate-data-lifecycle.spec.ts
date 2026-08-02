@@ -200,7 +200,7 @@ test("authorized export works and anonymization removes denormalized PII while p
     })
   ]);
   expect(anonymized).toMatchObject({
-    name: "已匿名候选人",
+    name: "—",
     email: expect.stringMatching(/^erased\+[a-f0-9]{20}@invalid\.local$/)
   });
   expect(sanitizedAppointment).toMatchObject({
@@ -213,7 +213,7 @@ test("authorized export works and anonymization removes denormalized PII while p
   await expect(
     prisma.candidateSubmission.findUniqueOrThrow({ where: { id: submission.id } })
   ).resolves.toMatchObject({
-    candidateNameSnapshot: "已匿名候选人",
+    candidateNameSnapshot: "—",
     candidateNote: null,
     reviewComment: null
   });

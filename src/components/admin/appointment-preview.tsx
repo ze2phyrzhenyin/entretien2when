@@ -1,22 +1,18 @@
 "use client";
-
 import { CalendarClock, Clock3, MapPin, UserRound } from "lucide-react";
 import { useMemo } from "react";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { Card } from "@/components/ui/card";
 import { useDisplayTimezone } from "@/components/timezone/use-display-timezone";
 import { formatDate, formatTime } from "@/lib/date/timezone";
-
+import { useLocale } from "@/i18n/locale-provider";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-
 function withBasePath(href: string) {
   if (!basePath || !href.startsWith("/") || href.startsWith(basePath)) {
     return href;
   }
-
   return `${basePath}${href}`;
 }
-
 type AppointmentPreviewItem = {
   id: string;
   candidateId: string;
@@ -27,7 +23,6 @@ type AppointmentPreviewItem = {
   status: "SCHEDULED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
   meetingLocation?: string | null;
 };
-
 type CandidateSelectionPreviewItem = {
   candidateId: string;
   candidateName: string;
@@ -41,7 +36,6 @@ type CandidateSelectionPreviewItem = {
     status: "OPEN" | "CLOSED";
   }>;
 };
-
 export function AppointmentPreview({
   groupId,
   appointments,
@@ -53,64 +47,74 @@ export function AppointmentPreview({
   candidateSelections: CandidateSelectionPreviewItem[];
   defaultTimezone: string;
 }) {
+  const { t } = useLocale();
   const { timezone } = useDisplayTimezone(defaultTimezone);
+  const { locale } = useLocale();
   const scheduledAppointments = appointments.filter(
     (appointment) => appointment.status === "SCHEDULED"
   );
-
   const groupedAppointments = useMemo(() => {
-    const groups = new Map<string, Array<AppointmentPreviewItem & { timeLabel: string }>>();
-
+    const groups = new Map<
+      string,
+      Array<
+        AppointmentPreviewItem & {
+          timeLabel: string;
+        }
+      >
+    >();
     for (const appointment of scheduledAppointments) {
       const start = new Date(appointment.startAt);
       const end = new Date(appointment.endAt);
-      const dateLabel = formatDate(start, timezone);
-      const timeLabel = `${formatTime(start, timezone)}-${formatTime(end, timezone)}`;
+      const dateLabel = formatDate(start, timezone, locale);
+      const timeLabel = `${formatTime(start, timezone, locale)}-${formatTime(end, timezone, locale)}`;
       groups.set(dateLabel, [...(groups.get(dateLabel) ?? []), { ...appointment, timeLabel }]);
     }
-
     return [...groups.entries()];
-  }, [scheduledAppointments, timezone]);
-
+  }, [locale, scheduledAppointments, timezone]);
   const formattedCandidateSelections = useMemo(
     () =>
       candidateSelections
         .map((selection) => {
           const groups = new Map<
             string,
-            Array<{ id: string; timeLabel: string; status: "OPEN" | "CLOSED" }>
+            Array<{
+              id: string;
+              timeLabel: string;
+              status: "OPEN" | "CLOSED";
+            }>
           >();
-
           for (const slot of selection.slots) {
             const start = new Date(slot.startAt);
             const end = new Date(slot.endAt);
-            const dateLabel = formatDate(start, timezone);
-            const timeLabel = `${formatTime(start, timezone)}-${formatTime(end, timezone)}`;
+            const dateLabel = formatDate(start, timezone, locale);
+            const timeLabel = `${formatTime(start, timezone, locale)}-${formatTime(end, timezone, locale)}`;
             groups.set(dateLabel, [
               ...(groups.get(dateLabel) ?? []),
               { id: slot.id, timeLabel, status: slot.status }
             ]);
           }
-
           return {
             ...selection,
             groupedSlots: [...groups.entries()]
           };
         })
         .filter((selection) => selection.groupedSlots.length > 0),
-    [candidateSelections, timezone]
+    [candidateSelections, locale, timezone]
   );
-
   return (
     <div className="space-y-6">
       <section className="space-y-3">
         <div>
-          <h3 className="text-base font-semibold">已安排面试</h3>
-          <p className="text-sm text-muted-foreground">已确认并锁定的正式面试时间。</p>
+          <h3 className="text-base font-semibold">{t("legacy.interview_arranged.c7cf9fba")}</h3>
+          <p className="text-sm text-muted-foreground">
+            {t("legacy.formal_interview_time_confirmed_and_locked.bea37bf6")}
+          </p>
         </div>
         {scheduledAppointments.length === 0 ? (
           <div className="rounded-lg border border-border bg-surface-subtle p-5 text-sm text-muted-foreground">
-            暂无已安排面试。确认面试安排后，这里会显示候选人和对应时间。
+            {t(
+              "legacy.no_interviews_have_been_scheduled_yet_after_the_interview_schedule_is_co.6e2a3836"
+            )}
           </div>
         ) : (
           <div className="space-y-5">
@@ -160,14 +164,20 @@ export function AppointmentPreview({
 
       <section className="space-y-3">
         <div>
-          <h3 className="text-base font-semibold">候选人已选时间</h3>
+          <h3 className="text-base font-semibold">
+            {t("legacy.candidate_selected_time.2bd3359e")}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            候选人提交的可用时间，尚未等同于已确认的正式面试安排。
+            {t(
+              "legacy.availability_of_candidate_submissions_does_not_yet_equate_to_confirmed_f.5eafa31b"
+            )}
           </p>
         </div>
         {formattedCandidateSelections.length === 0 ? (
           <div className="rounded-lg border border-border bg-surface-subtle p-5 text-sm text-muted-foreground">
-            暂无候选人提交记录。候选人提交可用时间后会显示在这里。
+            {t(
+              "legacy.there_is_currently_no_candidate_submission_record_candidates_available_t.e89ef20a"
+            )}
           </div>
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">

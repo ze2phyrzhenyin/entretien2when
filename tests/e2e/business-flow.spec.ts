@@ -261,7 +261,7 @@ test.describe("P0 business flow", () => {
     assertFound(pendingSubmission, "Expected pending modification submission.");
 
     await page.goto(`/admin/groups/${group.id}/reviews`);
-    await expect(page.getByText("1 个待审核", { exact: true })).toBeVisible();
+    await expect(page.getByText("待审核：1", { exact: true })).toBeVisible();
     await page.goto(`/admin/groups/${group.id}/reviews/${pendingSubmission.id}`);
     await expect(page.getByRole("heading", { name: "审核修改申请" })).toBeVisible();
     await page.getByPlaceholder("审核意见（可选）").fill("E2E 审核通过");
@@ -351,7 +351,7 @@ test.describe("P0 business flow", () => {
     await page.getByRole("link", { name: "面试排期" }).click();
     await expect(page.getByText(/已安排：/)).toBeVisible();
     await expect(page.getByText(`面试官：${interviewerName}`)).toBeVisible();
-    await expect(page.getByText("2026/08/03 10:00-10:25", { exact: true })).toBeVisible();
+    await expect(page.getByText("已安排：2026/08/03 10:00-10:25", { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "邮件通知" }).click();
     await expect(
       page.getByText("面试时间：2026/08/03 10:00-10:25（北京时间）", { exact: true })
@@ -416,7 +416,7 @@ test.describe("P0 business flow", () => {
     await rescheduleForm.getByLabel("保存后发送标准面试安排通知").uncheck();
     await rescheduleForm.getByLabel("会议地点或链接").fill(rescheduledMeetingLocation);
     await rescheduleForm.getByRole("button", { name: "保存调整并锁定时间" }).click();
-    await expect(page.getByText("2026/08/03 11:00-11:25", { exact: true })).toBeVisible();
+    await expect(page.getByText("已安排：2026/08/03 11:00-11:25", { exact: true })).toBeVisible();
 
     const rescheduledAppointment = await prisma.appointment.findUnique({
       where: { id: scheduledAppointment.id },

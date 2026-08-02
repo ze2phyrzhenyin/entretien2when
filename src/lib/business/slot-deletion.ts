@@ -6,20 +6,23 @@ export type SlotDeletionCandidate = {
   activeLock?: { id: string } | null;
 };
 
+export type SlotDeletionBlockReason =
+  "candidate-submission-reference" | "appointment-reference" | "active-lock" | "lock-history";
+
 function getBlockedSlotDeletionReasons(slot: SlotDeletionCandidate) {
-  const reasons: string[] = [];
+  const reasons: SlotDeletionBlockReason[] = [];
 
   if (slot.submissionSlots.length > 0) {
-    reasons.push("已有候选人提交引用");
+    reasons.push("candidate-submission-reference");
   }
   if (slot.appointmentSlots.length > 0) {
-    reasons.push("已有面试安排引用");
+    reasons.push("appointment-reference");
   }
   if (slot.activeLock) {
-    reasons.push("当前已锁定");
+    reasons.push("active-lock");
   }
   if (slot.locks.length > 0) {
-    reasons.push("存在锁定记录");
+    reasons.push("lock-history");
   }
 
   return reasons;
@@ -27,7 +30,7 @@ function getBlockedSlotDeletionReasons(slot: SlotDeletionCandidate) {
 
 export function partitionDeletableSlots(slots: SlotDeletionCandidate[]) {
   const deletable: string[] = [];
-  const blocked: Array<{ id: string; reasons: string[] }> = [];
+  const blocked: Array<{ id: string; reasons: SlotDeletionBlockReason[] }> = [];
 
   for (const slot of slots) {
     const reasons = getBlockedSlotDeletionReasons(slot);

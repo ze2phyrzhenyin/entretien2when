@@ -17,7 +17,7 @@ export function CandidateShell({
   }[size];
 
   return (
-    <main className="min-h-screen bg-background px-4 py-6 sm:py-8">
+    <main className="min-h-screen bg-background px-4 pb-6 pt-16 sm:pb-8 sm:pt-16">
       <div className={cn("mx-auto", widthClassName, className)}>{children}</div>
     </main>
   );

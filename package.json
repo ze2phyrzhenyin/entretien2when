@@ -14,6 +14,7 @@
     "test:e2e": "playwright test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "i18n:check": "python3 scripts/i18n/check_catalogs.py src/i18n/messages/zh-CN/core.json src/i18n/messages/en/core.json && python3 scripts/i18n/check_catalogs.py src/i18n/messages/zh-CN/legacy.json src/i18n/messages/en/legacy.json && python3 scripts/i18n/check_explicit_ui.py && node scripts/i18n/check-fragmented-jsx.mjs && node scripts/i18n/generate-catalogs.mjs --check",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx scripts/db-seed.ts",

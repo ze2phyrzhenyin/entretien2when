@@ -10,6 +10,8 @@ describe("candidate email validation", () => {
     const result = candidateEmailActionSchema.safeParse({
       candidateIds: ["clx0000000000000000000000"],
       templateKey: "interview_notice",
+      contentMode: "single",
+      locale: "zh-CN",
       subject: "面试通知",
       body: "你好 {name}",
       ccEmails: "",
@@ -23,8 +25,11 @@ describe("candidate email validation", () => {
     const result = candidateEmailActionSchema.safeParse({
       candidateIds: ["clx0000000000000000000000"],
       templateKey: "interview_notice",
-      subject: "{groupName} 面试通知",
-      body: "你好 {name}，你的邮箱是 {email}。",
+      contentMode: "localizedBatch",
+      subjectZhCn: "{groupName} 面试通知",
+      bodyZhCn: "你好 {name}，你的邮箱是 {email}。",
+      subjectEn: "{groupName} interview notice",
+      bodyEn: "Hello {name}. Your email is {email}.",
       ccEmails: "hr@example.com；manager@example.com",
       confirmSend: "yes",
       returnTo: "/admin/groups/group_1/candidates"
@@ -40,6 +45,8 @@ describe("candidate email validation", () => {
     const result = candidateEmailActionSchema.safeParse({
       candidateIds: ["clx0000000000000000000000"],
       templateKey: "interview_notice",
+      contentMode: "single",
+      locale: "zh-CN",
       subject: "{groupName} 面试通知",
       body: "你好 {name}。",
       ccEmails: "not-an-email",
@@ -84,6 +91,7 @@ describe("candidate email validation", () => {
   it("validates global email template updates", () => {
     const result = emailTemplateUpdateSchema.safeParse({
       key: "interview_notice",
+      locale: "en",
       label: "候选人通知",
       subject: "{groupName} 通知",
       body: "你好 {name}"
@@ -95,9 +103,22 @@ describe("candidate email validation", () => {
   it("rejects unknown global email template keys", () => {
     const result = emailTemplateUpdateSchema.safeParse({
       key: "unknown_template",
+      locale: "zh-CN",
       label: "未知模板",
       subject: "通知",
       body: "正文"
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unsupported email template locales", () => {
+    const result = emailTemplateUpdateSchema.safeParse({
+      key: "interview_notice",
+      locale: "fr-FR",
+      label: "Interview notice",
+      subject: "{groupName} interview",
+      body: "Hello {name}"
     });
 
     expect(result.success).toBe(false);

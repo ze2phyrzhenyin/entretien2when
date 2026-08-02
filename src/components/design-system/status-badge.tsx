@@ -1,3 +1,5 @@
+"use client";
+
 import type {
   AppointmentStatus,
   CandidateStatus,
@@ -5,6 +7,8 @@ import type {
   InterviewGroupStatus
 } from "@prisma/client";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
+import type { MessageKey } from "@/i18n/catalogs";
+import { useLocale } from "@/i18n/locale-provider";
 import {
   appointmentStatusLabel,
   candidateStatusLabel,
@@ -62,15 +66,16 @@ const slotTone: Record<"OPEN" | "CLOSED" | "LOCKED" | "AVAILABLE" | "UNAVAILABLE
   UNAVAILABLE: "neutral"
 };
 
-const slotLabel: Record<"OPEN" | "CLOSED" | "LOCKED" | "AVAILABLE" | "UNAVAILABLE", string> = {
-  OPEN: "开放",
-  CLOSED: "关闭",
-  LOCKED: "已锁定",
-  AVAILABLE: "可用",
-  UNAVAILABLE: "不可选"
+const slotLabel: Record<"OPEN" | "CLOSED" | "LOCKED" | "AVAILABLE" | "UNAVAILABLE", MessageKey> = {
+  OPEN: "legacy.open.c14c915d",
+  CLOSED: "legacy.close.3fd47edc",
+  LOCKED: "legacy.locked.56cee909",
+  AVAILABLE: "legacy.available.4d99c976",
+  UNAVAILABLE: "legacy.not_optional.6087d10e"
 };
 
 export function StatusBadge(props: StatusBadgeProps) {
+  const { t } = useLocale();
   if (props.kind === "custom") {
     return (
       <Badge tone={props.tone ?? "neutral"} className={props.className}>
@@ -82,7 +87,7 @@ export function StatusBadge(props: StatusBadgeProps) {
   if (props.kind === "candidate") {
     return (
       <Badge tone={candidateTone[props.status]} className={props.className}>
-        {candidateStatusLabel[props.status]}
+        {t(candidateStatusLabel[props.status])}
       </Badge>
     );
   }
@@ -90,7 +95,7 @@ export function StatusBadge(props: StatusBadgeProps) {
   if (props.kind === "submission") {
     return (
       <Badge tone={submissionTone[props.status]} className={props.className}>
-        {candidateSubmissionStatusLabel[props.status]}
+        {t(candidateSubmissionStatusLabel[props.status])}
       </Badge>
     );
   }
@@ -98,7 +103,7 @@ export function StatusBadge(props: StatusBadgeProps) {
   if (props.kind === "appointment") {
     return (
       <Badge tone={appointmentTone[props.status]} className={props.className}>
-        {appointmentStatusLabel[props.status]}
+        {t(appointmentStatusLabel[props.status])}
       </Badge>
     );
   }
@@ -106,14 +111,14 @@ export function StatusBadge(props: StatusBadgeProps) {
   if (props.kind === "group") {
     return (
       <Badge tone={groupTone[props.status]} className={props.className}>
-        {interviewGroupStatusLabel[props.status]}
+        {t(interviewGroupStatusLabel[props.status])}
       </Badge>
     );
   }
 
   return (
     <Badge tone={slotTone[props.status]} className={props.className}>
-      {slotLabel[props.status]}
+      {t(slotLabel[props.status])}
     </Badge>
   );
 }

@@ -33,11 +33,14 @@ import {
 } from "@/lib/validation/candidate";
 import { notifyOwnerAboutSubmission } from "@/server/services/owner-notification-email";
 import { enqueueCandidateAccessEmail } from "@/server/services/email-outbox";
+import { buildCandidateAccessEmail } from "@/lib/mail/candidate-access-email";
 import {
   assertSlotSelectionCount,
   assertSlotsSelectable,
   uniqueSlotIds
 } from "@/lib/business/slot-selection";
+import { getRequestLocale } from "@/i18n/server";
+import { getStaffNotificationLocale } from "@/i18n/config";
 
 function parseSlotIds(formData: FormData) {
   return uniqueSlotIds(formValue(formData, "slotIds").split(","));
@@ -84,35 +87,11 @@ async function assertCandidateAccessRateLimit(groupCode: string, email: string) 
   });
 }
 
-function candidateAccessEmail({
-  groupName,
-  candidateName,
-  accessUrl,
-  expiresAt
-}: {
-  groupName: string;
-  candidateName: string;
-  accessUrl: string;
-  expiresAt: Date;
-}) {
-  return {
-    subject: `【面试时间】${groupName} 访问链接`,
-    body: [
-      `${candidateName}，你好：`,
-      "",
-      `请使用下面的链接进入「${groupName}」并提交或查看你的可用时间。`,
-      accessUrl,
-      "",
-      `链接将在 ${expiresAt.toLocaleString("zh-CN", { hour12: false })} 失效，且只能使用一次。`,
-      "如果不是你本人请求，可以忽略这封邮件。"
-    ].join("\n")
-  };
-}
-
 export async function requestCandidateAccessAction(
   _previousState: CandidateAccessRequestState,
   formData: FormData
 ): Promise<CandidateAccessRequestState> {
+  const locale = await getRequestLocale();
   const parsed = candidateAccessRequestSchema.safeParse({
     groupCode: formValue(formData, "groupCode"),
     name: formValue(formData, "name"),
@@ -139,7 +118,8 @@ export async function requestCandidateAccessAction(
       id: true,
       name: true,
       groupCode: true,
-      status: true
+      status: true,
+      timezone: true
     }
   });
 
@@ -152,7 +132,7 @@ export async function requestCandidateAccessAction(
   // URL fragments are not sent in HTTP requests or Referer headers. The
   // confirmation page moves the bearer token into a POST body only after the
   // candidate explicitly continues.
-  const accessPath = `/candidate/auth/confirm#${rawToken}`;
+  const accessPath = `/candidate/auth/confirm?lang=${encodeURIComponent(locale)}#${rawToken}`;
   let accessUrl: string;
 
   try {
@@ -163,11 +143,13 @@ export async function requestCandidateAccessAction(
     return { status: "error", message: "服务访问地址未安全配置，请联系招聘方。" };
   }
 
-  const email = candidateAccessEmail({
+  const email = buildCandidateAccessEmail({
     groupName: group.name,
     candidateName: input.name,
     accessUrl,
-    expiresAt
+    expiresAt,
+    timezone: group.timezone,
+    locale
   });
   try {
     await prisma.$transaction(async (tx) => {
@@ -178,6 +160,7 @@ export async function requestCandidateAccessAction(
           name: input.name,
           email: input.email,
           normalizedEmail: input.email,
+          locale,
           expiresAt
         },
         select: { id: true }
@@ -189,6 +172,7 @@ export async function requestCandidateAccessAction(
           accessTokenId: accessToken.id,
           recipientEmail: input.email,
           recipientName: input.name,
+          locale,
           subject: email.subject,
           encryptedBody: encryptCandidateAccessContent(email.body)
         },
@@ -203,7 +187,8 @@ export async function requestCandidateAccessAction(
           entityId: accessToken.id,
           afterData: {
             status: "queued",
-            outboxId: outbox.id
+            outboxId: outbox.id,
+            locale
           }
         }
       });
@@ -256,10 +241,14 @@ export async function submitInitialAvailabilityAction(formData: FormData) {
     redirect(`/join?access=group-not-open`);
   }
 
-  const session = await getCurrentCandidateSession(group.id);
+  const [session, requestLocale] = await Promise.all([
+    getCurrentCandidateSession(group.id),
+    getRequestLocale()
+  ]);
   if (!session) {
     redirect(`/join?access=required`);
   }
+  const staffLocale = getStaffNotificationLocale();
 
   const slotIds = uniqueSlotIds(input.slotIds);
   assertSlotSelectionCount(slotIds, group.minSelectSlots, group.maxSelectSlots);
@@ -305,7 +294,8 @@ export async function submitInitialAvailabilityAction(formData: FormData) {
             name: session.name,
             email: session.email,
             normalizedEmail: session.normalizedEmail,
-            status: CandidateStatus.SUBMITTED
+            status: CandidateStatus.SUBMITTED,
+            preferredLocale: requestLocale
           }
         }));
 
@@ -343,13 +333,14 @@ export async function submitInitialAvailabilityAction(formData: FormData) {
           email: session.email,
           normalizedEmail: session.normalizedEmail,
           status: CandidateStatus.SUBMITTED,
-          activeSubmissionId: submission.id
+          activeSubmissionId: submission.id,
+          preferredLocale: requestLocale
         }
       });
 
       await tx.candidateSession.update({
         where: { id: session.id },
-        data: { candidateId: candidate.id }
+        data: { candidateId: candidate.id, locale: requestLocale }
       });
 
       await tx.auditLog.create({
@@ -378,7 +369,8 @@ export async function submitInitialAvailabilityAction(formData: FormData) {
           },
           submissionId: submission.id,
           slots: transactionSlots,
-          candidateNote: input.candidateNote
+          candidateNote: input.candidateNote,
+          locale: staffLocale
         },
         tx
       );
@@ -403,10 +395,14 @@ export async function requestSubmissionModificationAction(formData: FormData) {
     redirect(`/join?access=group-not-open`);
   }
 
-  const session = await getCurrentCandidateSession(group.id);
+  const [session, requestLocale] = await Promise.all([
+    getCurrentCandidateSession(group.id),
+    getRequestLocale()
+  ]);
   if (!session) {
     redirect(`/join?access=required`);
   }
+  const staffLocale = getStaffNotificationLocale();
 
   const slotIds = uniqueSlotIds(input.slotIds);
   assertSlotSelectionCount(slotIds, group.minSelectSlots, group.maxSelectSlots);
@@ -508,8 +504,14 @@ export async function requestSubmissionModificationAction(formData: FormData) {
       await tx.candidate.update({
         where: { id: candidate.id },
         data: {
-          status: CandidateStatus.PENDING_REVIEW
+          status: CandidateStatus.PENDING_REVIEW,
+          preferredLocale: requestLocale
         }
+      });
+
+      await tx.candidateSession.update({
+        where: { id: session.id },
+        data: { candidateId: candidate.id, locale: requestLocale }
       });
 
       await tx.adminNotification.create({
@@ -518,8 +520,11 @@ export async function requestSubmissionModificationAction(formData: FormData) {
           candidateId: candidate.id,
           submissionId: submission.id,
           type: AdminNotificationType.MODIFICATION_REVIEW,
-          title: "新的候选人修改申请",
-          content: `${session.name} 提交了可用时间修改申请。`
+          title: staffLocale === "en" ? "New candidate change request" : "新的候选人修改申请",
+          content:
+            staffLocale === "en"
+              ? `${session.name} submitted an availability change request.`
+              : `${session.name} 提交了可用时间修改申请。`
         }
       });
 
@@ -548,7 +553,8 @@ export async function requestSubmissionModificationAction(formData: FormData) {
           },
           submissionId: submission.id,
           slots: transactionSlots,
-          candidateNote: input.candidateNote
+          candidateNote: input.candidateNote,
+          locale: staffLocale
         },
         tx
       );

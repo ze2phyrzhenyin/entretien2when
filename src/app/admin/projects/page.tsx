@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import Link from "next/link";
 import { BriefcaseBusiness, Layers3, Search } from "lucide-react";
 import type { Prisma } from "@prisma/client";
@@ -26,14 +27,15 @@ import {
   isSuperAdmin
 } from "@/lib/permissions/admin";
 import { createPagination } from "@/lib/pagination";
-
 type ProjectsPageProps = {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    page?: string;
+  }>;
 };
-
 const projectsPageSize = 25;
-
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
+  const { t } = await getServerTranslator();
   const query = await searchParams;
   const q = query.q?.trim() ?? "";
   const admin = await requireAdmin();
@@ -64,7 +66,6 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         ]
       }
     : {};
-
   const projectWhere: Prisma.InterviewProjectWhereInput = {
     AND: [accessWhere, searchWhere]
   };
@@ -108,18 +109,20 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       }
     }
   });
-
   const groupCount = projects.reduce((total, project) => total + project._count.groups, 0);
   const roundCount = projects.reduce((total, project) => total + project._count.rounds, 0);
-
   return (
     <AdminShell admin={admin} active="projects">
       <PageHeader
-        title="招聘项目"
+        title={t("legacy.recruitment_projects.3e10026b")}
         description={
           superAdmin
-            ? "按招聘项目组织轮次、面试组和面试官池。历史面试组已自动归入兼容项目。"
-            : "按招聘项目查看你获授权面试组对应的轮次和安排。"
+            ? t(
+                "legacy.organize_rounds_interview_groups_and_interviewer_pools_by_recruitment_pr.5c04dbea"
+              )
+            : t(
+                "legacy.view_the_corresponding_rounds_and_arrangements_of_your_authorized_interv.5644a915"
+              )
         }
         action={
           superAdmin ? (
@@ -127,7 +130,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
               href="/admin/groups/new"
               className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-teal-800"
             >
-              创建面试组
+              {t("legacy.create_interview_group.b24fbbc5")}
             </Link>
           ) : null
         }
@@ -135,15 +138,19 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
 
       <div className="mb-5 grid gap-3 md:grid-cols-2">
         <MetricCard
-          label="项目关联面试组"
+          label={t("legacy.project_related_interview_group.77bc1574")}
           value={groupCount}
-          description={`当前列表覆盖 ${projects.length} 个项目`}
+          description={t("legacy.the_current_list_covers_value0_items.f40633e8", {
+            value0: projects.length
+          })}
           icon={<BriefcaseBusiness className="h-4 w-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="轮次"
+          label={t("legacy.round.4890584b")}
           value={roundCount}
-          description="仅统计获授权面试组关联的轮次"
+          description={t(
+            "legacy.only_rounds_associated_with_authorized_interview_groups_are_counted.1cbdfef6"
+          )}
           icon={<Layers3 className="h-4 w-4" aria-hidden="true" />}
         />
       </div>
@@ -151,7 +158,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       <form className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
         <div className="relative">
           <label className="sr-only" htmlFor="projectSearch">
-            搜索招聘项目
+            {t("legacy.search_recruitment_projects.be0a3219")}
           </label>
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -161,33 +168,45 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             id="projectSearch"
             name="q"
             defaultValue={q}
-            placeholder="搜索项目、说明、面试组或编号"
+            placeholder={t(
+              "legacy.search_for_a_project_description_interview_group_or_number.92678f6b"
+            )}
             className="pl-9"
           />
         </div>
         <Button type="submit" variant="secondary" className="h-11">
           <Search className="mr-2 h-4 w-4" aria-hidden="true" />
-          搜索
+          {t("legacy.search.44ce7ae9")}
         </Button>
         {q ? (
           <Link
             href="/admin/projects"
             className="inline-flex h-11 items-center justify-center rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-muted"
           >
-            清除
+            {t("legacy.clear.bce23772")}
           </Link>
         ) : null}
       </form>
 
       {projects.length === 0 ? (
         <Card className="p-10 text-center">
-          <h3 className="text-lg font-semibold">{q ? "没有匹配的项目" : "还没有招聘项目"}</h3>
+          <h3 className="text-lg font-semibold">
+            {q
+              ? t("legacy.no_matching_items.3cc529ee")
+              : t("legacy.there_are_no_recruitment_projects_yet.991fb70e")}
+          </h3>
           <p className="mt-2 text-sm text-muted-foreground">
             {q
-              ? "换一个关键词，或清除搜索条件后查看可访问项目。"
+              ? t(
+                  "legacy.change_a_keyword_or_clear_the_search_criteria_to_view_accessible_items.8b055256"
+                )
               : superAdmin
-                ? "创建面试组时会同步创建招聘项目和默认轮次。"
-                : "暂时没有获授权访问的招聘项目。"}
+                ? t(
+                    "legacy.when_you_create_an_interview_group_the_recruitment_items_and_default_rou.89760ca5"
+                  )
+                : t(
+                    "legacy.there_are_currently_no_recruitment_projects_authorized_to_access.4825a1c7"
+                  )}
           </p>
         </Card>
       ) : (
@@ -196,11 +215,11 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             <Table>
               <TableHeader>
                 <tr>
-                  <TableHead>项目</TableHead>
-                  <TableHead>面试组</TableHead>
-                  <TableHead>轮次</TableHead>
-                  <TableHead>最近 3 个面试组</TableHead>
-                  <TableHead>操作</TableHead>
+                  <TableHead>{t("legacy.project.79f326be")}</TableHead>
+                  <TableHead>{t("legacy.interview_groups.e677802f")}</TableHead>
+                  <TableHead>{t("legacy.round.4890584b")}</TableHead>
+                  <TableHead>{t("legacy.last_3_interview_groups.fc1f04ba")}</TableHead>
+                  <TableHead>{t("legacy.actions.ed31fbb4")}</TableHead>
                 </tr>
               </TableHeader>
               <TableBody>
@@ -236,7 +255,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                         className="font-medium text-primary"
                         href={`/admin/projects/${project.id}`}
                       >
-                        查看
+                        {t("legacy.check.db8db053")}
                       </Link>
                     </TableCell>
                   </TableRow>
@@ -247,7 +266,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           <PaginationNav
             pathname="/admin/projects"
             searchParams={{ q: q || undefined }}
-            itemLabel="个招聘项目"
+            itemLabel={t("legacy.recruitment_projects.6b9465ff")}
             {...pagination}
           />
         </div>

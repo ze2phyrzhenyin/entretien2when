@@ -1,10 +1,14 @@
+import { getServerTranslator } from "@/i18n/server";
 import { LoadingState } from "@/components/ui/loading-state";
-
-export default function AdminLoading() {
+export default async function AdminLoading() {
+  const { t } = await getServerTranslator();
   return (
     <main className="min-h-screen bg-surface-subtle px-4 py-8">
       <div className="mx-auto max-w-3xl">
-        <LoadingState title="正在加载后台" description="正在读取面试组和候选人数据。" />
+        <LoadingState
+          title={t("legacy.loading_background.65619c65")}
+          description={t("legacy.reading_interview_group_and_candidate_data.a26c2395")}
+        />
       </div>
     </main>
   );

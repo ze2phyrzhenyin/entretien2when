@@ -10,6 +10,11 @@ import { lockStateResources, serializableTransactionOptions } from "@/lib/db/tra
 import { requireSuperAdmin } from "@/lib/permissions/admin";
 import { formValue } from "@/lib/validation/common";
 
+// Persist a language-neutral redaction marker. User-facing explanations are
+// localized at render time; durable candidate and submission facts must not
+// depend on the administrator's current UI locale.
+const ANONYMIZED_CANDIDATE_NAME = "—";
+
 function erasedCandidateAddress(candidateId: string) {
   const suffix = createHash("sha256").update(candidateId).digest("hex").slice(0, 20);
   return `erased+${suffix}@invalid.local`;
@@ -77,7 +82,7 @@ export async function anonymizeCandidateAction(
       tx.candidateSubmission.updateMany({
         where: { groupId, candidateId },
         data: {
-          candidateNameSnapshot: "已匿名候选人",
+          candidateNameSnapshot: ANONYMIZED_CANDIDATE_NAME,
           candidateEmailSnapshot: erasedEmail,
           candidateNote: null,
           reviewComment: null
@@ -88,7 +93,7 @@ export async function anonymizeCandidateAction(
     await tx.candidate.update({
       where: { id: candidateId },
       data: {
-        name: "已匿名候选人",
+        name: ANONYMIZED_CANDIDATE_NAME,
         email: erasedEmail,
         normalizedEmail: erasedEmail
       }

@@ -2,10 +2,11 @@
 
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/i18n/locale-provider";
 
 export function SubmitButton({
   children,
-  pendingText = "正在提交",
+  pendingText,
   className,
   variant,
   size,
@@ -18,6 +19,7 @@ export function SubmitButton({
   size?: "sm" | "md" | "lg" | "icon";
   disabled?: boolean;
 }) {
+  const { t } = useLocale();
   const { pending } = useFormStatus();
 
   return (
@@ -29,7 +31,7 @@ export function SubmitButton({
       variant={variant}
       size={size}
     >
-      {pending ? pendingText : children}
+      {pending ? (pendingText ?? t("legacy.submitting.6b70462d")) : children}
     </Button>
   );
 }

@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import Link from "next/link";
 import { CalendarClock, Search } from "lucide-react";
 import { AppointmentStatus, type Prisma } from "@prisma/client";
@@ -27,27 +28,26 @@ import { accessibleGroupWhere, groupSchedulingRoles, isSuperAdmin } from "@/lib/
 import { createPagination } from "@/lib/pagination";
 import { appointmentStatusLabel } from "@/lib/status-labels";
 import { cancelAppointmentAction } from "@/server/actions/appointment";
-
 type AdminAppointmentsPageProps = {
-  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    page?: string;
+  }>;
 };
-
 const appointmentsPageSize = 50;
-
 function parseAppointmentStatus(value: string | undefined) {
   if (value && Object.values(AppointmentStatus).includes(value as AppointmentStatus)) {
     return value as AppointmentStatus;
   }
-
   return undefined;
 }
-
 export default async function AdminAppointmentsPage({ searchParams }: AdminAppointmentsPageProps) {
+  const { t } = await getServerTranslator();
   const [admin, query] = await Promise.all([requireAdmin(), searchParams]);
   const superAdmin = isSuperAdmin(admin);
   const q = query.q?.trim() ?? "";
   const status = parseAppointmentStatus(query.status);
-
   const searchWhere: Prisma.AppointmentWhereInput = q
     ? {
         OR: [
@@ -64,7 +64,6 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
         ]
       }
     : {};
-
   const appointmentFilters: Prisma.AppointmentWhereInput[] = [
     // Appointment details contain candidate and interviewer PII. They are a
     // scheduling surface, not merely a group-read surface, so REVIEWER and
@@ -75,7 +74,6 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
   if (status) {
     appointmentFilters.push({ status });
   }
-
   const appointmentWhere: Prisma.AppointmentWhereInput = { AND: appointmentFilters };
   const [totalAppointmentCount, scheduledAppointmentCount] = await Promise.all([
     prisma.appointment.count({ where: appointmentWhere }),
@@ -90,7 +88,6 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
     pageSize: appointmentsPageSize,
     totalCount: totalAppointmentCount
   });
-
   const appointments = await prisma.appointment.findMany({
     where: appointmentWhere,
     orderBy: [{ startAt: "asc" }, { createdAt: "desc" }, { id: "asc" }],
@@ -124,19 +121,22 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
     skip: pagination.skip,
     take: pagination.pageSize
   });
-
   return (
     <AdminShell admin={admin} active="appointments">
       <PageHeader
-        title="面试安排"
+        title={t("legacy.interviews.2e9d0020")}
         description={
           superAdmin
-            ? "集中查看全部面试组的已确认面试安排。"
-            : "集中查看你获授权面试组的已确认面试安排。"
+            ? t(
+                "legacy.view_confirmed_interview_schedules_for_all_interview_groups_in_one_place.3a36afbe"
+              )
+            : t(
+                "legacy.view_confirmed_interview_schedules_from_your_authorized_interview_group_.2da6a612"
+              )
         }
         action={
           <Badge tone={scheduledAppointmentCount > 0 ? "scheduled" : "neutral"}>
-            {scheduledAppointmentCount} 个已安排
+            {t("appointment.scheduledCount", { count: scheduledAppointmentCount })}
           </Badge>
         }
       />
@@ -144,7 +144,7 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
       <form className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_auto_auto]">
         <div className="relative">
           <label className="sr-only" htmlFor="appointmentSearch">
-            搜索面试安排
+            {t("legacy.search_interview_schedule.b435263f")}
           </label>
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -154,39 +154,53 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
             id="appointmentSearch"
             name="q"
             defaultValue={q}
-            placeholder="搜索候选人、邮箱、面试组或编号"
+            placeholder={t(
+              "legacy.search_candidates_email_addresses_interview_groups_or_numbers.2c8fec3f"
+            )}
             className="pl-9"
           />
         </div>
-        <Select name="status" defaultValue={status ?? ""} aria-label="面试安排状态">
-          <option value="">全部状态</option>
+        <Select
+          name="status"
+          defaultValue={status ?? ""}
+          aria-label={t("legacy.interview_scheduling_status.a770c145")}
+        >
+          <option value="">{t("legacy.all_status.0a379c1e")}</option>
           {Object.values(AppointmentStatus).map((item) => (
             <option key={item} value={item}>
-              {appointmentStatusLabel[item]}
+              {t(appointmentStatusLabel[item])}
             </option>
           ))}
         </Select>
         <Button type="submit" variant="secondary" className="h-11">
           <Search className="mr-2 h-4 w-4" aria-hidden="true" />
-          搜索
+          {t("legacy.search.44ce7ae9")}
         </Button>
         {q || status ? (
           <Link
             href="/admin/appointments"
             className="inline-flex h-11 items-center justify-center rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-muted"
           >
-            清除
+            {t("legacy.clear.bce23772")}
           </Link>
         ) : null}
       </form>
 
       {appointments.length === 0 ? (
         <EmptyState
-          title={q || status ? "没有匹配的面试安排" : "暂无面试安排"}
+          title={
+            q || status
+              ? t("legacy.no_matching_interview_schedule.089a76fc")
+              : t("legacy.no_interview_arrangements_yet.c9494939")
+          }
           description={
             q || status
-              ? "换一个关键词或状态，或清除筛选后查看全部面试安排。"
-              : "在候选人详情页确认面试安排后，记录会集中显示在这里。"
+              ? t(
+                  "legacy.change_a_keyword_or_status_or_clear_the_filter_to_view_all_interview_sch.c0779e97"
+                )
+              : t(
+                  "legacy.after_confirming_the_interview_schedule_on_the_candidate_details_page_th.c475cf72"
+                )
           }
           icon={<CalendarClock className="h-6 w-6" aria-hidden="true" />}
         />
@@ -196,13 +210,13 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
             <Table className="min-w-[1120px]">
               <TableHeader>
                 <tr>
-                  <TableHead>面试组</TableHead>
-                  <TableHead>候选人</TableHead>
-                  <TableHead>时间</TableHead>
-                  <TableHead>面试官</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>地点/链接</TableHead>
-                  <TableHead>操作</TableHead>
+                  <TableHead>{t("legacy.interview_groups.e677802f")}</TableHead>
+                  <TableHead>{t("legacy.candidates.ea62aaa5")}</TableHead>
+                  <TableHead>{t("legacy.time.8b6ff498")}</TableHead>
+                  <TableHead>{t("legacy.interviewers.5e6ecb10")}</TableHead>
+                  <TableHead>{t("legacy.status.6320b4a8")}</TableHead>
+                  <TableHead>{t("legacy.location_link.80508f83")}</TableHead>
+                  <TableHead>{t("legacy.actions.ed31fbb4")}</TableHead>
                 </tr>
               </TableHeader>
               <TableBody>
@@ -267,10 +281,12 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
                             appointment.group.id,
                             appointment.id
                           )}
-                          confirmMessage="确认取消这场面试并释放对应时间吗？候选人安排会立即失效。"
+                          confirmMessage={t(
+                            "legacy.are_you_sure_to_cancel_this_interview_and_release_the_corresponding_time.cc501a5f"
+                          )}
                         >
                           <Button type="submit" variant="danger" size="sm">
-                            取消
+                            {t("legacy.cancel.2cd0f3be")}
                           </Button>
                         </ConfirmForm>
                       ) : (
@@ -278,7 +294,7 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
                           className="font-medium text-primary"
                           href={`/admin/groups/${appointment.group.id}/appointments`}
                         >
-                          查看
+                          {t("legacy.check.db8db053")}
                         </Link>
                       )}
                     </TableCell>
@@ -290,7 +306,8 @@ export default async function AdminAppointmentsPage({ searchParams }: AdminAppoi
           <PaginationNav
             pathname="/admin/appointments"
             searchParams={{ q: q || undefined, status: status ?? undefined }}
-            itemLabel="个面试安排"
+            itemLabel={t("pagination.appointment.other")}
+            itemLabelOne={t("pagination.appointment.one")}
             {...pagination}
           />
         </div>

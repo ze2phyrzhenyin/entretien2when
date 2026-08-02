@@ -1,9 +1,9 @@
+import { getServerTranslator } from "@/i18n/server";
 import Link from "next/link";
 import { type AdminShellActive, visibleAdminNavItems } from "@/components/layout/admin-sidebar";
 import type { AdminNavigationCapabilities } from "@/lib/permissions/admin";
 import { cn } from "@/lib/utils";
-
-export function AdminMobileNav({
+export async function AdminMobileNav({
   active = "groups",
   isSuperAdmin,
   capabilities
@@ -12,10 +12,11 @@ export function AdminMobileNav({
   isSuperAdmin: boolean;
   capabilities: AdminNavigationCapabilities;
 }) {
+  const { t } = await getServerTranslator();
   return (
     <nav
       className="sticky top-16 z-20 flex gap-1 overflow-x-auto border-b border-border bg-surface/95 px-2 py-2 backdrop-blur md:hidden"
-      aria-label="管理员主导航"
+      aria-label={t("legacy.administrator_main_navigation.0d120ef1")}
     >
       {visibleAdminNavItems(isSuperAdmin, capabilities).map((item) => (
         <Link
@@ -29,7 +30,7 @@ export function AdminMobileNav({
           )}
         >
           <item.icon className="h-4 w-4" aria-hidden="true" />
-          <span className="max-w-full truncate">{item.label}</span>
+          <span className="max-w-full truncate">{t(item.label)}</span>
         </Link>
       ))}
     </nav>

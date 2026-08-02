@@ -15,4 +15,18 @@ describe("appointment email time context", () => {
     expect(context.appointmentTime).toContain("Europe/Paris");
     expect(context.appointmentTime).not.toContain("北京时间");
   });
+
+  it("formats generated placeholders in English while preserving the business zone", () => {
+    const context = buildAppointmentEmailContext(
+      {
+        startAt: "2026-08-10T08:00:00.000Z",
+        endAt: "2026-08-10T08:30:00.000Z"
+      },
+      "Asia/Shanghai",
+      "en"
+    );
+
+    expect(context.appointmentTime).toContain("China Standard Time");
+    expect(context.meetingLocation).toBe("Not provided");
+  });
 });

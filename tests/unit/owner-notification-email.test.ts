@@ -97,4 +97,30 @@ describe("owner notification emails", () => {
     expect(cancelled.subject).toContain("面试安排已取消");
     expect(cancelled.body).toContain("管理员取消了正式面试安排");
   });
+
+  it("builds deterministic English submission and appointment artifacts", () => {
+    const submission = buildOwnerSubmissionNotificationEmail({
+      kind: "initial",
+      group,
+      candidate,
+      submissionId: "submission_en",
+      slots: [],
+      locale: "en"
+    });
+    const appointment = buildOwnerAppointmentNotificationEmail({
+      kind: "scheduled",
+      group,
+      candidate,
+      appointmentId: "appointment_en",
+      startAt: new Date("2026-07-02T02:00:00.000Z"),
+      endAt: new Date("2026-07-02T02:35:00.000Z"),
+      locale: "en"
+    });
+
+    expect(submission.subject).toContain("Availability submitted");
+    expect(submission.body).toContain("No availability selected");
+    expect(appointment.subject).toContain("Interview update");
+    expect(appointment.body).toContain("Interview time:");
+    expect(appointment.body).toContain("China Standard Time");
+  });
 });

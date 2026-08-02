@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import type { CandidateEmailDeliveryStatus } from "@prisma/client";
 import { RotateCcw } from "lucide-react";
 import { AdminOnlyNotice } from "@/components/design-system/admin-only-notice";
@@ -7,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { retryCandidateEmailDeliveryAction } from "@/server/actions/email";
-
+import { translateKnownSource, type MessageKey } from "@/i18n/catalogs";
 type CandidateEmailHistoryItem = {
   id: string;
   subject: string;
@@ -20,8 +21,8 @@ type CandidateEmailHistoryItem = {
   sentByAdminName: string;
   sentByAdminEmail: string;
   retriedFromId?: string | null;
+  locale: string;
 };
-
 type CandidateEmailHistoryProps = {
   groupId: string;
   returnTo: string;
@@ -29,15 +30,13 @@ type CandidateEmailHistoryProps = {
   deliveries: CandidateEmailHistoryItem[];
   historyLimit?: number;
 };
-
-const statusLabel: Record<CandidateEmailDeliveryStatus, string> = {
-  PENDING: "已进入发送队列",
-  PROCESSING: "投递处理中",
-  SENT: "已发送",
-  PREVIEW: "测试发送预览",
-  FAILED: "失败"
+const statusLabel: Record<CandidateEmailDeliveryStatus, MessageKey> = {
+  PENDING: "legacy.entered_the_sending_queue.5f9a343e",
+  PROCESSING: "legacy.delivery_in_progress.e4e31751",
+  SENT: "legacy.sent.60823aae",
+  PREVIEW: "legacy.test_sending_preview.70cea6b9",
+  FAILED: "legacy.fail.28384d7a"
 };
-
 const statusTone: Record<CandidateEmailDeliveryStatus, BadgeTone> = {
   PENDING: "info",
   PROCESSING: "warning",
@@ -45,31 +44,35 @@ const statusTone: Record<CandidateEmailDeliveryStatus, BadgeTone> = {
   PREVIEW: "info",
   FAILED: "danger"
 };
-
-export function CandidateEmailHistory({
+export async function CandidateEmailHistory({
   groupId,
   returnTo,
   defaultTimezone,
   deliveries,
   historyLimit
 }: CandidateEmailHistoryProps) {
+  const { locale, t } = await getServerTranslator();
   return (
     <Card className="p-5">
       <div className="mb-4">
         <div>
-          <h3 className="font-semibold">通知发送历史</h3>
+          <h3 className="font-semibold">{t("legacy.notification_sending_history.c0884613")}</h3>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
             {historyLimit
-              ? `按发送时间显示最近 ${historyLimit} 条；`
-              : "记录该候选人的通知发送结果；"}
-            只有带幂等键的失败记录可安全重试。
+              ? t("emailHistory.limitedDescription", { limit: historyLimit })
+              : t("emailHistory.description")}
           </p>
         </div>
       </div>
       <AdminOnlyNotice />
       {deliveries.length === 0 ? (
         <div className="mt-4">
-          <EmptyState title="暂无发送记录" description="发送候选人通知后，记录会显示在这里。" />
+          <EmptyState
+            title={t("legacy.no_sending_record_yet.2458e973")}
+            description={t(
+              "legacy.when_a_candidate_notification_is_sent_the_record_appears_here.89b8b940"
+            )}
+          />
         </div>
       ) : (
         <div className="mt-4 space-y-3">
@@ -78,9 +81,16 @@ export function CandidateEmailHistory({
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium">{delivery.subject}</p>
-                    <Badge tone={statusTone[delivery.status]}>{statusLabel[delivery.status]}</Badge>
-                    {delivery.retriedFromId ? <Badge tone="neutral">重试发送</Badge> : null}
+                    <p className="font-medium" data-i18n-preserve>
+                      {delivery.subject}
+                    </p>
+                    <Badge tone={statusTone[delivery.status]}>
+                      {t(statusLabel[delivery.status])}
+                    </Badge>
+                    <Badge tone="neutral">{delivery.locale === "en" ? "EN" : "ZH"}</Badge>
+                    {delivery.retriedFromId ? (
+                      <Badge tone="neutral">{t("legacy.retry_sending.6820f449")}</Badge>
+                    ) : null}
                   </div>
                   <p className="mt-1 text-muted-foreground">
                     <ZonedDateTime
@@ -91,38 +101,48 @@ export function CandidateEmailHistory({
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {delivery.providerMessageId
-                      ? `服务商消息 ID：${delivery.providerMessageId}`
+                      ? t("legacy.service_provider_message_id_value0.6fce37eb", {
+                          value0: delivery.providerMessageId
+                        })
                       : delivery.sentByAdminEmail}
                   </p>
                   {delivery.ccEmailSnapshots.length > 0 ? (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      抄送：{delivery.ccEmailSnapshots.join("，")}
+                      {t("mail.ccList", { emails: delivery.ccEmailSnapshots.join(", ") })}
                     </p>
                   ) : null}
                 </div>
                 {delivery.status === "FAILED" && delivery.idempotencyKey ? (
                   <form action={retryCandidateEmailDeliveryAction.bind(null, groupId, delivery.id)}>
                     <input type="hidden" name="returnTo" value={returnTo} />
-                    <SubmitButton size="sm" variant="secondary" pendingText="重试中">
+                    <SubmitButton
+                      size="sm"
+                      variant="secondary"
+                      pendingText={t("legacy.retrying.a3f9afd0")}
+                    >
                       <RotateCcw className="size-3.5" aria-hidden="true" />
-                      重试
+                      {t("legacy.try_again.b8784c8d")}
                     </SubmitButton>
                   </form>
                 ) : null}
               </div>
               {delivery.errorMessage ? (
                 <p className="mt-3 rounded-md border border-red-200 bg-danger-soft px-3 py-2 text-danger">
-                  {delivery.errorMessage}
+                  {translateKnownSource(locale, delivery.errorMessage)}
                 </p>
               ) : null}
               {delivery.status === "PROCESSING" ? (
                 <p className="mt-3 rounded-md border border-amber-200 bg-warning-soft px-3 py-2 text-warning">
-                  邮件发送结果尚未确认。请先通过服务商日志按该记录核查，避免重复发送。
+                  {t(
+                    "legacy.the_email_sending_result_has_not_yet_been_confirmed_please_check_the_rec.43ff8803"
+                  )}
                 </p>
               ) : null}
               {delivery.status === "PENDING" ? (
                 <p className="mt-3 rounded-md border border-blue-200 bg-info-soft px-3 py-2 text-info">
-                  邮件已持久化，后台发送任务会自动投递；无需保持当前页面打开。
+                  {t(
+                    "legacy.the_email_has_been_persisted_and_the_background_sending_task_will_be_aut.46ca47d8"
+                  )}
                 </p>
               ) : null}
             </div>

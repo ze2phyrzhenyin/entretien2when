@@ -1,8 +1,9 @@
 import { AdminGroupRole, AdminStatus, AuditActorType, type Prisma } from "@prisma/client";
 import { getPublicAppUrl, withBasePath } from "@/lib/app-url";
-import { formatDateTime, formatDateTimeRange } from "@/lib/date/timezone";
+import { formatDateTimeRangeWithTimezone, formatDateTimeWithTimezone } from "@/lib/date/timezone";
 import { prisma } from "@/lib/db/prisma";
 import { enqueueOwnerNotificationEmail } from "@/server/services/email-outbox";
+import { normalizeLocale, type AppLocale } from "@/i18n/config";
 
 type NotificationGroup = {
   id: string;
@@ -86,18 +87,24 @@ function adminCandidateUrl(groupId: string, candidateId: string) {
   }
 }
 
-function formatSlots(slots: NotificationSlot[], timezone: string) {
+function formatSlots(slots: NotificationSlot[], timezone: string, locale: AppLocale) {
   const sortedSlots = [...slots].sort(
     (slotA, slotB) => new Date(slotA.startAt).getTime() - new Date(slotB.startAt).getTime()
   );
 
   if (sortedSlots.length === 0) {
-    return "- 未选择开放时间";
+    return locale === "en" ? "- No availability selected" : "- 未选择开放时间";
   }
 
   return sortedSlots
     .map(
-      (slot) => `- ${formatDateTimeRange(new Date(slot.startAt), new Date(slot.endAt), timezone)}`
+      (slot) =>
+        `- ${formatDateTimeRangeWithTimezone(
+          new Date(slot.startAt),
+          new Date(slot.endAt),
+          timezone,
+          locale
+        )}`
     )
     .join("\n");
 }
@@ -109,7 +116,8 @@ export function buildOwnerSubmissionNotificationEmail({
   submissionId,
   slots,
   candidateNote,
-  occurredAt = new Date()
+  occurredAt = new Date(),
+  locale: requestedLocale = "zh-CN"
 }: {
   kind: SubmissionNotificationKind;
   group: NotificationGroup;
@@ -118,8 +126,35 @@ export function buildOwnerSubmissionNotificationEmail({
   slots: NotificationSlot[];
   candidateNote?: string | null;
   occurredAt?: Date;
+  locale?: AppLocale;
 }): OwnerNotificationEmail {
+  const locale = normalizeLocale(requestedLocale);
   const isModification = kind === "modification";
+  if (locale === "en") {
+    const eventName = isModification
+      ? "Candidate submitted an availability change request"
+      : "Candidate submitted availability";
+    const subjectPrefix = isModification ? "Availability change request" : "Availability submitted";
+    return {
+      subject: `[${subjectPrefix}] ${candidate.name} - ${group.name}`,
+      body: [
+        `Event: ${eventName}`,
+        `Submitted: ${formatDateTimeWithTimezone(occurredAt, group.timezone, locale)}`,
+        "",
+        `Interview group: ${group.name}`,
+        `Group code: ${group.groupCode}`,
+        `Candidate: ${candidate.name} <${candidate.email}>`,
+        `Submission ID: ${submissionId}`,
+        "",
+        `Selected times (${slots.length}):`,
+        formatSlots(slots, group.timezone, locale),
+        "",
+        `Candidate note: ${candidateNote?.trim() || "Not provided"}`,
+        "",
+        `Open in administration: ${adminCandidateUrl(group.id, candidate.id)}`
+      ].join("\n")
+    };
+  }
   const eventName = isModification ? "候选人提交了可用时间修改申请" : "候选人提交了可用时间";
   const subjectPrefix = isModification ? "修改申请通知" : "可用时间提交通知";
 
@@ -127,7 +162,7 @@ export function buildOwnerSubmissionNotificationEmail({
     subject: `【${subjectPrefix}】${candidate.name} - ${group.name}`,
     body: [
       `事件：${eventName}`,
-      `提交时间：${formatDateTime(occurredAt, group.timezone)}`,
+      `提交时间：${formatDateTimeWithTimezone(occurredAt, group.timezone)}`,
       "",
       `面试组：${group.name}`,
       `面试组编号：${group.groupCode}`,
@@ -135,7 +170,7 @@ export function buildOwnerSubmissionNotificationEmail({
       `提交编号：${submissionId}`,
       "",
       `已选时间（${slots.length} 个）：`,
-      formatSlots(slots, group.timezone),
+      formatSlots(slots, group.timezone, locale),
       "",
       `候选人备注：${candidateNote?.trim() || "未填写"}`,
       "",
@@ -154,7 +189,8 @@ export function buildOwnerAppointmentNotificationEmail({
   meetingLocation,
   candidateVisibleMessage,
   scheduledByEmail,
-  occurredAt = new Date()
+  occurredAt = new Date(),
+  locale: requestedLocale = "zh-CN"
 }: {
   kind?: AppointmentNotificationKind;
   group: NotificationGroup;
@@ -166,7 +202,53 @@ export function buildOwnerAppointmentNotificationEmail({
   candidateVisibleMessage?: string | null;
   scheduledByEmail?: string | null;
   occurredAt?: Date;
+  locale?: AppLocale;
 }): OwnerNotificationEmail {
+  const locale = normalizeLocale(requestedLocale);
+  if (locale === "en") {
+    const statusLabel: Record<AppointmentNotificationKind, string> = {
+      scheduled: "scheduled",
+      rescheduled: "rescheduled",
+      cancelled: "cancelled"
+    };
+    const eventLabel: Record<AppointmentNotificationKind, string> = {
+      scheduled: "Administrator confirmed an interview",
+      rescheduled: "Administrator changed an interview",
+      cancelled: "Administrator cancelled an interview"
+    };
+    const occurredAtLabel: Record<AppointmentNotificationKind, string> = {
+      scheduled: "Scheduled at",
+      rescheduled: "Changed at",
+      cancelled: "Cancelled at"
+    };
+    return {
+      subject: `[Interview update] ${candidate.name} ${statusLabel[kind]} - ${group.name}`,
+      body: [
+        `Event: ${eventLabel[kind]}`,
+        `${occurredAtLabel[kind]}: ${formatDateTimeWithTimezone(
+          occurredAt,
+          group.timezone,
+          locale
+        )}`,
+        "",
+        `Interview group: ${group.name}`,
+        `Group code: ${group.groupCode}`,
+        `Candidate: ${candidate.name} <${candidate.email}>`,
+        `Appointment ID: ${appointmentId}`,
+        `Interview time: ${formatDateTimeRangeWithTimezone(
+          new Date(startAt),
+          new Date(endAt),
+          group.timezone,
+          locale
+        )}`,
+        `Location/link: ${meetingLocation?.trim() || "Not provided"}`,
+        `Candidate instructions: ${candidateVisibleMessage?.trim() || "Not provided"}`,
+        `Administrator: ${scheduledByEmail || "Unknown"}`,
+        "",
+        `Open in administration: ${adminCandidateUrl(group.id, candidate.id)}`
+      ].join("\n")
+    };
+  }
   const statusLabel: Record<AppointmentNotificationKind, string> = {
     scheduled: "已安排面试",
     rescheduled: "面试时间已调整",
@@ -187,13 +269,17 @@ export function buildOwnerAppointmentNotificationEmail({
     subject: `【面试安排通知】${candidate.name} ${statusLabel[kind]} - ${group.name}`,
     body: [
       `事件：${eventLabel[kind]}`,
-      `${occurredAtLabel[kind]}：${formatDateTime(occurredAt, group.timezone)}`,
+      `${occurredAtLabel[kind]}：${formatDateTimeWithTimezone(occurredAt, group.timezone)}`,
       "",
       `面试组：${group.name}`,
       `面试组编号：${group.groupCode}`,
       `候选人：${candidate.name} <${candidate.email}>`,
       `安排编号：${appointmentId}`,
-      `面试时间：${formatDateTimeRange(new Date(startAt), new Date(endAt), group.timezone)}`,
+      `面试时间：${formatDateTimeRangeWithTimezone(
+        new Date(startAt),
+        new Date(endAt),
+        group.timezone
+      )}`,
       `地点/链接：${meetingLocation?.trim() || "未填写"}`,
       `给候选人的说明：${candidateVisibleMessage?.trim() || "未填写"}`,
       `操作管理员：${scheduledByEmail || "未知"}`,
@@ -210,6 +296,7 @@ async function sendOwnerNotificationEmail(
     entityId: string;
     event: string;
     email: OwnerNotificationEmail;
+    locale?: AppLocale;
   },
   client: OwnerNotificationClient = prisma
 ) {
@@ -243,7 +330,8 @@ async function sendOwnerNotificationEmail(
       event: input.event,
       recipients,
       subject: input.email.subject,
-      body: input.email.body
+      body: input.email.body,
+      locale: normalizeLocale(input.locale)
     },
     client
   );
@@ -258,6 +346,7 @@ export async function notifyOwnerAboutSubmission(
     submissionId: string;
     slots: NotificationSlot[];
     candidateNote?: string | null;
+    locale?: AppLocale;
   },
   client: OwnerNotificationClient = prisma
 ) {
@@ -270,7 +359,8 @@ export async function notifyOwnerAboutSubmission(
         input.kind === "modification"
           ? "candidate.request_submission_modification"
           : "candidate.submit_initial_availability",
-      email: buildOwnerSubmissionNotificationEmail(input)
+      email: buildOwnerSubmissionNotificationEmail(input),
+      locale: input.locale
     },
     client
   );
@@ -287,6 +377,7 @@ export async function notifyOwnerAboutAppointment(
     meetingLocation?: string | null;
     candidateVisibleMessage?: string | null;
     scheduledByEmail?: string | null;
+    locale?: AppLocale;
   },
   client: OwnerNotificationClient = prisma
 ) {
@@ -303,7 +394,8 @@ export async function notifyOwnerAboutAppointment(
       entityType: "Appointment",
       entityId: input.appointmentId,
       event: event[kind],
-      email: buildOwnerAppointmentNotificationEmail({ ...input, kind })
+      email: buildOwnerAppointmentNotificationEmail({ ...input, kind }),
+      locale: input.locale
     },
     client
   );

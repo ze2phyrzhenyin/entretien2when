@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import Link from "next/link";
 import { InlineNotice } from "@/components/design-system/inline-notice";
 import { PageHeader } from "@/components/design-system/page-header";
@@ -17,18 +18,20 @@ import {
   requireGroupPermission
 } from "@/lib/permissions/admin";
 import { GroupSettingsForm } from "./group-settings-form";
-
 type SettingsPageProps = {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string }>;
+  params: Promise<{
+    id: string;
+  }>;
+  searchParams: Promise<{
+    created?: string;
+  }>;
 };
-
 export default async function GroupSettingsPage({ params, searchParams }: SettingsPageProps) {
+  const { t } = await getServerTranslator();
   const [{ id: groupId }, query] = await Promise.all([params, searchParams]);
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, groupOwnerRoles);
   const capabilities = await getGroupCapabilities(admin, groupId);
-
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
     include: {
@@ -49,7 +52,6 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
   // Keep the copyable entry link on the same validated public-origin/basePath
   // contract as magic links and Route Handler redirects.
   const candidateLink = getCandidateGroupPublicUrl(group.groupCode);
-
   return (
     <AdminShell admin={admin}>
       <GroupNav groupId={groupId} active="settings" capabilities={capabilities} />
@@ -60,24 +62,30 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
             <StatusBadge kind="group" status={group.status} />
           </span>
         }
-        description="配置公开说明、时间规则和候选人入口。"
+        description={t(
+          "legacy.configure_disclosure_instructions_time_rules_and_candidate_portals.8c57a733"
+        )}
         action={
           <Link className="text-sm font-medium text-primary" href="/admin">
-            返回工作台
+            {t("legacy.return_to_workbench.de7efab0")}
           </Link>
         }
       />
 
       {query.created ? (
         <InlineNotice tone="success" className="mb-5">
-          面试组已创建。请复制面试组编号或候选人链接发送给候选人。
+          {t(
+            "legacy.interview_group_has_been_created_please_copy_the_interview_group_number_.682f6d92"
+          )}
         </InlineNotice>
       ) : null}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="p-6">
           <SectionHeader
-            title="面试组信息"
-            description="候选人可看到面试组名称和公开说明，不会看到内部设置。"
+            title={t("legacy.interview_group_information.aade7203")}
+            description={t(
+              "legacy.candidates_can_see_the_interview_group_name_and_public_description_but_n.3471dcbf"
+            )}
           />
           <GroupSettingsForm
             groupId={groupId}
@@ -97,20 +105,24 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
 
         <Card className="p-5">
           <SectionHeader
-            title="候选人入口"
-            description="候选人打开链接后提交姓名、邮箱和可用时间，不会看到管理员设置。"
+            title={t("legacy.candidate_entrance.868a6d49")}
+            description={t(
+              "legacy.candidates_who_open_the_link_and_submit_their_name_email_address_and_ava.5817c8a6"
+            )}
           />
           <div className="mt-4 space-y-3">
             <div>
-              <p className="text-xs text-muted-foreground">面试组编号</p>
+              <p className="text-xs text-muted-foreground">
+                {t("legacy.interview_group_number.56682195")}
+              </p>
               <p className="mt-1 break-all font-mono text-sm font-semibold">{group.groupCode}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">候选人链接</p>
+              <p className="text-xs text-muted-foreground">{t("legacy.candidate_link.e8475e91")}</p>
               <p className="mt-1 break-all font-mono text-sm font-semibold">{candidateLink}</p>
             </div>
             <div className="border-t border-border pt-3">
-              <p className="text-xs text-muted-foreground">项目/轮次</p>
+              <p className="text-xs text-muted-foreground">{t("legacy.project_round.9d456441")}</p>
               {group.project ? (
                 <Link
                   href={`/admin/projects/${group.project.id}`}
@@ -119,17 +131,26 @@ export default async function GroupSettingsPage({ params, searchParams }: Settin
                   {group.project.name}
                 </Link>
               ) : (
-                <p className="mt-1 text-sm font-semibold">未关联项目</p>
+                <p className="mt-1 text-sm font-semibold">
+                  {t("legacy.no_associated_projects.46062b1a")}
+                </p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">
-                {group.round?.name ?? "未关联轮次"}
-                {group.round?.interviewDurationMinutes
-                  ? ` · ${group.round.interviewDurationMinutes} 分钟`
-                  : ""}
+                {group.round
+                  ? group.round.interviewDurationMinutes
+                    ? t("group.roundDurationSummary", {
+                        roundName: group.round.name,
+                        minutes: group.round.interviewDurationMinutes
+                      })
+                    : t("group.roundWithoutDuration", { roundName: group.round.name })
+                  : t("legacy.unassociated_rounds.f21aa45d")}
               </p>
             </div>
-            <CopyButton value={group.groupCode} label="复制面试组编号" />
-            <CopyButton value={candidateLink} label="复制候选人链接" />
+            <CopyButton
+              value={group.groupCode}
+              label={t("legacy.copy_interview_group_number.276635d4")}
+            />
+            <CopyButton value={candidateLink} label={t("legacy.copy_candidate_link.b6d1fe0f")} />
           </div>
         </Card>
       </div>

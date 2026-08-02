@@ -22,7 +22,7 @@ test.skip(
   "This suite creates and deletes database records; use an isolated database and opt in explicitly."
 );
 
-test.afterAll(async () => {
+async function cleanupTestData() {
   await prisma.interviewGroup.deleteMany({
     where: { name: { startsWith: prefix } }
   });
@@ -32,7 +32,24 @@ test.afterAll(async () => {
   await prisma.admin.deleteMany({
     where: { email: adminEmail }
   });
-  await prisma.$disconnect();
+}
+
+test.afterAll(async () => {
+  try {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        await cleanupTestData();
+        break;
+      } catch (error) {
+        const isDeadlock = error instanceof Error && /40P01|deadlock detected/i.test(error.message);
+        if (!isDeadlock || attempt === 3) {
+          throw error;
+        }
+      }
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
 });
 
 async function createAdminSessionForBrowser(adminId: string) {

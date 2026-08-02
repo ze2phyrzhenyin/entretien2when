@@ -8,7 +8,6 @@ describe("appointment locks", () => {
       groupId: "group_1",
       slotIds: ["slot_1", "slot_2"],
       appointmentId: "appointment_1",
-      candidateName: "张三",
       lockedByAdminId: "admin_1"
     });
 
@@ -19,7 +18,7 @@ describe("appointment locks", () => {
         activeSlotId: "slot_1",
         lockType: TimeSlotLockType.APPOINTMENT,
         appointmentId: "appointment_1",
-        reasonInternal: "已安排给 张三",
+        reasonInternal: null,
         lockedByAdminId: "admin_1"
       },
       {
@@ -28,7 +27,7 @@ describe("appointment locks", () => {
         activeSlotId: "slot_2",
         lockType: TimeSlotLockType.APPOINTMENT,
         appointmentId: "appointment_1",
-        reasonInternal: "已安排给 张三",
+        reasonInternal: null,
         lockedByAdminId: "admin_1"
       }
     ]);

@@ -6,6 +6,7 @@ import {
 } from "@/lib/mail/render-template";
 import { sendMailatoEmail } from "@/lib/mail/mailato";
 import { prisma } from "@/lib/db/prisma";
+import { normalizeLocale, type AppLocale } from "@/i18n/config";
 
 type EmailGroup = {
   id: string;
@@ -47,6 +48,7 @@ export type CreateCandidateEmailDeliveryInput = {
     Pick<CandidateEmailTemplateValues, "appointmentTime" | "meetingLocation" | "candidateMessage">
   >;
   retriedFromId?: string | null;
+  locale?: AppLocale;
 };
 
 const CANDIDATE_EMAIL_LEASE_MS = 2 * 60 * 1000;
@@ -90,12 +92,15 @@ export async function createCandidateEmailDelivery(
   input: CreateCandidateEmailDeliveryInput,
   client: CandidateEmailDeliveryWriter = prisma
 ) {
+  const locale = normalizeLocale(input.locale);
   const templateValues: CandidateEmailTemplateValues = {
     candidateName: input.candidate.name,
     candidateEmail: input.candidate.email,
     groupName: input.group.name,
-    appointmentTime: input.templateValues?.appointmentTime ?? "尚未安排",
-    meetingLocation: input.templateValues?.meetingLocation ?? "未填写",
+    appointmentTime:
+      input.templateValues?.appointmentTime ?? (locale === "en" ? "Not scheduled" : "尚未安排"),
+    meetingLocation:
+      input.templateValues?.meetingLocation ?? (locale === "en" ? "Not provided" : "未填写"),
     candidateMessage: input.templateValues?.candidateMessage ?? ""
   };
 
@@ -113,6 +118,7 @@ export async function createCandidateEmailDelivery(
       candidateNameSnapshot: input.candidate.name,
       recipientEmailSnapshot: input.candidate.email,
       ccEmailSnapshots: input.ccEmails ?? [],
+      locale,
       status: CandidateEmailDeliveryStatus.PENDING,
       idempotencyKey: `candidate-email:${randomUUID()}`,
       nextAttemptAt: new Date(),

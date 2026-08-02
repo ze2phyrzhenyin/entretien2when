@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import Link from "next/link";
 import { AppointmentStatus, InterviewerStatus } from "@prisma/client";
 import { ChevronDown } from "lucide-react";
@@ -28,7 +29,11 @@ import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
 import { appointmentConfirmedEmailTemplate } from "@/lib/mail/email-templates";
-import { getCandidateEmailTemplates } from "@/lib/mail/email-template-store";
+import {
+  getCandidateEmailTemplates,
+  getDefaultEmailTemplate
+} from "@/lib/mail/email-template-store";
+import { normalizeLocale } from "@/i18n/config";
 import {
   getGroupCapabilities,
   groupCandidateCareRoles,
@@ -43,9 +48,11 @@ import {
 } from "@/server/actions/appointment";
 import { upsertCandidateAdminNoteAction } from "@/server/actions/admin-note";
 import { anonymizeCandidateAction } from "@/server/actions/candidate-data";
-
 type CandidateDetailPageProps = {
-  params: Promise<{ id: string; candidateId: string }>;
+  params: Promise<{
+    id: string;
+    candidateId: string;
+  }>;
   searchParams: Promise<{
     review?: string;
     mail?: string;
@@ -58,11 +65,11 @@ type CandidateDetailPageProps = {
     section?: string;
   }>;
 };
-
 export default async function CandidateDetailPage({
   params,
   searchParams
 }: CandidateDetailPageProps) {
+  const { t } = await getServerTranslator();
   const [{ id: groupId, candidateId }, query] = await Promise.all([params, searchParams]);
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, groupCandidateCareRoles);
@@ -76,7 +83,6 @@ export default async function CandidateDetailPage({
         : requestedSection === "history"
           ? "history"
           : "overview";
-
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
     select: {
@@ -107,6 +113,7 @@ export default async function CandidateDetailPage({
       id: true,
       name: true,
       email: true,
+      preferredLocale: true,
       status: true,
       activeSubmission: {
         select: {
@@ -206,6 +213,7 @@ export default async function CandidateDetailPage({
               errorMessage: true,
               createdAt: true,
               retriedFromId: true,
+              locale: true,
               sentByAdmin: {
                 select: { displayName: true, email: true }
               }
@@ -234,14 +242,19 @@ export default async function CandidateDetailPage({
           }
         })
       : [];
-  const emailTemplates = capabilities.canSchedule ? await getCandidateEmailTemplates() : [];
+  const candidateLocale = normalizeLocale(candidate.preferredLocale);
+  const emailTemplates = capabilities.canSchedule
+    ? await getCandidateEmailTemplates(candidateLocale)
+    : [];
   const appointmentEmailTemplate =
     emailTemplates.find((template) => template.key === appointmentConfirmedEmailTemplate.key) ??
+    getDefaultEmailTemplate(appointmentConfirmedEmailTemplate.key, candidateLocale) ??
     appointmentConfirmedEmailTemplate;
   const scheduledAppointment = schedulingData?.appointments[0] ?? null;
   const scheduledAppointmentEmailContext = buildAppointmentEmailContext(
     scheduledAppointment,
-    group.timezone
+    group.timezone,
+    candidateLocale
   );
   const scheduledAppointmentSlotIds = new Set(
     scheduledAppointment?.slots.map((slot) => slot.slotId) ?? []
@@ -273,7 +286,6 @@ export default async function CandidateDetailPage({
   const returnTo = `/admin/groups/${groupId}/candidates/${candidateId}?section=email`;
   const mailCount = Number(query.mailCount ?? 0);
   const mailFailed = Number(query.mailFailed ?? 0);
-
   return (
     <AdminShell admin={admin}>
       <GroupNav groupId={groupId} active="candidates" capabilities={capabilities} />
@@ -284,14 +296,14 @@ export default async function CandidateDetailPage({
           <>
             <Button asChild variant="secondary" size="sm">
               <Link href={`/admin/groups/${groupId}/candidates/${candidateId}/export`} download>
-                导出候选人数据
+                {t("legacy.export_candidate_data.e743f7c5")}
               </Link>
             </Button>
             <Link
               className="text-sm font-medium text-primary"
               href={`/admin/groups/${groupId}/candidates`}
             >
-              返回候选人列表
+              {t("legacy.return_to_candidate_list.a4fa9630")}
             </Link>
           </>
         }
@@ -302,62 +314,76 @@ export default async function CandidateDetailPage({
 
       {query.review ? (
         <InlineNotice tone="success" className="mb-5">
-          审核操作已完成。
+          {t("legacy.the_review_operation_has_been_completed.bb184ce5")}
         </InlineNotice>
       ) : null}
       {query.privacy === "anonymized" ? (
         <InlineNotice tone="success" className="mb-5">
-          候选人身份、自由文本、会话和邮件内容已匿名化；排期统计事实已保留。
+          {t(
+            "legacy.candidate_identities_free_text_conversations_and_email_content_are_anony.7e04b647"
+          )}
         </InlineNotice>
       ) : null}
       {query.privacy === "invalid" ? (
         <InlineNotice tone="warning" className="mb-5">
-          匿名化确认文本无效，未修改任何数据。
+          {t(
+            "legacy.the_anonymization_confirmation_text_is_invalid_and_no_data_has_been_modi.31eaf13e"
+          )}
         </InlineNotice>
       ) : null}
       {capabilities.canSchedule && query.appointment === "scheduled" ? (
         <InlineNotice tone="success" className="mb-5">
-          面试安排已确认。
+          {t("legacy.interview_arrangements_have_been_confirmed.4103ff0d")}
         </InlineNotice>
       ) : null}
       {capabilities.canSchedule && query.appointment === "rescheduled" ? (
         <InlineNotice tone="success" className="mb-5">
-          面试安排已调整。
+          {t("legacy.interview_arrangements_have_been_adjusted.8b443663")}
         </InlineNotice>
       ) : null}
       {capabilities.canSchedule && query.appointment === "invalid" ? (
         <InlineNotice tone="warning" className="mb-5">
-          请选择候选人当前有效可用时间中的连续开放时间后再确认安排。
+          {t(
+            "legacy.please_select_consecutive_opening_times_within_the_candidate_s_currently.280bab91"
+          )}
         </InlineNotice>
       ) : null}
       {capabilities.canSchedule && query.appointment === "conflict" ? (
         <InlineNotice tone="warning" className="mb-5">
-          所选面试官在该时间已有面试安排，请调整时间或更换面试官。
+          {t(
+            "legacy.the_selected_interviewer_has_an_interview_schedule_at_this_time_please_a.4469a0fc"
+          )}
         </InlineNotice>
       ) : null}
       {capabilities.canSchedule && query.mail === "sent" ? (
         <InlineNotice tone="success" className="mb-5">
-          已发送 {mailCount} 封候选人通知{query.mailDryRun ? "（测试发送预览）" : ""}。
+          {t(query.mailDryRun ? "mail.sentPreviewSummary" : "mail.sentSummary", {
+            count: mailCount
+          })}
         </InlineNotice>
       ) : null}
       {capabilities.canSchedule && query.mail === "queued" ? (
         <InlineNotice tone="success" className="mb-5">
-          已将 {mailCount} 封候选人通知写入可靠发送队列，可安全离开本页。
+          {t("mail.queuedSummary", { count: mailCount })}
         </InlineNotice>
       ) : null}
       {capabilities.canSchedule && query.mail === "partial" ? (
         <InlineNotice tone="warning" className="mb-5">
-          已发送 {mailCount} 封，失败 {mailFailed} 封。请检查 Mailato 配置或发送记录。
+          {t("mail.partialSummary", { sent: mailCount, failed: mailFailed })}
         </InlineNotice>
       ) : null}
       {capabilities.canSchedule && query.mail === "error" ? (
         <InlineNotice tone="danger" className="mb-5">
-          通知发送失败。请检查服务器 Mailato 配置和发送记录。
+          {t(
+            "legacy.notification_delivery_failed_please_check_your_server_mailato_configurat.74ea2dc8"
+          )}
         </InlineNotice>
       ) : null}
       {capabilities.canSchedule && query.mail === "invalid" ? (
         <InlineNotice tone="warning" className="mb-5">
-          请填写邮件主题和正文，并确认后再发送。
+          {t(
+            "legacy.please_fill_in_the_subject_and_body_of_the_email_and_confirm_before_send.484b1d72"
+          )}
         </InlineNotice>
       ) : null}
       {capabilities.canSchedule && section === "email" ? (
@@ -365,19 +391,19 @@ export default async function CandidateDetailPage({
       ) : null}
 
       <Tabs className="mb-6">
-        <TabsList aria-label="候选人详情分区">
+        <TabsList aria-label={t("legacy.candidate_details_section.6ec5a2a9")}>
           <TabLink
             href={`/admin/groups/${groupId}/candidates/${candidateId}?section=overview`}
             active={section === "overview"}
           >
-            概览与备注
+            {t("legacy.overview_and_notes.fd7e1037")}
           </TabLink>
           {capabilities.canSchedule ? (
             <TabLink
               href={`/admin/groups/${groupId}/candidates/${candidateId}?section=scheduling`}
               active={section === "scheduling"}
             >
-              面试排期
+              {t("legacy.interview_scheduling.251f5aa5")}
             </TabLink>
           ) : null}
           {capabilities.canSchedule ? (
@@ -385,14 +411,14 @@ export default async function CandidateDetailPage({
               href={`/admin/groups/${groupId}/candidates/${candidateId}?section=email`}
               active={section === "email"}
             >
-              邮件通知
+              {t("legacy.email_notification.2fb23b01")}
             </TabLink>
           ) : null}
           <TabLink
             href={`/admin/groups/${groupId}/candidates/${candidateId}?section=history`}
             active={section === "history"}
           >
-            提交历史
+            {t("legacy.commit_history.1c8c023b")}
           </TabLink>
         </TabsList>
       </Tabs>
@@ -408,7 +434,9 @@ export default async function CandidateDetailPage({
           {section === "overview" ? (
             <Card className="p-6">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-lg font-semibold">当前有效可用时间</h3>
+                <h3 className="text-lg font-semibold">
+                  {t("legacy.current_available_time.ad871025")}
+                </h3>
                 <StatusBadge kind="candidate" status={candidate.status} />
               </div>
               {candidate.activeSubmission ? (
@@ -427,51 +455,61 @@ export default async function CandidateDetailPage({
                           />
                         </p>
                         {slot.activeLock ? (
-                          <p className="mt-1 text-xs text-amber-700">已锁定</p>
+                          <p className="mt-1 text-xs text-amber-700">
+                            {t("legacy.locked.56cee909")}
+                          </p>
                         ) : null}
                       </div>
                     ))}
                   </div>
                   <div className="mt-5">
-                    <p className="text-sm font-medium">候选人备注</p>
+                    <p className="text-sm font-medium">{t("legacy.candidate_notes.23fc9983")}</p>
                     <p className="mt-2 rounded-md border border-border bg-white p-3 text-sm leading-6 text-muted-foreground">
-                      {candidate.activeSubmission.candidateNote || "未填写"}
+                      {candidate.activeSubmission.candidateNote ||
+                        t("legacy.not_filled_in.7f051905")}
                     </p>
                   </div>
                 </>
               ) : (
-                <p className="mt-3 text-sm text-muted-foreground">暂无有效提交。</p>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {t("legacy.there_are_no_valid_submissions_yet.0b58a9c6")}
+                </p>
               )}
             </Card>
           ) : null}
 
           {capabilities.canSchedule && section === "scheduling" ? (
             <Card className="p-6">
-              <h3 className="text-lg font-semibold">安排面试</h3>
+              <h3 className="text-lg font-semibold">{t("legacy.arrange_an_interview.184593bf")}</h3>
               {scheduledAppointment ? (
                 <div className="mt-4 space-y-5">
                   <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-                    已安排：
                     <ZonedDateTimeRange
                       startAt={scheduledAppointment.startAt.toISOString()}
                       endAt={scheduledAppointment.endAt.toISOString()}
                       defaultTimezone={group.timezone}
+                      messageKey="appointment.scheduledAt"
                     />
                     <p className="mt-2 text-xs">
-                      面试官：
                       {scheduledAppointment.interviewers.length > 0
-                        ? scheduledAppointment.interviewers
-                            .map((assignment) => assignment.interviewer.name)
-                            .join("、")
-                        : "未指定"}
+                        ? t("appointment.interviewers", {
+                            names: scheduledAppointment.interviewers
+                              .map((assignment) => assignment.interviewer.name)
+                              .join(", ")
+                          })
+                        : t("appointment.interviewersNone")}
                     </p>
                   </div>
                   <details className="group rounded-lg border border-border bg-surface-subtle">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-colors duration-fast hover:bg-muted [&::-webkit-details-marker]:hidden">
-                      <span>调整面试时间</span>
+                      <span>{t("legacy.adjust_interview_time.e034863a")}</span>
                       <span className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                        <span className="group-open:hidden">展开调整</span>
-                        <span className="hidden group-open:inline">收起</span>
+                        <span className="group-open:hidden">
+                          {t("legacy.expand_adjustments.383d7c22")}
+                        </span>
+                        <span className="hidden group-open:inline">
+                          {t("legacy.close.afd4b783")}
+                        </span>
                         <ChevronDown
                           className="h-4 w-4 transition-transform duration-fast group-open:rotate-180"
                           aria-hidden="true"
@@ -499,7 +537,6 @@ export default async function CandidateDetailPage({
                               slot.activeLock &&
                               slot.activeLock.appointmentId !== scheduledAppointment.id
                             );
-
                             return {
                               id: slot.id,
                               startAt: slot.startAt.toISOString(),
@@ -516,22 +553,31 @@ export default async function CandidateDetailPage({
                         interviewers={projectInterviewers}
                         defaultSelectedInterviewerIds={scheduledAppointmentInterviewerIds}
                       />
-                      <FormField id="rescheduleMeetingLocation" label="会议地点或链接">
+                      <FormField
+                        id="rescheduleMeetingLocation"
+                        label={t("legacy.meeting_location_or_link.fe727e39")}
+                      >
                         <Input
                           id="rescheduleMeetingLocation"
                           name="meetingLocation"
                           defaultValue={scheduledAppointment.meetingLocation ?? ""}
-                          placeholder="会议室 / 腾讯会议链接"
+                          placeholder={t("legacy.conference_room_tencent_meeting_link.3c4034c7")}
                         />
                       </FormField>
-                      <FormField id="rescheduleCandidateVisibleMessage" label="给候选人的说明">
+                      <FormField
+                        id="rescheduleCandidateVisibleMessage"
+                        label={t("legacy.instructions_to_candidates.3768407d")}
+                      >
                         <Textarea
                           id="rescheduleCandidateVisibleMessage"
                           name="candidateVisibleMessage"
                           defaultValue={scheduledAppointment.candidateVisibleMessage ?? ""}
                         />
                       </FormField>
-                      <FormField id="rescheduleInternalNote" label="内部备注（仅管理员可见）">
+                      <FormField
+                        id="rescheduleInternalNote"
+                        label={t("legacy.internal_notes_visible_only_to_administrators.00bef15d")}
+                      >
                         <Textarea
                           id="rescheduleInternalNote"
                           name="internalNote"
@@ -539,26 +585,34 @@ export default async function CandidateDetailPage({
                         />
                       </FormField>
                       <AppointmentEmailFields
-                        checkboxLabel="保存后发送标准面试安排通知"
+                        checkboxLabel={t(
+                          "legacy.send_standard_interview_arrangement_notification_after_saving.da65c948"
+                        )}
                         template={appointmentEmailTemplate}
                       />
                       <div className="flex flex-wrap items-center gap-3">
-                        <SubmitButton pendingText="正在保存">保存调整并锁定时间</SubmitButton>
+                        <SubmitButton pendingText={t("legacy.saving.570d6020")}>
+                          {t("legacy.save_adjustments_and_lock_time.c06c9e67")}
+                        </SubmitButton>
                       </div>
                     </form>
                   </details>
                   <ConfirmForm
                     action={cancelAppointmentAction.bind(null, groupId, scheduledAppointment.id)}
-                    confirmMessage="确认取消这场面试并释放对应时间吗？候选人安排会立即失效。"
+                    confirmMessage={t(
+                      "legacy.are_you_sure_to_cancel_this_interview_and_release_the_corresponding_time.cc501a5f"
+                    )}
                   >
-                    <SubmitButton variant="danger" pendingText="正在删除">
-                      取消安排并释放时间
+                    <SubmitButton variant="danger" pendingText={t("legacy.deleting.16a73a8b")}>
+                      {t("legacy.unschedule_and_free_up_time.32c042f6")}
                     </SubmitButton>
                   </ConfirmForm>
                 </div>
               ) : schedulableSlots.length === 0 ? (
                 <p className="mt-3 text-sm text-muted-foreground">
-                  当前没有可用于安排面试且未锁定的时间。
+                  {t(
+                    "legacy.there_are_currently_no_unlocked_times_available_to_schedule_interviews.5db3de6c"
+                  )}
                 </p>
               ) : (
                 <form
@@ -578,24 +632,37 @@ export default async function CandidateDetailPage({
                     projectId={group.projectId}
                     interviewers={projectInterviewers}
                   />
-                  <FormField id="meetingLocation" label="会议地点或链接">
+                  <FormField
+                    id="meetingLocation"
+                    label={t("legacy.meeting_location_or_link.fe727e39")}
+                  >
                     <Input
                       id="meetingLocation"
                       name="meetingLocation"
-                      placeholder="会议室 / 腾讯会议链接"
+                      placeholder={t("legacy.conference_room_tencent_meeting_link.3c4034c7")}
                     />
                   </FormField>
-                  <FormField id="candidateVisibleMessage" label="给候选人的说明">
+                  <FormField
+                    id="candidateVisibleMessage"
+                    label={t("legacy.instructions_to_candidates.3768407d")}
+                  >
                     <Textarea id="candidateVisibleMessage" name="candidateVisibleMessage" />
                   </FormField>
-                  <FormField id="internalNote" label="内部备注（仅管理员可见）">
+                  <FormField
+                    id="internalNote"
+                    label={t("legacy.internal_notes_visible_only_to_administrators.00bef15d")}
+                  >
                     <Textarea id="internalNote" name="internalNote" />
                   </FormField>
                   <AppointmentEmailFields
-                    checkboxLabel="确认安排后发送标准面试安排通知"
+                    checkboxLabel={t(
+                      "legacy.a_standard_interview_arrangement_notification_will_be_sent_after_the_arr.8c793de0"
+                    )}
                     template={appointmentEmailTemplate}
                   />
-                  <SubmitButton>确认安排并锁定时间</SubmitButton>
+                  <SubmitButton>
+                    {t("legacy.confirm_arrangement_and_lock_in_time.bc989803")}
+                  </SubmitButton>
                 </form>
               )}
             </Card>
@@ -603,17 +670,19 @@ export default async function CandidateDetailPage({
 
           {section === "history" ? (
             <Card className="p-6">
-              <h3 className="text-lg font-semibold">提交历史</h3>
+              <h3 className="text-lg font-semibold">{t("legacy.commit_history.1c8c023b")}</h3>
               <div className="mt-4 space-y-3">
                 {candidate.submissions.map((submission) => (
                   <div key={submission.id} className="rounded-md border border-border p-3 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">版本 {submission.versionNo}</span>
+                      <span className="font-medium">
+                        {t("submission.versionLabel", { version: submission.versionNo })}
+                      </span>
                       <Badge tone={submission.status === "ACTIVE" ? "success" : "neutral"}>
-                        {candidateSubmissionStatusLabel[submission.status]}
+                        {t(candidateSubmissionStatusLabel[submission.status])}
                       </Badge>
                       <span className="text-muted-foreground">
-                        {candidateSubmissionTypeLabel[submission.submissionType]}
+                        {t(candidateSubmissionTypeLabel[submission.submissionType])}
                       </span>
                     </div>
                     <div className="mt-2 grid gap-2 md:grid-cols-2">
@@ -648,17 +717,25 @@ export default async function CandidateDetailPage({
               />
               {isSuperAdmin(admin) ? (
                 <Card className="border-red-200 p-6">
-                  <h3 className="text-lg font-semibold text-red-800">隐私数据处理</h3>
+                  <h3 className="text-lg font-semibold text-red-800">
+                    {t("legacy.privacy_data_processing.310b400c")}
+                  </h3>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    匿名化会撤销候选人会话和链接，删除邮件、备注及自由文本，并保留不含身份的排期统计。
-                    此操作不可恢复。
+                    {t(
+                      "legacy.anonymization_removes_candidate_conversations_and_links_deletes_emails_n.7be88753"
+                    )}
                   </p>
                   <ConfirmForm
                     className="mt-4 space-y-3"
                     action={anonymizeCandidateAction.bind(null, groupId, candidateId)}
-                    confirmMessage="确认永久匿名化该候选人的个人数据吗？此操作不可恢复。"
+                    confirmMessage={t(
+                      "legacy.are_you_sure_you_want_to_permanently_anonymize_this_candidate_s_personal.365fc88e"
+                    )}
                   >
-                    <FormField id="anonymizeConfirmation" label="输入 ANONYMIZE 确认">
+                    <FormField
+                      id="anonymizeConfirmation"
+                      label={t("legacy.enter_anonymize_to_confirm.604594cd")}
+                    >
                       <Input
                         id="anonymizeConfirmation"
                         name="confirmation"
@@ -666,8 +743,8 @@ export default async function CandidateDetailPage({
                         required
                       />
                     </FormField>
-                    <SubmitButton variant="danger" pendingText="正在匿名化">
-                      永久匿名化候选人
+                    <SubmitButton variant="danger" pendingText={t("legacy.anonymizing.ca3da616")}>
+                      {t("legacy.permanently_anonymize_candidates.7560a96e")}
                     </SubmitButton>
                   </ConfirmForm>
                 </Card>
@@ -688,9 +765,11 @@ export default async function CandidateDetailPage({
                     name: candidate.name,
                     email: candidate.email,
                     status: candidate.status,
+                    hasScheduledAppointment: Boolean(scheduledAppointment),
                     appointmentTime: scheduledAppointmentEmailContext.appointmentTime,
                     meetingLocation: scheduledAppointmentEmailContext.meetingLocation,
-                    candidateMessage: scheduledAppointmentEmailContext.candidateMessage
+                    candidateMessage: scheduledAppointmentEmailContext.candidateMessage,
+                    preferredLocale: candidateLocale
                   }
                 ]}
               />
@@ -710,7 +789,8 @@ export default async function CandidateDetailPage({
                   createdAt: delivery.createdAt,
                   sentByAdminName: delivery.sentByAdmin.displayName,
                   sentByAdminEmail: delivery.sentByAdmin.email,
-                  retriedFromId: delivery.retriedFromId
+                  retriedFromId: delivery.retriedFromId,
+                  locale: delivery.locale
                 }))}
               />
             </>

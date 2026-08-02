@@ -9,6 +9,7 @@ type AppointmentCalendarInput = {
   meetingLocation?: string | null;
   description?: string | null;
   cancelled?: boolean;
+  locale?: "zh-CN" | "en";
 };
 
 function icsUtc(value: Date) {
@@ -45,7 +46,7 @@ export function buildAppointmentIcs(input: AppointmentCalendarInput) {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//When2Entretien//Interview Scheduler//ZH",
+    `PRODID:-//When2Entretien//Interview Scheduler//${input.locale === "en" ? "EN" : "ZH"}`,
     "CALSCALE:GREGORIAN",
     `METHOD:${input.cancelled ? "CANCEL" : "REQUEST"}`,
     "BEGIN:VEVENT",

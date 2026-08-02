@@ -12,6 +12,7 @@ import {
   CANDIDATE_SESSION_COOKIE_NAME,
   getCandidateSessionCookieName
 } from "@/lib/auth/candidate-session-cookie";
+import { normalizeLocale, type AppLocale } from "@/i18n/config";
 
 export { CANDIDATE_SESSION_COOKIE_NAME, getCandidateSessionCookieName };
 
@@ -65,7 +66,7 @@ export function isCandidateSessionUsable(
   );
 }
 
-export async function consumeCandidateAccessToken(token: string) {
+export async function consumeCandidateAccessToken(token: string, requestedLocale?: AppLocale) {
   if (!isCandidateToken(token)) {
     return null;
   }
@@ -98,6 +99,7 @@ export async function consumeCandidateAccessToken(token: string) {
           name: true,
           email: true,
           normalizedEmail: true,
+          locale: true,
           group: {
             select: {
               groupCode: true,
@@ -125,6 +127,14 @@ export async function consumeCandidateAccessToken(token: string) {
 
       const rawSessionToken = generateCandidateToken();
       const expiresAt = getCandidateSessionExpiresAt(now);
+      const locale = normalizeLocale(requestedLocale ?? accessToken.locale);
+
+      if (candidate) {
+        await tx.candidate.update({
+          where: { id: candidate.id },
+          data: { preferredLocale: locale }
+        });
+      }
 
       await tx.candidateSession.create({
         data: {
@@ -134,6 +144,7 @@ export async function consumeCandidateAccessToken(token: string) {
           name: accessToken.name,
           email: accessToken.email,
           normalizedEmail: accessToken.normalizedEmail,
+          locale,
           expiresAt
         }
       });
@@ -142,7 +153,8 @@ export async function consumeCandidateAccessToken(token: string) {
         sessionToken: rawSessionToken,
         expiresAt,
         groupId: accessToken.groupId,
-        groupCode: accessToken.group.groupCode
+        groupCode: accessToken.group.groupCode,
+        locale
       };
     });
   } catch (error) {

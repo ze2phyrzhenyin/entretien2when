@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import Link from "next/link";
 import { AppointmentStatus, CandidateSubmissionStatus, GroupTimeSlotStatus } from "@prisma/client";
 import { CandidateAppointmentCard } from "@/components/candidate/candidate-appointment-card";
@@ -17,9 +18,10 @@ import { candidateSlotWindowDays, resolveCandidateSlotWindow } from "@/lib/date/
 import { normalizeGroupCode } from "@/lib/group-code/generate";
 import { prisma } from "@/lib/db/prisma";
 import { AvailabilityForm } from "./availability-form";
-
 type CandidateGroupPageProps = {
-  params: Promise<{ groupCode: string }>;
+  params: Promise<{
+    groupCode: string;
+  }>;
   searchParams: Promise<{
     mode?: string;
     submitted?: string;
@@ -29,14 +31,15 @@ type CandidateGroupPageProps = {
     to?: string;
   }>;
 };
-
 function buildCandidateSlotOptions(
   slots: Array<{
     id: string;
     startAt: Date;
     endAt: Date;
     status: GroupTimeSlotStatus;
-    activeLock: { id: string } | null;
+    activeLock: {
+      id: string;
+    } | null;
   }>,
   selectedSlotIds = new Set<string>()
 ): CandidateSlotView[] {
@@ -48,51 +51,54 @@ function buildCandidateSlotOptions(
     initiallySelected: selectedSlotIds.has(slot.id)
   }));
 }
-
 export default async function CandidateGroupPage({
   params,
   searchParams
 }: CandidateGroupPageProps) {
+  const { t } = await getServerTranslator();
   const [{ groupCode }, query] = await Promise.all([params, searchParams]);
   const normalizedGroupCode = normalizeGroupCode(groupCode);
   const requestedModifyMode = query.mode === "modify";
-
   const group = await prisma.interviewGroup.findUnique({
     where: { groupCode: normalizedGroupCode }
   });
-
   if (!group) {
     return (
       <CandidateShell size="narrow">
         <Card className="mx-auto max-w-lg p-6">
-          <h1 className="text-xl font-semibold">面试组不存在</h1>
-          <p className="mt-2 text-sm text-muted-foreground">请检查招聘方提供的面试组编号。</p>
+          <h1 className="text-xl font-semibold">
+            {t("legacy.the_interview_group_does_not_exist.5417de95")}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {t("legacy.please_check_the_interview_group_number_provided_by_the_recruiter.27617216")}
+          </p>
           <Link className="mt-5 inline-flex text-sm font-medium text-primary" href="/join">
-            返回填写入口
+            {t("legacy.return_to_fill_in_the_entry.eeb690e4")}
           </Link>
         </Card>
       </CandidateShell>
     );
   }
-
   const session = await getCurrentCandidateSession(group.id);
-
   if (!session) {
     return (
       <CandidateShell size="narrow">
         <Card className="mx-auto max-w-lg p-6">
-          <h1 className="text-xl font-semibold">请通过邮箱链接进入</h1>
+          <h1 className="text-xl font-semibold">
+            {t("legacy.please_enter_via_email_link.be3a87e4")}
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            为保护候选人信息，请先在入口页发送访问链接，再从邮件中的链接进入。
+            {t(
+              "legacy.to_protect_candidate_information_please_send_an_access_link_on_the_entra.ce60eade"
+            )}
           </p>
           <Link className="mt-5 inline-flex text-sm font-medium text-primary" href="/join">
-            发送访问链接
+            {t("legacy.send_access_link.685a3d8b")}
           </Link>
         </Card>
       </CandidateShell>
     );
   }
-
   const candidate = await prisma.candidate.findUnique({
     where: {
       groupId_normalizedEmail: {
@@ -125,7 +131,6 @@ export default async function CandidateGroupPage({
       }
     }
   });
-
   const activeSlotIds = new Set(
     candidate?.activeSubmission?.slots.map((item) => item.slotId) ?? []
   );
@@ -169,7 +174,6 @@ export default async function CandidateGroupPage({
   const identityName = candidate?.name ?? session.name;
   const identityEmail = candidate?.email ?? session.email;
   const modifyHref = `/candidate/${group.groupCode}?mode=modify`;
-
   return (
     <CandidateShell>
       <div>
@@ -195,11 +199,17 @@ export default async function CandidateGroupPage({
           />
 
           <div className="space-y-6">
-            {query.submitted ? <InlineNotice tone="success">可用时间已提交。</InlineNotice> : null}
+            {query.submitted ? (
+              <InlineNotice tone="success">
+                {t("legacy.available_time_has_been_submitted.22164b30")}
+              </InlineNotice>
+            ) : null}
             {query.pending ? <ReviewNotice mode="pending" /> : null}
             {requestedModifyMode && !canRequestModification ? (
               <InlineNotice tone="warning">
-                当前已有正式面试安排或修改申请正在审核，不能再提交新的修改申请。
+                {t(
+                  "legacy.there_are_currently_formal_interview_arrangements_or_modification_applic.044a1976"
+                )}
               </InlineNotice>
             ) : null}
 
@@ -225,11 +235,15 @@ export default async function CandidateGroupPage({
             ) : (
               <Card className="p-6" variant="flat">
                 <h2 className="text-lg font-semibold">
-                  {isModifyMode ? "申请修改可用时间" : "选择可用时间"}
+                  {isModifyMode
+                    ? t("legacy.apply_to_modify_the_available_time.109a1326")
+                    : t("legacy.select_available_time.8600b794")}
                 </h2>
                 {candidate?.activeSubmission && isModifyMode ? (
                   <div className="mt-4 rounded-lg border border-border bg-surface-subtle p-4">
-                    <p className="text-sm font-medium">当前有效版本</p>
+                    <p className="text-sm font-medium">
+                      {t("legacy.currently_valid_version.813c8a91")}
+                    </p>
                     <div className="mt-3">
                       <TimeRangePreview items={activeSlotItems} defaultTimezone={group.timezone} />
                     </div>
@@ -238,28 +252,26 @@ export default async function CandidateGroupPage({
                 <div className="mt-5">
                   {slotWindow.wasAdjusted ? (
                     <InlineNotice tone="warning" className="mb-4">
-                      日期范围无效或超过 {candidateSlotWindowDays}{" "}
-                      天，已恢复为最近可查看的时间范围。
+                      {t("availability.dateRangeInvalid", { days: candidateSlotWindowDays })}
                     </InlineNotice>
                   ) : null}
                   <Card className="mb-4 p-4" variant="subtle">
                     <form className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                       {isModifyMode ? <input type="hidden" name="mode" value="modify" /> : null}
                       <label className="grid gap-1 text-sm font-medium">
-                        开始日期
+                        {t("legacy.start_date.76050649")}
                         <Input name="from" type="date" defaultValue={slotWindow.from} required />
                       </label>
                       <label className="grid gap-1 text-sm font-medium">
-                        结束日期
+                        {t("legacy.end_date.895cd52f")}
                         <Input name="to" type="date" defaultValue={slotWindow.to} required />
                       </label>
                       <Button type="submit" variant="secondary" className="self-end">
-                        查看时段
+                        {t("legacy.view_time_period.d1d659b1")}
                       </Button>
                     </form>
                     <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                      每次最多显示连续 {candidateSlotWindowDays}{" "}
-                      天的开放时间。切换日期范围会清除未提交的选择；当前已生效的选择会保留显示，方便修改。
+                      {t("availability.windowHelp", { days: candidateSlotWindowDays })}
                     </p>
                   </Card>
                   <AvailabilityForm

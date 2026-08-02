@@ -34,6 +34,7 @@ cp .env.example .env
 - `EMAIL_OUTBOX_BATCH_SIZE`：邮件 outbox 每批处理数量。
 - `CANDIDATE_ACCESS_ENCRYPTION_KEY`：生产必填的 32 字节 base64url 密钥。
 - `APPOINTMENT_REMINDER_HOURS`：预约自动提醒时点，默认 `24,1`。
+- `STAFF_NOTIFICATION_LOCALE`：候选人主动提交时发给组 OWNER 的运营语言，支持 `zh-CN` / `en`，默认 `zh-CN`。
 - `*_RETENTION_DAYS`：认证、邮件和审计保留期；先 dry-run 确认组织政策。
 
 ## 数据库初始化
@@ -52,6 +53,8 @@ pnpm db:seed
 pnpm db:generate
 pnpm exec prisma migrate deploy
 ```
+
+本次双语版本必须在切换新应用 release 前确认 `0015_i18n_locale_persistence` 已应用；新代码会直接读取新增的非空 locale 字段。历史行按兼容策略回填为 `zh-CN`。完整语言边界和迁移顺序见 `docs/I18N.md`。
 
 只有空生产库需要首次管理员时，显式配置 `ADMIN_BOOTSTRAP_*` 后执行一次 `pnpm db:seed`；既有生产库禁止把 seed 放进部署流水线。
 
@@ -104,6 +107,7 @@ PLAYWRIGHT_WORKERS=1 pnpm exec playwright test --project=chromium
 ## 发布前必过项
 
 - `pnpm check` 通过。
+- `pnpm i18n:check` 通过；中文/英文 catalog 的键和占位符完全一致。
 - 使用上面的隔离数据库命令运行完整 Playwright E2E 并通过。
 - `bash scripts/ui-snapshots.sh` 通过并完成截图人工走查。
 - 生产环境 `.env` 不使用示例管理员密码。
@@ -118,6 +122,8 @@ PLAYWRIGHT_WORKERS=1 pnpm exec playwright test --project=chromium
 - `/admin/groups/[id]/members` 的最后一个有效 OWNER 不可撤权或降级；最后一个有效超级管理员不可停用或降级。
 - 预约、改约和取消邮件包含正确 ICS，面试官各自收信，到期提醒不会发送陈旧排期。
 - 同一浏览器分别进入两个面试组后，两边候选人会话都保持有效。
+- 中文 / English 一次点击切换后服务端页面立即更新，刷新后保持；切换时未提交表单内容不丢失，禁用 JavaScript 时英文首屏仍为英文。
+- 候选人、面试官和 OWNER 邮件分别遵守 `docs/I18N.md` 的收件人语言策略；候选人姓名、备注、组名称和自定义邮件正文保持原文。
 - 移动端后台卡片不被底部导航遮挡，候选人详情四个标签可以独立操作。
 - 候选人 JSON 导出受组权限限制；匿名化仅超级管理员可执行并记录审计。
 - `/api/health/ready` 返回 ready，负责人通知 outbox 可通过 `pnpm email:outbox` 处理；没有活跃组 OWNER 时不得向全局/个人邮箱外发候选人信息。

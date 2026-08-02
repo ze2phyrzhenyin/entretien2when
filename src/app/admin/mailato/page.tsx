@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import { AdminRole } from "@prisma/client";
 import { Mail } from "lucide-react";
 import { FormField } from "@/components/design-system/form-field";
@@ -12,42 +13,49 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { requireAdmin } from "@/lib/auth/session";
 import { sendMailatoAdminEmailAction } from "@/server/actions/mailato";
-
 type AdminMailatoPageProps = {
-  searchParams: Promise<{ mailato?: string; dryRun?: string }>;
+  searchParams: Promise<{
+    mailato?: string;
+    dryRun?: string;
+  }>;
 };
-
 export default async function AdminMailatoPage({ searchParams }: AdminMailatoPageProps) {
+  const { t } = await getServerTranslator();
   const [admin, query] = await Promise.all([requireAdmin(), searchParams]);
   const isSuperAdmin = admin.role === AdminRole.SUPER_ADMIN;
-
   return (
     <AdminShell admin={admin} active="mailato">
       <PageHeader
-        title="邮件发送"
-        description="通过服务器 Mailato 发送邮件，支持收件人、抄送（CC）和密送（BCC）。"
+        title={t("legacy.send_email.1579f7b4")}
+        description={t(
+          "legacy.send_emails_through_the_server_mailato_supporting_recipients_carbon_copy.475db0d0"
+        )}
       />
 
       {query.mailato === "sent" ? (
         <InlineNotice tone="success" className="mb-5">
-          邮件已提交给 Mailato{query.dryRun ? "（测试发送预览）" : ""}。
+          {t(query.dryRun ? "mailato.previewSubmitted" : "mailato.sent")}
         </InlineNotice>
       ) : null}
       {query.mailato === "error" ? (
         <InlineNotice tone="danger" className="mb-5">
-          Mailato 发送失败。请检查服务器 Mailato 配置和审计日志。
+          {t(
+            "legacy.mailato_failed_to_send_please_check_the_server_mailato_configuration_and.f9c08e29"
+          )}
         </InlineNotice>
       ) : null}
       {query.mailato === "invalid" ? (
         <InlineNotice tone="warning" className="mb-5">
-          请填写有效的收件人、主题和正文，并勾选发送确认。
+          {t(
+            "legacy.please_fill_in_the_valid_recipient_subject_and_body_and_check_the_box_to.0d623fa2"
+          )}
         </InlineNotice>
       ) : null}
 
       {!isSuperAdmin ? (
         <EmptyState
-          title="暂无邮件发送权限"
-          description="该功能仅限超级管理员使用。"
+          title={t("legacy.no_permission_to_send_emails_yet.f852e961")}
+          description={t("legacy.this_feature_is_only_available_to_super_administrators.1adaecaf")}
           icon={<Mail className="h-6 w-6" aria-hidden="true" />}
         />
       ) : (
@@ -56,8 +64,10 @@ export default async function AdminMailatoPage({ searchParams }: AdminMailatoPag
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <FormField
                 id="mailatoToEmails"
-                label="收件人"
-                description="多个邮箱可用逗号、分号、空格或换行分隔。"
+                label={t("legacy.recipient.c237b665")}
+                description={t(
+                  "legacy.multiple_mailboxes_can_be_separated_by_commas_semicolons_spaces_or_newli.431edb70"
+                )}
               >
                 <Textarea
                   id="mailatoToEmails"
@@ -70,8 +80,10 @@ export default async function AdminMailatoPage({ searchParams }: AdminMailatoPag
               <div className="grid gap-5">
                 <FormField
                   id="mailatoCcEmails"
-                  label="抄送（CC，可选）"
-                  description="抄送收件人会在邮件抄送列表中互相可见。"
+                  label={t("legacy.cc_optional.94a348d3")}
+                  description={t(
+                    "legacy.cc_recipients_will_be_visible_to_each_other_in_the_mail_cc_list.30dc3400"
+                  )}
                 >
                   <Textarea
                     id="mailatoCcEmails"
@@ -82,8 +94,10 @@ export default async function AdminMailatoPage({ searchParams }: AdminMailatoPag
                 </FormField>
                 <FormField
                   id="mailatoBccEmails"
-                  label="密送（BCC，可选）"
-                  description="密送收件人不会显示在收件人或抄送列表中。"
+                  label={t("legacy.blind_copy_bcc_optional.9804bfd3")}
+                  description={t(
+                    "legacy.bcc_recipients_will_not_appear_in_the_to_or_cc_lists.e21dfa7e"
+                  )}
                 >
                   <Textarea
                     id="mailatoBccEmails"
@@ -94,17 +108,23 @@ export default async function AdminMailatoPage({ searchParams }: AdminMailatoPag
                 </FormField>
               </div>
             </div>
-            <FormField id="mailatoSubject" label="邮件主题">
+            <FormField id="mailatoSubject" label={t("legacy.email_subject.d626dbe6")}>
               <Input id="mailatoSubject" name="subject" maxLength={160} required />
             </FormField>
-            <FormField id="mailatoBody" label="邮件正文">
+            <FormField id="mailatoBody" label={t("legacy.email_text.9aa24002")}>
               <Textarea id="mailatoBody" name="body" rows={14} required />
             </FormField>
             <label className="flex items-start gap-2 rounded-lg border border-border bg-surface-subtle p-4 text-sm">
               <Checkbox name="confirmSend" value="yes" />
-              <span>我确认收件人、抄送、密送、主题和正文无误，并立即发送。</span>
+              <span>
+                {t(
+                  "legacy.i_confirm_that_the_recipients_cc_bcc_subject_and_body_are_correct_and_se.5bb051a0"
+                )}
+              </span>
             </label>
-            <SubmitButton pendingText="正在发送">发送邮件</SubmitButton>
+            <SubmitButton pendingText={t("legacy.sending.2d88d503")}>
+              {t("legacy.send_email.c268c1b1")}
+            </SubmitButton>
           </form>
         </Card>
       )}

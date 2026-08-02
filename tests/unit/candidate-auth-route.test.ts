@@ -81,18 +81,44 @@ describe("candidate magic-link route", () => {
     );
   });
 
+  it("propagates an explicit English invitation locale without exposing the token", async () => {
+    const response = await GET(requestFor(`/when2entretien/candidate/auth/${token}?lang=en`), {
+      params: Promise.resolve({ token })
+    });
+
+    expect(response.headers.get("location")).toBe(
+      `https://example.test/when2entretien/candidate/auth/confirm?lang=en#${token}`
+    );
+  });
+
+  it("ignores an unsupported invitation locale instead of persisting a legacy fallback", async () => {
+    const response = await GET(requestFor(`/when2entretien/candidate/auth/${token}?lang=fr`), {
+      params: Promise.resolve({ token })
+    });
+
+    expect(response.headers.get("location")).toBe(
+      `https://example.test/when2entretien/candidate/auth/confirm#${token}`
+    );
+  });
+
   it("uses a base-path-scoped secure cookie and a clean success redirect after POST", async () => {
     const expiresAt = new Date("2030-01-01T00:00:00.000Z");
     candidateSessionMocks.consumeCandidateAccessToken.mockResolvedValue({
       sessionToken: "b".repeat(43),
       expiresAt,
       groupId: "group-a",
-      groupCode: "K7Q9-M2TD-8F6P-W4ZX-N3CY"
+      groupCode: "K7Q9-M2TD-8F6P-W4ZX-N3CY",
+      locale: "en"
     });
 
     const response = await POST(requestFor(), {
       params: Promise.resolve({ token })
     });
+
+    expect(candidateSessionMocks.consumeCandidateAccessToken).toHaveBeenCalledWith(
+      token,
+      undefined
+    );
 
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe(
@@ -107,6 +133,7 @@ describe("candidate magic-link route", () => {
     expect(response.headers.get("set-cookie")).toContain("Path=/when2entretien");
     expect(response.headers.get("set-cookie")).toContain("HttpOnly");
     expect(response.headers.get("set-cookie")).toContain("Secure");
+    expect(response.headers.get("set-cookie")).toContain("when2entretien_locale=en");
   });
 
   it("redirects failed POST consumption to the base-path join page without echoing the token", async () => {

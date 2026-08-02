@@ -44,4 +44,12 @@ describe("appointment calendar", () => {
     expect(links.outlook).toContain("outlook.office.com/calendar/0/deeplink/compose");
     expect(decodeURIComponent(links.outlook)).toContain("2026-08-10T08:00:00.000Z");
   });
+
+  it("marks an English artifact without translating authored calendar content", () => {
+    const calendar = buildAppointmentIcs({ ...input, locale: "en" });
+
+    expect(calendar).toContain("PRODID:-//When2Entretien//Interview Scheduler//EN\r\n");
+    expect(calendar).toContain("DESCRIPTION:请提前 5 分钟；准备作品集\r\n");
+    expect(calendar).toContain("DTSTART:20260810T080000Z\r\n");
+  });
 });

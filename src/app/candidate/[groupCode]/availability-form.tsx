@@ -1,5 +1,5 @@
 "use client";
-
+import { useLocale } from "@/i18n/locale-provider";
 import { useEffect, useState } from "react";
 import { FormField } from "@/components/design-system/form-field";
 import { ReviewNotice } from "@/components/design-system/review-notice";
@@ -13,7 +13,6 @@ import {
   requestSubmissionModificationAction,
   submitInitialAvailabilityAction
 } from "@/server/actions/candidate";
-
 export function AvailabilityForm({
   mode,
   groupCode,
@@ -31,6 +30,7 @@ export function AvailabilityForm({
   slots: CandidateSlotView[];
   defaultNote?: string | null;
 }) {
+  const { t } = useLocale();
   const [selectedSlotIds, setSelectedSlotIds] = useState<string[]>(
     slots.filter((slot) => slot.initiallySelected && !slot.disabled).map((slot) => slot.id)
   );
@@ -40,11 +40,9 @@ export function AvailabilityForm({
     daySlotIds: string[];
   } | null>(null);
   const [hydrated, setHydrated] = useState(false);
-
   useEffect(() => {
     setHydrated(true);
   }, []);
-
   function selectSlots(targetSlots: CandidateSlotView[]) {
     setSelectedSlotIds((current) => {
       const next = [...current];
@@ -57,7 +55,6 @@ export function AvailabilityForm({
       return next;
     });
   }
-
   function clearSlots(targetSlots: CandidateSlotView[]) {
     const targetSlotIds = new Set(targetSlots.map((slot) => slot.id));
     setSelectedSlotIds((current) => current.filter((slotId) => !targetSlotIds.has(slotId)));
@@ -65,19 +62,16 @@ export function AvailabilityForm({
       setRangeStart(null);
     }
   }
-
   function toggleSlot(slot: CandidateSlotView, daySlots: CandidateSlotView[]) {
     if (slot.disabled) {
       return;
     }
-
     if (rangeMode) {
       if (!rangeStart || !rangeStart.daySlotIds.includes(slot.id)) {
         setRangeStart({ slotId: slot.id, daySlotIds: daySlots.map((daySlot) => daySlot.id) });
         selectSlots([slot]);
         return;
       }
-
       const startIndex = daySlots.findIndex((daySlot) => daySlot.id === rangeStart.slotId);
       const endIndex = daySlots.findIndex((daySlot) => daySlot.id === slot.id);
       if (startIndex >= 0 && endIndex >= 0) {
@@ -89,7 +83,6 @@ export function AvailabilityForm({
       setRangeMode(false);
       return;
     }
-
     setSelectedSlotIds((current) => {
       if (current.includes(slot.id)) {
         return current.filter((slotId) => slotId !== slot.id);
@@ -100,7 +93,6 @@ export function AvailabilityForm({
       return [...current, slot.id];
     });
   }
-
   return (
     <form
       action={
@@ -110,7 +102,9 @@ export function AvailabilityForm({
       onSubmit={(event) => {
         if (mode === "modify") {
           const confirmed = window.confirm(
-            "提交后，如需再次修改，新的修改内容需要管理员审核。审核通过前，系统仍以当前已生效的信息为准。"
+            t(
+              "legacy.after_submission_if_you_need_to_modify_it_again_the_new_modification_con.2966d4e5"
+            )
           );
           if (!confirmed) {
             event.preventDefault();
@@ -149,12 +143,14 @@ export function AvailabilityForm({
         maxSelectSlots={maxSelectSlots}
       />
 
-      <FormField id="candidateNote" label="备注">
+      <FormField id="candidateNote" label={t("legacy.notes.daede988")}>
         <Textarea
           id="candidateNote"
           name="candidateNote"
           defaultValue={defaultNote ?? ""}
-          placeholder="可填写时间偏好、面试方式限制等。"
+          placeholder={t(
+            "legacy.you_can_fill_in_time_preference_interview_method_restrictions_etc.6ac47e1d"
+          )}
         />
       </FormField>
 
@@ -167,7 +163,9 @@ export function AvailabilityForm({
           selectedSlotIds.length < minSelectSlots || selectedSlotIds.length > maxSelectSlots
         }
       >
-        {mode === "modify" ? "提交修改申请" : "提交可用时间"}
+        {mode === "modify"
+          ? t("legacy.submit_modification_request.4200a9db")
+          : t("legacy.submit_availability.112035c7")}
       </Button>
     </form>
   );

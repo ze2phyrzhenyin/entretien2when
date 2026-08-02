@@ -4,6 +4,7 @@ import { sendMailatoEmail, type MailatoRecipient } from "@/lib/mail/mailato";
 import { prisma } from "@/lib/db/prisma";
 import { pruneExpiredRateLimitBuckets } from "@/lib/rate-limit";
 import { processCandidateEmailDeliveryBatch } from "@/server/services/candidate-email";
+import { normalizeLocale, type AppLocale } from "@/i18n/config";
 
 export type OwnerNotificationOutboxPayload = {
   kind: "owner-notification";
@@ -14,6 +15,7 @@ export type OwnerNotificationOutboxPayload = {
   recipients: string[];
   subject: string;
   body: string;
+  locale: AppLocale;
 };
 
 export type CandidateAccessOutboxPayload = {
@@ -24,6 +26,7 @@ export type CandidateAccessOutboxPayload = {
   recipientName: string;
   subject: string;
   encryptedBody: string;
+  locale: AppLocale;
 };
 
 export type AppointmentEmailOutboxPayload = {
@@ -39,6 +42,7 @@ export type AppointmentEmailOutboxPayload = {
   body: string;
   icsFilename: string;
   icsContent: string;
+  locale: AppLocale;
 };
 
 type EmailOutboxClient = Pick<Prisma.TransactionClient, "emailOutbox">;
@@ -137,7 +141,7 @@ function parseOwnerNotificationPayload(value: unknown): OwnerNotificationOutboxP
   ) {
     return null;
   }
-  return payload;
+  return { ...payload, locale: normalizeLocale(payload.locale) };
 }
 
 function parseCandidateAccessPayload(value: unknown): CandidateAccessOutboxPayload | null {
@@ -156,7 +160,7 @@ function parseCandidateAccessPayload(value: unknown): CandidateAccessOutboxPaylo
   ) {
     return null;
   }
-  return payload;
+  return { ...payload, locale: normalizeLocale(payload.locale) };
 }
 
 function parseAppointmentEmailPayload(value: unknown): AppointmentEmailOutboxPayload | null {
@@ -180,7 +184,7 @@ function parseAppointmentEmailPayload(value: unknown): AppointmentEmailOutboxPay
   ) {
     return null;
   }
-  return payload;
+  return { ...payload, locale: normalizeLocale(payload.locale) };
 }
 
 async function resolveEmail(payloadValue: unknown): Promise<ResolvedEmail | null> {

@@ -6,6 +6,12 @@ import {
   getCandidateSessionCookieOptions
 } from "@/lib/auth/candidate-session";
 import { isCandidateToken } from "@/lib/auth/candidate-token";
+import {
+  isSupportedLocale,
+  localeCookieName,
+  localeCookieOptions,
+  normalizeLocale
+} from "@/i18n/config";
 
 type CandidateAuthRouteProps = {
   params: Promise<{ token: string }>;
@@ -45,12 +51,24 @@ export async function GET(request: NextRequest, { params }: CandidateAuthRoutePr
     return redirectForRequest(request, "/join?access=invalid");
   }
 
-  return redirectForRequest(request, `/candidate/auth/confirm#${encodeURIComponent(token)}`, 302);
+  const requestedLocale = request.nextUrl.searchParams.get("lang");
+  const localeHint = isSupportedLocale(requestedLocale)
+    ? `?lang=${encodeURIComponent(requestedLocale)}`
+    : "";
+  return redirectForRequest(
+    request,
+    `/candidate/auth/confirm${localeHint}#${encodeURIComponent(token)}`,
+    302
+  );
 }
 
 export async function POST(request: NextRequest, { params }: CandidateAuthRouteProps) {
   const { token } = await params;
-  const consumed = await consumeCandidateAccessToken(token);
+  const requestedLocale = request.nextUrl.searchParams.get("lang");
+  const consumed = await consumeCandidateAccessToken(
+    token,
+    isSupportedLocale(requestedLocale) ? requestedLocale : undefined
+  );
 
   if (!consumed) {
     return redirectForRequest(request, "/join?access=invalid");
@@ -62,6 +80,11 @@ export async function POST(request: NextRequest, { params }: CandidateAuthRouteP
     getCandidateSessionCookieName(consumed.groupId),
     consumed.sessionToken,
     getCandidateSessionCookieOptions(consumed.expiresAt, basePath)
+  );
+  response.cookies.set(
+    localeCookieName,
+    normalizeLocale(consumed.locale),
+    localeCookieOptions(basePath)
   );
   return response;
 }

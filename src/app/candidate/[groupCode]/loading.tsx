@@ -1,10 +1,14 @@
+import { getServerTranslator } from "@/i18n/server";
 import { LoadingState } from "@/components/ui/loading-state";
-
-export default function CandidateLoading() {
+export default async function CandidateLoading() {
+  const { t } = await getServerTranslator();
   return (
     <main className="min-h-screen bg-surface-subtle px-4 py-8">
       <div className="mx-auto max-w-3xl">
-        <LoadingState title="正在加载面试组" description="正在读取你的提交状态。" />
+        <LoadingState
+          title={t("legacy.loading_interview_panel.32995edf")}
+          description={t("legacy.reading_your_commit_status.ba100a7a")}
+        />
       </div>
     </main>
   );

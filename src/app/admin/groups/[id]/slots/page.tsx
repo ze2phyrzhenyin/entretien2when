@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import { GroupTimeSlotStatus, type Prisma } from "@prisma/client";
 import { FormField } from "@/components/design-system/form-field";
 import { InlineNotice } from "@/components/design-system/inline-notice";
@@ -33,14 +34,17 @@ import {
   requireGroupPermission
 } from "@/lib/permissions/admin";
 import { createPagination } from "@/lib/pagination";
+import type { SlotDeletionBlockReason } from "@/lib/business/slot-deletion";
+import type { MessageKey } from "@/i18n/catalogs";
 import {
   batchGenerateSlotsAction,
   deleteSlotsAction,
   updateSlotStatusAction
 } from "@/server/actions/slot";
-
 type SlotsPageProps = {
-  params: Promise<{ id: string }>;
+  params: Promise<{
+    id: string;
+  }>;
   searchParams: Promise<{
     slotGenerate?: string;
     slotGenerated?: string;
@@ -51,15 +55,19 @@ type SlotsPageProps = {
     page?: string;
   }>;
 };
-
 const slotsPageSize = 100;
-
+const slotDeletionReasonKey: Record<SlotDeletionBlockReason, MessageKey> = {
+  "candidate-submission-reference": "slotDeletion.reason.candidateSubmission",
+  "appointment-reference": "slotDeletion.reason.appointment",
+  "active-lock": "slotDeletion.reason.activeLock",
+  "lock-history": "slotDeletion.reason.lockHistory"
+};
 export default async function GroupSlotsPage({ params, searchParams }: SlotsPageProps) {
+  const { t } = await getServerTranslator();
   const [{ id: groupId }, query] = await Promise.all([params, searchParams]);
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, groupSchedulingRoles);
   const capabilities = await getGroupCapabilities(admin, groupId);
-
   const deletableSlotWhere: Prisma.GroupTimeSlotWhereInput = {
     groupId,
     activeLock: { is: null },
@@ -86,7 +94,15 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
     skip: pagination.skip,
     take: pagination.pageSize,
     include: {
-      activeLock: true,
+      activeLock: {
+        include: {
+          appointment: {
+            select: {
+              candidate: { select: { name: true } }
+            }
+          }
+        }
+      },
       submissionSlots: {
         select: { id: true }
       },
@@ -106,74 +122,91 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
     <AdminShell admin={admin}>
       <GroupNav groupId={groupId} active="slots" capabilities={capabilities} />
       <PageHeader
-        title="开放时间配置"
-        description={`按面试组时区生成开放时间。当前显示 ${timeSlots.length} / ${totalSlotCount} 个开放时间。`}
+        title={t("legacy.opening_hours_configuration.02bdc88b")}
+        description={t(
+          "legacy.generate_opening_hours_by_interview_group_time_zone_currently_showing_va.7fe36220",
+          { value0: timeSlots.length, value1: totalSlotCount }
+        )}
       />
       <div className="mb-5">
         <TimezoneSwitcher defaultTimezone={group.timezone} />
       </div>
       {query.slotGenerate === "generated" ? (
         <InlineNotice tone="success" className="mb-5">
-          已生成 {generatedCount} 个开放时间
-          {skippedGenerateCount > 0 ? `，跳过 ${skippedGenerateCount} 个已存在的开放时间` : ""}。
+          {t(skippedGenerateCount > 0 ? "slots.generatedWithSkipped" : "slots.generated", {
+            generated: generatedCount,
+            skipped: skippedGenerateCount
+          })}
         </InlineNotice>
       ) : null}
       {query.slotGenerate === "empty" ? (
         <InlineNotice tone="warning" className="mb-5">
-          没有生成新的开放时间。请确认起止时间至少覆盖一个时间粒度，或这些开放时间尚未存在。
+          {t(
+            "legacy.no_new_opening_hours_are_generated_please_confirm_that_the_start_and_end.6fca577c"
+          )}
         </InlineNotice>
       ) : null}
       {query.slotGenerate === "invalid" ? (
         <InlineNotice tone="warning" className="mb-5">
-          请检查开始日期、结束日期和起止时间。
+          {t("legacy.please_check_the_start_date_end_date_and_start_and_end_times.82c9a91e")}
         </InlineNotice>
       ) : null}
       {query.slotGenerate === "dst" ? (
         <InlineNotice tone="warning" className="mb-5">
-          所选时段跨越夏令时切换，包含不存在或重复的本地时间。请拆分范围并避开该时段，避免生成含糊的预约时间。
+          {t(
+            "legacy.the_selected_period_spans_the_daylight_saving_time_switch_and_contains_n.6a86eb54"
+          )}
         </InlineNotice>
       ) : null}
       {query.slotDelete === "deleted" ? (
         <InlineNotice tone="success" className="mb-5">
-          已删除 {deletedCount} 个开放时间。
+          {t("slots.deleted", { deleted: deletedCount })}
         </InlineNotice>
       ) : null}
       {query.slotDelete === "partial" ? (
         <InlineNotice tone="warning" className="mb-5">
-          已删除 {deletedCount} 个开放时间，跳过 {skippedCount} 个已有业务引用的开放时间。
+          {t("slots.deletedWithSkipped", {
+            deleted: deletedCount,
+            skipped: skippedCount
+          })}
         </InlineNotice>
       ) : null}
       {query.slotDelete === "blocked" ? (
         <InlineNotice tone="warning" className="mb-5">
-          没有可删除的开放时间。已被候选人提交、面试安排或锁定引用的开放时间会被保留。
+          {t(
+            "legacy.there_are_no_opening_hours_to_delete_open_hours_that_have_been_submitted.e60ccc9b"
+          )}
         </InlineNotice>
       ) : null}
       {query.slotDelete === "invalid" ? (
         <InlineNotice tone="warning" className="mb-5">
-          请先选择开放时间并勾选删除确认。
+          {t("legacy.please_select_the_opening_time_first_and_check_delete_to_confirm.56244222")}
         </InlineNotice>
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <Card className="p-5">
-          <SectionHeader title="批量生成开放时间" description={`当前时区：${group.timezone}`} />
+          <SectionHeader
+            title={t("legacy.batch_generation_opening_hours.06539024")}
+            description={t("legacy.current_time_zone_value0.f7768ce4", { value0: group.timezone })}
+          />
           <form action={batchGenerateSlotsAction.bind(null, groupId)} className="mt-4 space-y-4">
-            <FormField id="dateFrom" label="开始日期">
+            <FormField id="dateFrom" label={t("legacy.start_date.76050649")}>
               <Input id="dateFrom" name="dateFrom" type="date" required />
             </FormField>
-            <FormField id="dateTo" label="结束日期">
+            <FormField id="dateTo" label={t("legacy.end_date.895cd52f")}>
               <Input id="dateTo" name="dateTo" type="date" required />
             </FormField>
             <div className="grid grid-cols-2 gap-3">
-              <FormField id="startTime" label="开始时间">
+              <FormField id="startTime" label={t("legacy.start_time.6a9906c7")}>
                 <Input id="startTime" name="startTime" type="time" defaultValue="09:00" required />
               </FormField>
-              <FormField id="endTime" label="结束时间">
+              <FormField id="endTime" label={t("legacy.end_time.f5027644")}>
                 <Input id="endTime" name="endTime" type="time" defaultValue="18:00" required />
               </FormField>
             </div>
-            <SubmitButton className="w-full" pendingText="正在生成">
-              生成开放时间
+            <SubmitButton className="w-full" pendingText={t("legacy.generating.3424dd50")}>
+              {t("legacy.generate_opening_hours.10fdd4fe")}
             </SubmitButton>
           </form>
         </Card>
@@ -184,8 +217,10 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
           </div>
           {timeSlots.length === 0 ? (
             <EmptyState
-              title="暂无开放时间"
-              description="请先用左侧表单批量生成开放时间。候选人只能选择已开放且未锁定的时间。"
+              title={t("legacy.no_opening_hours_yet.ba259fb0")}
+              description={t(
+                "legacy.please_use_the_form_on_the_left_to_generate_opening_hours_in_batches_fir.b3ebf69e"
+              )}
             />
           ) : (
             <div className="space-y-4">
@@ -197,13 +232,19 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                     className="space-y-3 rounded-lg border border-border bg-surface-subtle p-3"
                   >
                     <input type="hidden" name="deleteMode" value="selected" />
-                    <p className="text-sm font-semibold">删除选中的开放时间</p>
+                    <p className="text-sm font-semibold">
+                      {t("legacy.delete_selected_opening_hours.9b65b6b8")}
+                    </p>
                     <label className="flex items-start gap-2 text-sm text-muted-foreground">
                       <Checkbox name="confirmDelete" value="yes" />
-                      <span>我确认删除选中且未被引用的开放时间。</span>
+                      <span>
+                        {t(
+                          "legacy.i_confirm_deletion_of_selected_and_unreferenced_opening_hours.83ec5f35"
+                        )}
+                      </span>
                     </label>
                     <Button type="submit" variant="danger" size="sm">
-                      删除选中
+                      {t("legacy.remove_selected.469f67cf")}
                     </Button>
                   </form>
                   <form
@@ -211,17 +252,20 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                     className="space-y-3 rounded-lg border border-red-200 bg-danger-soft p-3"
                   >
                     <input type="hidden" name="deleteMode" value="clearAll" />
-                    <p className="text-sm font-semibold text-danger">清空可删除的开放时间</p>
+                    <p className="text-sm font-semibold text-danger">
+                      {t("legacy.clear_deletable_opening_hours.cad7f207")}
+                    </p>
                     <p className="text-sm leading-6 text-red-800">
-                      将删除当前面试组里 {deletableSlotCount}{" "}
-                      个未被提交、面试安排或锁定引用的开放时间。
+                      {t("slots.deletePreview", { count: deletableSlotCount })}
                     </p>
                     <label className="flex items-start gap-2 text-sm text-red-800">
                       <Checkbox name="confirmDelete" value="yes" />
-                      <span>我确认清空所有可删除的开放时间。</span>
+                      <span>
+                        {t("legacy.i_confirm_to_clear_all_deletable_opening_hours.2edaf5d5")}
+                      </span>
                     </label>
                     <Button type="submit" variant="danger" size="sm">
-                      清空可删除
+                      {t("legacy.clear_to_delete.b2712510")}
                     </Button>
                   </form>
                 </div>
@@ -230,25 +274,28 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                 <Table>
                   <TableHeader>
                     <tr>
-                      <TableHead className="w-12">选择</TableHead>
-                      <TableHead>开放时间</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>锁定</TableHead>
-                      <TableHead>删除</TableHead>
-                      <TableHead>内部原因</TableHead>
-                      <TableHead>操作</TableHead>
+                      <TableHead className="w-12">{t("legacy.choose.c11330b8")}</TableHead>
+                      <TableHead>{t("legacy.available_slots.73199769")}</TableHead>
+                      <TableHead>{t("legacy.status.6320b4a8")}</TableHead>
+                      <TableHead>{t("legacy.locking.ff9872a0")}</TableHead>
+                      <TableHead>{t("legacy.delete.2f9daa82")}</TableHead>
+                      <TableHead>{t("legacy.internal_reasons.a0a0b532")}</TableHead>
+                      <TableHead>{t("legacy.actions.ed31fbb4")}</TableHead>
                     </tr>
                   </TableHeader>
                   <TableBody>
                     {timeSlots.map((slot) => {
                       const blockedReasons = [
-                        slot.submissionSlots.length > 0 ? "候选人提交" : null,
-                        slot.appointmentSlots.length > 0 ? "面试安排" : null,
-                        slot.activeLock ? "锁定" : null,
-                        slot.locks.length > 0 ? "锁定记录" : null
-                      ].filter(Boolean);
+                        slot.submissionSlots.length > 0
+                          ? ("candidate-submission-reference" as const)
+                          : null,
+                        slot.appointmentSlots.length > 0
+                          ? ("appointment-reference" as const)
+                          : null,
+                        slot.activeLock ? ("active-lock" as const) : null,
+                        slot.locks.length > 0 ? ("lock-history" as const) : null
+                      ].filter((reason): reason is SlotDeletionBlockReason => reason !== null);
                       const canDelete = blockedReasons.length === 0;
-
                       return (
                         <TableRow key={slot.id}>
                           <TableCell>
@@ -257,7 +304,9 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                               name="slotIds"
                               value={slot.id}
                               disabled={!canDelete}
-                              aria-label={`选择开放时间 ${slot.id}`}
+                              aria-label={t("legacy.select_opening_time_value0.6124224e", {
+                                value0: slot.id
+                              })}
                             />
                           </TableCell>
                           <TableCell className="font-medium">
@@ -274,23 +323,41 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                             {slot.activeLock ? (
                               <StatusBadge kind="slot" status="LOCKED" />
                             ) : (
-                              <StatusBadge kind="custom" label="未锁定" tone="neutral" />
+                              <StatusBadge
+                                kind="custom"
+                                label={t("legacy.unlocked.8436399d")}
+                                tone="neutral"
+                              />
                             )}
                           </TableCell>
                           <TableCell className="min-w-[150px]">
                             {canDelete ? (
-                              <StatusBadge kind="custom" label="可删除" tone="success" />
+                              <StatusBadge
+                                kind="custom"
+                                label={t("legacy.can_be_deleted.65f3eb89")}
+                                tone="success"
+                              />
                             ) : (
                               <div className="space-y-1">
-                                <StatusBadge kind="custom" label="保留" tone="warning" />
+                                <StatusBadge
+                                  kind="custom"
+                                  label={t("legacy.reserve.670ec25a")}
+                                  tone="warning"
+                                />
                                 <p className="text-xs leading-5 text-warning">
-                                  {blockedReasons.join("、")}
+                                  {blockedReasons
+                                    .map((reason) => t(slotDeletionReasonKey[reason]))
+                                    .join(", ")}
                                 </p>
                               </div>
                             )}
                           </TableCell>
                           <TableCell className="max-w-xs text-muted-foreground">
-                            {slot.activeLock?.reasonInternal ?? slot.internalNote ?? "-"}
+                            {slot.activeLock?.appointment?.candidate.name
+                              ? t("slotLock.appointment", {
+                                  candidateName: slot.activeLock.appointment.candidate.name
+                                })
+                              : (slot.activeLock?.reasonInternal ?? slot.internalNote ?? "-")}
                           </TableCell>
                           <TableCell>
                             <form
@@ -304,7 +371,9 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
                               )}
                             >
                               <Button type="submit" variant="secondary" className="h-8 px-3">
-                                {slot.status === "OPEN" ? "关闭" : "开放"}
+                                {slot.status === "OPEN"
+                                  ? t("legacy.close.3fd47edc")
+                                  : t("legacy.open.c14c915d")}
                               </Button>
                             </form>
                           </TableCell>
@@ -317,7 +386,7 @@ export default async function GroupSlotsPage({ params, searchParams }: SlotsPage
               <PaginationNav
                 pathname={`/admin/groups/${groupId}/slots`}
                 searchParams={{}}
-                itemLabel="个开放时间"
+                itemLabel={t("legacy.opening_hours.7c2dd5e0")}
                 {...pagination}
               />
             </div>

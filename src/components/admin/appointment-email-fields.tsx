@@ -1,14 +1,15 @@
+import { getServerTranslator } from "@/i18n/server";
 import { Bell } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { CandidateEmailTemplate } from "@/lib/mail/email-templates";
-
-export function AppointmentEmailFields({
+export async function AppointmentEmailFields({
   checkboxLabel,
   template
 }: {
   checkboxLabel: string;
   template: CandidateEmailTemplate;
 }) {
+  const { t } = await getServerTranslator();
   return (
     <div className="rounded-lg border border-border bg-surface-subtle p-4">
       <input type="hidden" name="emailSubject" value={template.subject} />
@@ -25,7 +26,9 @@ export function AppointmentEmailFields({
             <span>{checkboxLabel}</span>
           </label>
           <p className="text-sm leading-6 text-muted-foreground">
-            使用标准面试安排通知模板发送。需要自定义主题、正文、抄送或密送时，请使用“发送候选人通知”模块。
+            {t(
+              "legacy.send_using_the_standard_interview_schedule_notification_template_use_the.5733b6eb"
+            )}
           </p>
         </div>
       </div>

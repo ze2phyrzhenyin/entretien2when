@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import { AdminGroupRole, AdminStatus } from "@prisma/client";
 import { InlineNotice } from "@/components/design-system/inline-notice";
 import { PageHeader } from "@/components/design-system/page-header";
@@ -20,21 +21,42 @@ import {
   revokeGroupMembershipAction,
   upsertGroupMembershipAction
 } from "@/server/actions/admin-management";
-
+import type { MessageKey } from "@/i18n/catalogs";
+import { adminGroupRoleLabel, adminStatusLabel } from "@/lib/status-labels";
 type GroupMembersPageProps = {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ membership?: string }>;
+  params: Promise<{
+    id: string;
+  }>;
+  searchParams: Promise<{
+    membership?: string;
+  }>;
 };
-
-const membershipMessage: Record<string, { tone: "success" | "warning" | "danger"; text: string }> =
+const membershipMessage: Record<
+  string,
   {
-    saved: { tone: "success", text: "成员角色已保存并写入审计日志。" },
-    revoked: { tone: "success", text: "成员权限已撤销并写入审计日志。" },
-    "last-owner": { tone: "danger", text: "不能撤销或降级最后一个有效 OWNER。" },
-    invalid: { tone: "warning", text: "成员或角色信息不正确。" }
-  };
-
+    tone: "success" | "warning" | "danger";
+    text: MessageKey;
+  }
+> = {
+  saved: {
+    tone: "success",
+    text: "legacy.member_roles_are_saved_and_written_to_the_audit_log.1c44f73d"
+  },
+  revoked: {
+    tone: "success",
+    text: "legacy.member_privileges_are_revoked_and_written_to_the_audit_log.e71b36ae"
+  },
+  "last-owner": {
+    tone: "danger",
+    text: "legacy.the_last_valid_owner_cannot_be_revoked_or_demoted.40c77253"
+  },
+  invalid: {
+    tone: "warning",
+    text: "legacy.member_or_role_information_is_incorrect.c9c2a9f7"
+  }
+};
 export default async function GroupMembersPage({ params, searchParams }: GroupMembersPageProps) {
+  const { t } = await getServerTranslator();
   const [{ id: groupId }, query, admin] = await Promise.all([params, searchParams, requireAdmin()]);
   await requireGroupPermission(admin, groupId, groupOwnerRoles);
   const capabilities = await getGroupCapabilities(admin, groupId);
@@ -61,17 +83,18 @@ export default async function GroupMembersPage({ params, searchParams }: GroupMe
   const notice = query.membership ? membershipMessage[query.membership] : null;
   const memberIds = new Set(memberships.map((membership) => membership.adminId));
   const availableAdmins = administrators.filter((item) => !memberIds.has(item.id));
-
   return (
     <AdminShell admin={admin}>
       <GroupNav groupId={groupId} active="members" capabilities={capabilities} />
       <PageHeader
-        title={`${group.name} · 成员与角色`}
-        description="OWNER 管理组设置与成员；SCHEDULER 管理排期；REVIEWER 审核；VIEWER 只读。"
+        title={t("legacy.value0_members_and_roles.de61927d", { value0: group.name })}
+        description={t(
+          "legacy.owner_manages_group_settings_and_members_scheduler_manages_scheduling_re.03773553"
+        )}
       />
       {notice ? (
         <InlineNotice tone={notice.tone} className="mb-5">
-          {notice.text}
+          {t(notice.text)}
         </InlineNotice>
       ) : null}
 
@@ -87,7 +110,7 @@ export default async function GroupMembersPage({ params, searchParams }: GroupMe
                   </p>
                 </div>
                 <span className="rounded-full bg-muted px-2 py-1 text-xs">
-                  {membership.admin.status}
+                  {t(adminStatusLabel[membership.admin.status])}
                 </span>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -99,23 +122,28 @@ export default async function GroupMembersPage({ params, searchParams }: GroupMe
                   <Select
                     name="role"
                     defaultValue={membership.role}
-                    aria-label={`${membership.admin.email} 面试组角色`}
+                    aria-label={t("legacy.value0_interview_team_role.54e52cf2", {
+                      value0: membership.admin.email
+                    })}
                   >
                     {Object.values(AdminGroupRole).map((role) => (
                       <option key={role} value={role}>
-                        {role}
+                        {t(adminGroupRoleLabel[role])}
                       </option>
                     ))}
                   </Select>
-                  <SubmitButton variant="secondary">保存</SubmitButton>
+                  <SubmitButton variant="secondary">{t("legacy.save.a3030bf8")}</SubmitButton>
                 </form>
                 <ConfirmForm
                   action={revokeGroupMembershipAction.bind(null, groupId)}
-                  confirmMessage={`确认撤销 ${membership.admin.email} 在本组的全部权限？`}
+                  confirmMessage={t(
+                    "legacy.confirm_to_revoke_all_permissions_of_value0_in_this_group.793306ce",
+                    { value0: membership.admin.email }
+                  )}
                 >
                   <input type="hidden" name="adminId" value={membership.adminId} />
                   <Button type="submit" variant="danger">
-                    撤权
+                    {t("legacy.withdraw_authority.a3697df7")}
                   </Button>
                 </ConfirmForm>
               </div>
@@ -124,16 +152,20 @@ export default async function GroupMembersPage({ params, searchParams }: GroupMe
         </div>
 
         <Card className="h-fit p-5">
-          <h2 className="text-lg font-semibold">添加现有管理员</h2>
+          <h2 className="text-lg font-semibold">
+            {t("legacy.add_existing_administrator.aebe46da")}
+          </h2>
           {availableAdmins.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">所有有效管理员都已加入本组。</p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              {t("legacy.all_valid_administrators_have_joined_this_group.32353773")}
+            </p>
           ) : (
             <form
               action={upsertGroupMembershipAction.bind(null, groupId)}
               className="mt-4 grid gap-4"
             >
               <div>
-                <Label htmlFor="adminId">管理员</Label>
+                <Label htmlFor="adminId">{t("legacy.administrator.e1979671")}</Label>
                 <Select id="adminId" name="adminId" required>
                   {availableAdmins.map((item) => (
                     <option key={item.id} value={item.id}>
@@ -143,16 +175,16 @@ export default async function GroupMembersPage({ params, searchParams }: GroupMe
                 </Select>
               </div>
               <div>
-                <Label htmlFor="memberRole">组角色</Label>
+                <Label htmlFor="memberRole">{t("legacy.group_role.f68e8b9b")}</Label>
                 <Select id="memberRole" name="role" defaultValue={AdminGroupRole.VIEWER}>
                   {Object.values(AdminGroupRole).map((role) => (
                     <option key={role} value={role}>
-                      {role}
+                      {t(adminGroupRoleLabel[role])}
                     </option>
                   ))}
                 </Select>
               </div>
-              <SubmitButton className="w-full">添加成员</SubmitButton>
+              <SubmitButton className="w-full">{t("legacy.add_member.ad9737da")}</SubmitButton>
             </form>
           )}
         </Card>

@@ -1,3 +1,4 @@
+import { getServerTranslator } from "@/i18n/server";
 import Link from "next/link";
 import { CalendarRange, Mail, Plus, Users } from "lucide-react";
 import { AdminRole, InterviewRoundStatus, InterviewerStatus } from "@prisma/client";
@@ -36,20 +37,24 @@ import {
   updateInterviewerStatusAction
 } from "@/server/actions/interviewer";
 import { createRoundAction, updateRoundAction } from "@/server/actions/project";
-
+import { interviewerStatusLabel, interviewRoundStatusLabel } from "@/lib/status-labels";
 type ProjectDetailPageProps = {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ interviewer?: string; round?: string }>;
+  params: Promise<{
+    id: string;
+  }>;
+  searchParams: Promise<{
+    interviewer?: string;
+    round?: string;
+  }>;
 };
-
 export default async function ProjectDetailPage({ params, searchParams }: ProjectDetailPageProps) {
+  const { t } = await getServerTranslator();
   const [{ id: projectId }, query] = await Promise.all([params, searchParams]);
   const admin = await requireAdmin();
   await requireProjectPermission(admin, projectId);
   const groupAccessWhere = accessibleGroupWhere(admin);
   const canEditInterviewers = await canAccessProject(admin, projectId, groupSchedulingRoles);
   const canEditRounds = admin.role === AdminRole.SUPER_ADMIN;
-
   const project = await prisma.interviewProject.findFirstOrThrow({
     where: {
       AND: [{ id: projectId }, accessibleProjectWhere(admin)]
@@ -89,7 +94,6 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
         orderBy: { createdAt: "desc" }
       })
     : [];
-
   const roundStats = new Map(
     project.rounds.map((round) => [round.id, { groupCount: 0, appointmentCount: 0 }])
   );
@@ -97,14 +101,12 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
     if (!group.roundId) {
       continue;
     }
-
     const stats = roundStats.get(group.roundId);
     if (stats) {
       stats.groupCount += 1;
       stats.appointmentCount += group._count.appointments;
     }
   }
-
   return (
     <AdminShell admin={admin} active="projects">
       <PageHeader
@@ -112,8 +114,12 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
         description={
           project.publicDescription ??
           (canEditInterviewers
-            ? "这个项目由历史面试组自动生成，可继续维护轮次和面试官池。"
-            : "这个项目由历史面试组自动生成，仅显示你获授权访问的面试组和轮次。")
+            ? t(
+                "legacy.this_project_is_automatically_generated_from_historical_interview_groups.2325de5b"
+              )
+            : t(
+                "legacy.this_item_is_automatically_generated_from_historical_interview_groups_an.d9d49845"
+              ))
         }
         action={
           <div className="flex flex-wrap gap-3">
@@ -122,10 +128,10 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
               href={`/admin/projects/${projectId}/schedule`}
             >
               <CalendarRange className="h-4 w-4" aria-hidden="true" />
-              项目排期
+              {t("legacy.project_schedule.65b44efd")}
             </Link>
             <Link className="text-sm font-medium text-primary" href="/admin/projects">
-              返回项目列表
+              {t("legacy.return_to_project_list.bb14d7c4")}
             </Link>
           </div>
         }
@@ -133,32 +139,36 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
 
       {canEditInterviewers && query.interviewer === "created" ? (
         <InlineNotice tone="success" className="mb-5">
-          面试官已保存。
+          {t("legacy.interviewer_saved.48e99e7d")}
         </InlineNotice>
       ) : null}
       {canEditInterviewers && query.interviewer === "invalid" ? (
         <InlineNotice tone="danger" className="mb-5">
-          面试官姓名或邮箱格式不正确。
+          {t("legacy.the_format_of_the_interviewer_s_name_or_email_is_incorrect.97cb3896")}
         </InlineNotice>
       ) : null}
       {canEditInterviewers && query.interviewer === "activated" ? (
         <InlineNotice tone="success" className="mb-5">
-          面试官已启用。
+          {t("legacy.interviewer_is_enabled.d3e26c8a")}
         </InlineNotice>
       ) : null}
       {canEditInterviewers && query.interviewer === "deactivated" ? (
         <InlineNotice tone="success" className="mb-5">
-          面试官已停用，历史安排不受影响。
+          {t(
+            "legacy.the_interviewer_has_been_deactivated_and_historical_arrangements_are_not.1cbdc32a"
+          )}
         </InlineNotice>
       ) : null}
       {query.round === "created" || query.round === "updated" ? (
         <InlineNotice tone="success" className="mb-5">
-          轮次已保存并写入审计日志。
+          {t("legacy.the_round_is_saved_and_written_to_the_audit_log.e453d0a2")}
         </InlineNotice>
       ) : null}
       {query.round === "invalid" || query.round === "order-conflict" ? (
         <InlineNotice tone="warning" className="mb-5">
-          轮次信息无效，或排序编号与同项目其他轮次冲突。
+          {t(
+            "legacy.the_round_information_is_invalid_or_the_sorting_number_conflicts_with_ot.ad72dd23"
+          )}
         </InlineNotice>
       ) : null}
 
@@ -166,22 +176,26 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
         className={`mb-6 grid gap-3 ${canEditInterviewers ? "md:grid-cols-3" : "md:grid-cols-2"}`}
       >
         <MetricCard
-          label="轮次"
+          label={t("legacy.round.4890584b")}
           value={project.rounds.length}
-          description="仅统计获授权面试组关联的流程层级"
+          description={t(
+            "legacy.only_process_levels_associated_with_authorized_interview_groups_are_coun.a60fd3fc"
+          )}
           icon={<Plus className="h-4 w-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="面试组"
+          label={t("legacy.interview_groups.e677802f")}
           value={project.groups.length}
-          description="仅统计你可以访问的面试组"
+          description={t("legacy.only_count_interview_groups_you_have_access_to.7da41e20")}
           icon={<Users className="h-4 w-4" aria-hidden="true" />}
         />
         {canEditInterviewers ? (
           <MetricCard
-            label="面试官"
+            label={t("legacy.interviewers.5e6ecb10")}
             value={interviewers.length}
-            description="后续排期冲突检测会使用该池"
+            description={t(
+              "legacy.subsequent_scheduling_conflict_detection_will_use_this_pool.6fcb3a46"
+            )}
             icon={<Mail className="h-4 w-4" aria-hidden="true" />}
           />
         ) : null}
@@ -194,14 +208,18 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
       >
         <div className="space-y-6">
           <Card className="p-5">
-            <SectionHeader title="轮次" description="维护项目内的轮次顺序、状态与面试时长。" />
+            <SectionHeader
+              title={t("legacy.round.4890584b")}
+              description={t(
+                "legacy.maintain_the_round_sequence_status_and_interview_duration_within_the_pro.4d2608bc"
+              )}
+            />
             <div className="mt-4 space-y-3">
               {project.rounds.map((round) => {
                 const stats = roundStats.get(round.id) ?? {
                   groupCount: 0,
                   appointmentCount: 0
                 };
-
                 return (
                   <div
                     key={round.id}
@@ -214,20 +232,27 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {round.interviewDurationMinutes
-                            ? `面试时长 ${round.interviewDurationMinutes} 分钟`
-                            : "未设置面试时长"}
+                            ? t("legacy.interview_duration_value0_minutes.8baf6b1c", {
+                                value0: round.interviewDurationMinutes
+                              })
+                            : t("legacy.no_interview_duration_set.47392ccc")}
                         </p>
                       </div>
                       <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
-                        {round.status}
+                        {t(interviewRoundStatusLabel[round.status])}
                       </span>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      关联 {stats.groupCount} 个获授权面试组，{stats.appointmentCount} 个面试安排
+                      {t("project.roundStats", {
+                        groupCount: stats.groupCount,
+                        appointmentCount: stats.appointmentCount
+                      })}
                     </p>
                     {canEditRounds ? (
                       <details className="mt-3 rounded-md border border-border bg-white p-3">
-                        <summary className="cursor-pointer text-sm font-medium">编辑轮次</summary>
+                        <summary className="cursor-pointer text-sm font-medium">
+                          {t("legacy.edit_rounds.25cf3c26")}
+                        </summary>
                         <form
                           action={updateRoundAction.bind(null, projectId)}
                           className="mt-3 grid gap-3 md:grid-cols-2"
@@ -252,18 +277,18 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                           <Select name="status" defaultValue={round.status}>
                             {Object.values(InterviewRoundStatus).map((status) => (
                               <option key={status} value={status}>
-                                {status}
+                                {t(interviewRoundStatusLabel[status])}
                               </option>
                             ))}
                           </Select>
                           <Textarea
                             name="description"
                             defaultValue={round.description ?? ""}
-                            placeholder="轮次说明"
+                            placeholder={t("legacy.round_description.6f455b84")}
                             className="md:col-span-2"
                           />
                           <SubmitButton variant="secondary" className="md:col-span-2">
-                            保存轮次
+                            {t("legacy.save_rounds.79f335c1")}
                           </SubmitButton>
                         </form>
                       </details>
@@ -274,12 +299,18 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             </div>
             {canEditRounds ? (
               <details className="mt-4 rounded-lg border border-dashed border-border p-4">
-                <summary className="cursor-pointer text-sm font-semibold">新增轮次</summary>
+                <summary className="cursor-pointer text-sm font-semibold">
+                  {t("legacy.add_new_round.45b908e1")}
+                </summary>
                 <form
                   action={createRoundAction.bind(null, projectId)}
                   className="mt-4 grid gap-3 md:grid-cols-2"
                 >
-                  <Input name="name" placeholder="例如：第二轮" required />
+                  <Input
+                    name="name"
+                    placeholder={t("legacy.for_example_second_round.5635a7f7")}
+                    required
+                  />
                   <Input
                     name="orderIndex"
                     type="number"
@@ -298,12 +329,18 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                   <Select name="status" defaultValue={InterviewRoundStatus.ACTIVE}>
                     {Object.values(InterviewRoundStatus).map((status) => (
                       <option key={status} value={status}>
-                        {status}
+                        {t(interviewRoundStatusLabel[status])}
                       </option>
                     ))}
                   </Select>
-                  <Textarea name="description" placeholder="轮次说明" className="md:col-span-2" />
-                  <SubmitButton className="md:col-span-2">新增轮次</SubmitButton>
+                  <Textarea
+                    name="description"
+                    placeholder={t("legacy.round_description.6f455b84")}
+                    className="md:col-span-2"
+                  />
+                  <SubmitButton className="md:col-span-2">
+                    {t("legacy.add_new_round.45b908e1")}
+                  </SubmitButton>
                 </form>
               </details>
             ) : null}
@@ -311,19 +348,21 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
 
           <Card className="p-5">
             <SectionHeader
-              title="关联面试组"
-              description="面试组继续负责候选人入口和可用时间收集。"
+              title={t("legacy.associated_interview_groups.07cf1d34")}
+              description={t(
+                "legacy.the_interview_team_continues_to_be_responsible_for_candidate_entry_and_a.c172efea"
+              )}
             />
             <div className="mt-4">
               <TableContainer>
                 <Table>
                   <TableHeader>
                     <tr>
-                      <TableHead>面试组</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>候选人</TableHead>
-                      <TableHead>安排</TableHead>
-                      <TableHead>操作</TableHead>
+                      <TableHead>{t("legacy.interview_groups.e677802f")}</TableHead>
+                      <TableHead>{t("legacy.status.6320b4a8")}</TableHead>
+                      <TableHead>{t("legacy.candidates.ea62aaa5")}</TableHead>
+                      <TableHead>{t("legacy.arrange.7ad924a1")}</TableHead>
+                      <TableHead>{t("legacy.actions.ed31fbb4")}</TableHead>
                     </tr>
                   </TableHeader>
                   <TableBody>
@@ -340,7 +379,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                             className="font-medium text-primary"
                             href={`/admin/groups/${group.id}/candidates`}
                           >
-                            查看
+                            {t("legacy.check.db8db053")}
                           </Link>
                         </TableCell>
                       </TableRow>
@@ -356,11 +395,15 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
           <div className="space-y-6">
             <Card className="p-5">
               <SectionHeader
-                title="面试官池"
-                description="同一项目下按邮箱去重，可反复更新姓名。"
+                title={t("legacy.interviewer_pool.db0d866c")}
+                description={t(
+                  "legacy.under_the_same_project_you_can_delete_duplicates_by_email_and_update_the.60cf191e"
+                )}
               />
               {interviewers.length === 0 ? (
-                <p className="mt-4 text-sm text-muted-foreground">还没有面试官。</p>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  {t("legacy.no_interviewer_yet.8ca02825")}
+                </p>
               ) : (
                 <div className="mt-4 divide-y divide-border rounded-lg border border-border">
                   {interviewers.map((interviewer) => (
@@ -369,7 +412,9 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                       <p className="mt-1 break-all text-xs text-muted-foreground">
                         {interviewer.email}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">{interviewer.status}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {t(interviewerStatusLabel[interviewer.status])}
+                      </p>
                       <form
                         action={updateInterviewerStatusAction.bind(null, projectId, interviewer.id)}
                         className="mt-2"
@@ -384,7 +429,9 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                           }
                         />
                         <SubmitButton size="sm" variant="secondary">
-                          {interviewer.status === InterviewerStatus.ACTIVE ? "停用" : "启用"}
+                          {interviewer.status === InterviewerStatus.ACTIVE
+                            ? t("legacy.deactivate.4e6fd0e2")
+                            : t("legacy.enable.f4f0ead1")}
                         </SubmitButton>
                       </form>
                     </div>
@@ -394,17 +441,27 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
             </Card>
 
             <Card className="p-5">
-              <SectionHeader title="添加面试官" description="保存后会进入当前项目的面试官池。" />
+              <SectionHeader
+                title={t("legacy.add_interviewer.214bb9e8")}
+                description={t(
+                  "legacy.after_saving_you_will_enter_the_interviewer_pool_of_the_current_project.cfaf4173"
+                )}
+              />
               <form
                 action={createInterviewerAction.bind(null, projectId)}
                 className="mt-4 grid gap-4"
               >
                 <div>
-                  <Label htmlFor="interviewerName">姓名</Label>
-                  <Input id="interviewerName" name="name" placeholder="例如：王经理" required />
+                  <Label htmlFor="interviewerName">{t("legacy.name.50b5b1d2")}</Label>
+                  <Input
+                    id="interviewerName"
+                    name="name"
+                    placeholder={t("legacy.for_example_manager_wang.e06d3ce6")}
+                    required
+                  />
                 </div>
                 <div>
-                  <Label htmlFor="interviewerEmail">邮箱</Label>
+                  <Label htmlFor="interviewerEmail">{t("legacy.email.73075237")}</Label>
                   <Input
                     id="interviewerEmail"
                     name="email"
@@ -415,7 +472,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Projec
                 </div>
                 <SubmitButton className="w-full">
                   <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  保存面试官
+                  {t("legacy.save_interviewer.bd3cf209")}
                 </SubmitButton>
               </form>
             </Card>

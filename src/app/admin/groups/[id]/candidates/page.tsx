@@ -1,5 +1,9 @@
+import { getServerTranslator } from "@/i18n/server";
 import Link from "next/link";
 import { CandidateStatus, type Prisma } from "@prisma/client";
+import { CandidateEmailComposer } from "@/components/admin/candidate-email-composer";
+import { CandidateEmailBatchSummary } from "@/components/admin/candidate-email-batch-summary";
+import { InlineNotice } from "@/components/design-system/inline-notice";
 import { PageHeader } from "@/components/design-system/page-header";
 import { StatusBadge } from "@/components/design-system/status-badge";
 import { AdminShell } from "@/components/layout/admin-shell";
@@ -22,33 +26,38 @@ import {
 } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
+import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
+import { getCandidateEmailTemplates } from "@/lib/mail/email-template-store";
 import { getGroupCapabilities, requireGroupPermission } from "@/lib/permissions/admin";
 import { createPagination } from "@/lib/pagination";
-
+import type { MessageKey } from "@/i18n/catalogs";
+import { normalizeLocale } from "@/i18n/config";
 type CandidatesPageProps = {
-  params: Promise<{ id: string }>;
+  params: Promise<{
+    id: string;
+  }>;
   searchParams: Promise<{
     q?: string;
     status?: string;
     page?: string;
+    mail?: string;
+    mailCount?: string;
+    mailBatch?: string;
   }>;
 };
-
 const candidatesPageSize = 50;
-
-const filters = [
-  ["", "全部"],
-  [CandidateStatus.SUBMITTED, "已提交"],
-  [CandidateStatus.PENDING_REVIEW, "修改待审"],
-  [CandidateStatus.SCHEDULED, "已安排面试"]
-] as const;
-
+const filters: ReadonlyArray<readonly ["" | CandidateStatus, MessageKey]> = [
+  ["", "legacy.all.5c55a679"],
+  [CandidateStatus.SUBMITTED, "legacy.submitted.bc37a611"],
+  [CandidateStatus.PENDING_REVIEW, "legacy.modification_pending_review.cc12a4bf"],
+  [CandidateStatus.SCHEDULED, "legacy.interview_arranged.c7cf9fba"]
+];
 export default async function GroupCandidatesPage({ params, searchParams }: CandidatesPageProps) {
+  const { t } = await getServerTranslator();
   const [{ id: groupId }, query] = await Promise.all([params, searchParams]);
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId);
   const capabilities = await getGroupCapabilities(admin, groupId);
-
   const q = query.q?.trim() ?? "";
   const status =
     query.status && query.status in CandidateStatus ? (query.status as CandidateStatus) : undefined;
@@ -67,7 +76,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
   const [group, totalCandidateCount] = await Promise.all([
     prisma.interviewGroup.findUniqueOrThrow({
       where: { id: groupId },
-      select: { name: true }
+      select: { name: true, timezone: true }
     }),
     prisma.candidate.count({ where: candidateWhere })
   ]);
@@ -85,7 +94,8 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
       id: true,
       name: true,
       email: true,
-      status: true
+      status: true,
+      preferredLocale: true
     }
   });
   const candidateIds = candidates.map((candidate) => candidate.id);
@@ -124,7 +134,13 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
             where: { status: "SCHEDULED" },
             orderBy: { startAt: "desc" },
             take: 1,
-            select: { id: true }
+            select: {
+              id: true,
+              startAt: true,
+              endAt: true,
+              meetingLocation: true,
+              candidateVisibleMessage: true
+            }
           }
         }
       })
@@ -138,51 +154,133 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
   const candidateSchedulingById = new Map(
     candidateSchedulingRecords.map((candidate) => [candidate.id, candidate])
   );
-
+  const localizedEmailTemplates = capabilities.canSchedule
+    ? await Promise.all([
+        getCandidateEmailTemplates("zh-CN"),
+        getCandidateEmailTemplates("en")
+      ]).then(([zh, en]) => ({ "zh-CN": zh, en }))
+    : null;
+  const batchDeliveries =
+    capabilities.canSchedule && query.mailBatch
+      ? await prisma.candidateEmailDelivery.findMany({
+          where: { groupId, batchId: query.mailBatch },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            candidateNameSnapshot: true,
+            recipientEmailSnapshot: true,
+            ccEmailSnapshots: true,
+            subject: true,
+            status: true,
+            errorMessage: true
+          }
+        })
+      : [];
+  const mailCount = Number(query.mailCount ?? 0);
   return (
     <AdminShell admin={admin}>
       <GroupNav groupId={groupId} active="candidates" capabilities={capabilities} />
       <PageHeader
-        title={`${group.name} · 候选人`}
+        title={t("legacy.value0_candidate.4b66b32d", { value0: group.name })}
         description={
           capabilities.canManageCandidates
-            ? `搜索候选人，查看备注、修改审核和面试安排状态。当前显示 ${candidates.length} / ${totalCandidateCount} 位。`
-            : `仅查看候选人基本资料和状态。当前显示 ${candidates.length} / ${totalCandidateCount} 位。`
+            ? t(
+                "legacy.search_for_candidates_view_notes_modify_review_and_interview_scheduling_.5cd257af",
+                { value0: candidates.length, value1: totalCandidateCount }
+              )
+            : t(
+                "legacy.only_view_candidate_basic_information_and_status_currently_displaying_va.39aeeeb5",
+                { value0: candidates.length, value1: totalCandidateCount }
+              )
         }
       />
 
       <Card className="mb-5 p-4">
         <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
-          <Input name="q" placeholder="搜索姓名或邮箱" defaultValue={q} />
+          <Input
+            name="q"
+            placeholder={t("legacy.search_name_or_email.b0caa065")}
+            defaultValue={q}
+          />
           <Select name="status" defaultValue={status ?? ""}>
             {filters.map(([value, label]) => (
               <option key={value} value={value}>
-                {label}
+                {t(label)}
               </option>
             ))}
           </Select>
           <Button type="submit" size="lg">
-            搜索
+            {t("legacy.search.44ce7ae9")}
           </Button>
         </form>
       </Card>
 
+      {capabilities.canSchedule && query.mail === "queued" ? (
+        <InlineNotice tone="success" className="mb-5">
+          {t("mail.queuedSummary", { count: mailCount })}
+        </InlineNotice>
+      ) : null}
+      {capabilities.canSchedule && query.mail === "invalid" ? (
+        <InlineNotice tone="warning" className="mb-5">
+          {t(
+            "legacy.please_fill_in_the_subject_and_body_of_the_email_and_confirm_before_send.484b1d72"
+          )}
+        </InlineNotice>
+      ) : null}
+      {capabilities.canSchedule ? (
+        <CandidateEmailBatchSummary deliveries={batchDeliveries} />
+      ) : null}
+
       {candidates.length === 0 ? (
         <EmptyState
-          title="暂无候选人"
-          description="候选人通过面试组编号提交可用时间后，会出现在这里。"
+          title={t("legacy.no_candidates_yet.14fa20ab")}
+          description={t(
+            "legacy.candidates_will_appear_here_after_submitting_their_availability_via_inte.597bbbcf"
+          )}
         />
       ) : (
         <div className="space-y-5">
+          {capabilities.canSchedule && localizedEmailTemplates ? (
+            <CandidateEmailComposer
+              groupId={groupId}
+              groupName={group.name}
+              returnTo={`/admin/groups/${groupId}/candidates`}
+              templates={localizedEmailTemplates["zh-CN"]}
+              localizedTemplates={localizedEmailTemplates}
+              mode="table"
+              candidates={candidates.map((candidate) => {
+                const locale = normalizeLocale(candidate.preferredLocale);
+                const appointment = candidateSchedulingById.get(candidate.id)?.appointments[0];
+                const context = buildAppointmentEmailContext(appointment, group.timezone, locale);
+                return {
+                  id: candidate.id,
+                  name: candidate.name,
+                  email: candidate.email,
+                  status: candidate.status,
+                  hasScheduledAppointment: Boolean(appointment),
+                  appointmentTime: context.appointmentTime,
+                  meetingLocation: context.meetingLocation,
+                  candidateMessage: context.candidateMessage,
+                  preferredLocale: locale
+                };
+              })}
+            />
+          ) : null}
           <TableContainer>
             <Table>
               <TableHeader>
                 <tr>
-                  <TableHead>候选人</TableHead>
-                  <TableHead>状态</TableHead>
-                  {capabilities.canManageCandidates ? <TableHead>候选人备注</TableHead> : null}
-                  {capabilities.canManageCandidates ? <TableHead>管理员跟进备注</TableHead> : null}
-                  {capabilities.canManageCandidates ? <TableHead>操作</TableHead> : null}
+                  <TableHead>{t("legacy.candidates.ea62aaa5")}</TableHead>
+                  <TableHead>{t("legacy.status.6320b4a8")}</TableHead>
+                  {capabilities.canManageCandidates ? (
+                    <TableHead>{t("legacy.candidate_notes.23fc9983")}</TableHead>
+                  ) : null}
+                  {capabilities.canManageCandidates ? (
+                    <TableHead>{t("legacy.administrator_follow_up_notes.a49ca10e")}</TableHead>
+                  ) : null}
+                  {capabilities.canManageCandidates ? (
+                    <TableHead>{t("legacy.actions.ed31fbb4")}</TableHead>
+                  ) : null}
                 </tr>
               </TableHeader>
               <TableBody>
@@ -190,7 +288,6 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
                   const candidateCare = candidateCareById.get(candidate.id);
                   const candidateReview = candidateReviewById.get(candidate.id);
                   const candidateScheduling = candidateSchedulingById.get(candidate.id);
-
                   return (
                     <TableRow key={candidate.id}>
                       <TableCell>
@@ -201,17 +298,17 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
                         <div className="flex flex-wrap gap-2">
                           <StatusBadge kind="candidate" status={candidate.status} />
                           {candidateReview?.submissions.length ? (
-                            <Badge tone="warning">待审核</Badge>
+                            <Badge tone="warning">{t("legacy.pending_review.7bf25421")}</Badge>
                           ) : null}
                           {candidateScheduling?.appointments.length ? (
-                            <Badge tone="primary">已安排</Badge>
+                            <Badge tone="primary">{t("legacy.scheduled.2fcab8f6")}</Badge>
                           ) : null}
                         </div>
                       </TableCell>
                       {capabilities.canManageCandidates ? (
                         <TableCell>
                           {candidateCare?.activeSubmission?.candidateNote ? (
-                            <Badge tone="primary">有备注</Badge>
+                            <Badge tone="primary">{t("legacy.there_are_notes.814998cd")}</Badge>
                           ) : (
                             "-"
                           )}
@@ -220,7 +317,9 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
                       {capabilities.canManageCandidates ? (
                         <TableCell>
                           {candidateCare?.adminNotes.length ? (
-                            <Badge tone="warning">有跟进备注</Badge>
+                            <Badge tone="warning">
+                              {t("legacy.there_are_follow_up_notes.d9c8bb0a")}
+                            </Badge>
                           ) : (
                             "-"
                           )}
@@ -232,7 +331,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
                             className="font-medium text-primary"
                             href={`/admin/groups/${groupId}/candidates/${candidate.id}`}
                           >
-                            查看
+                            {t("legacy.check.db8db053")}
                           </Link>
                         </TableCell>
                       ) : null}
@@ -245,7 +344,7 @@ export default async function GroupCandidatesPage({ params, searchParams }: Cand
           <PaginationNav
             pathname={`/admin/groups/${groupId}/candidates`}
             searchParams={{ q: q || undefined, status: status ?? undefined }}
-            itemLabel="位候选人"
+            itemLabel={t("legacy.candidates.ff2a04ff")}
             {...pagination}
           />
         </div>

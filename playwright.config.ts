@@ -13,6 +13,22 @@ const configuredWorkers = Number.parseInt(process.env.PLAYWRIGHT_WORKERS ?? "1",
 const productionBuild = process.env.PLAYWRIGHT_PRODUCTION_BUILD === "1";
 const configuredBasePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
 const serverReadyUrl = `${baseURL}${configuredBasePath}/join`;
+const browserOrigin = new URL(baseURL);
+const legacyChineseStorageState = {
+  cookies: [
+    {
+      name: "when2entretien_locale",
+      value: "zh-CN",
+      domain: browserOrigin.hostname,
+      path: configuredBasePath || "/",
+      expires: -1,
+      httpOnly: false,
+      secure: browserOrigin.protocol === "https:",
+      sameSite: "Lax" as const
+    }
+  ],
+  origins: []
+};
 
 // Local E2E must never inherit a developer's real Mailato credentials from
 // .env. The worker process calls queue processors directly in several suites.
@@ -36,6 +52,7 @@ export default defineConfig({
   globalSetup: "./tests/e2e/global-setup.ts",
   use: {
     baseURL,
+    storageState: legacyChineseStorageState,
     trace: "on-first-retry",
     screenshot: "only-on-failure"
   },

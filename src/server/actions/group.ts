@@ -14,6 +14,7 @@ import {
 import { formValue } from "@/lib/validation/common";
 import { groupFormSchema } from "@/lib/validation/group";
 import { generateUniqueGroupCode } from "@/server/services/group-code";
+import { getRequestLocale } from "@/i18n/server";
 
 const groupAuditSelect = {
   projectId: true,
@@ -92,6 +93,7 @@ export async function createGroupAction(
 ): Promise<GroupFormState> {
   const admin = await requireAdmin();
   requireSuperAdmin(admin);
+  const locale = await getRequestLocale();
   const parsed = groupFormSchema.safeParse(readGroupFormValues(formData));
   if (!parsed.success) {
     return getGroupFormStateFromError(parsed.error);
@@ -125,7 +127,7 @@ export async function createGroupAction(
       : await tx.interviewRound.create({
           data: {
             projectId: project.id,
-            name: "默认轮次",
+            name: locale === "en" ? "Default round" : "默认轮次",
             orderIndex: 1,
             description: input.publicDescription || null,
             interviewDurationMinutes: input.interviewDurationMinutes

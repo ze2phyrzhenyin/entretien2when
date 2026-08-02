@@ -1,15 +1,13 @@
 "use client";
-
+import { useLocale } from "@/i18n/locale-provider";
 import { useState } from "react";
 import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
 async function copyText(value: string) {
   if (navigator.clipboard && window.isSecureContext) {
     await navigator.clipboard.writeText(value);
     return;
   }
-
   const textarea = document.createElement("textarea");
   textarea.value = value;
   textarea.setAttribute("readonly", "true");
@@ -19,7 +17,6 @@ async function copyText(value: string) {
   document.body.appendChild(textarea);
   textarea.focus();
   textarea.select();
-
   try {
     const copied = document.execCommand("copy");
     if (!copied) {
@@ -29,11 +26,10 @@ async function copyText(value: string) {
     document.body.removeChild(textarea);
   }
 }
-
-export function CopyButton({ value, label = "复制" }: { value: string; label?: string }) {
+export function CopyButton({ value, label }: { value: string; label?: string }) {
+  const { t } = useLocale();
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
-
   return (
     <Button
       variant="secondary"
@@ -51,7 +47,11 @@ export function CopyButton({ value, label = "复制" }: { value: string; label?:
       }}
     >
       <Copy className="h-4 w-4" aria-hidden="true" />
-      {failed ? "复制失败" : copied ? "已复制" : label}
+      {failed
+        ? t("legacy.copy_failed.753d8bb0")
+        : copied
+          ? t("legacy.copied.8f6f8d97")
+          : (label ?? t("legacy.copy.63d90d97"))}
     </Button>
   );
 }

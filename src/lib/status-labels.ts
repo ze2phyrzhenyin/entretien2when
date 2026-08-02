@@ -1,42 +1,70 @@
 import type {
+  AdminGroupRole,
+  AdminStatus,
   AppointmentStatus,
   CandidateStatus,
   CandidateSubmissionStatus,
   CandidateSubmissionType,
-  InterviewGroupStatus
+  InterviewGroupStatus,
+  InterviewRoundStatus,
+  InterviewerStatus
 } from "@prisma/client";
+import type { MessageKey } from "@/i18n/catalogs";
 
-export const interviewGroupStatusLabel: Record<InterviewGroupStatus, string> = {
-  DRAFT: "草稿",
-  OPEN: "开放",
-  CLOSED: "关闭",
-  ARCHIVED: "归档"
+export const interviewGroupStatusLabel: Record<InterviewGroupStatus, MessageKey> = {
+  DRAFT: "legacy.draft.2a2fd29b",
+  OPEN: "legacy.open.c14c915d",
+  CLOSED: "legacy.close.3fd47edc",
+  ARCHIVED: "legacy.archived.5292ab1a"
 };
 
-export const candidateStatusLabel: Record<CandidateStatus, string> = {
-  SUBMITTED: "已提交",
-  PENDING_REVIEW: "修改待审",
-  SCHEDULED: "已安排面试",
-  COMPLETED: "已完成",
-  CANCELLED: "已取消"
+export const candidateStatusLabel: Record<CandidateStatus, MessageKey> = {
+  SUBMITTED: "legacy.submitted.bc37a611",
+  PENDING_REVIEW: "legacy.modification_pending_review.cc12a4bf",
+  SCHEDULED: "legacy.interview_arranged.c7cf9fba",
+  COMPLETED: "legacy.completed.f28461bb",
+  CANCELLED: "legacy.cancelled.a37778f1"
 };
 
-export const candidateSubmissionStatusLabel: Record<CandidateSubmissionStatus, string> = {
-  ACTIVE: "当前有效",
-  PENDING_REVIEW: "待审核",
-  APPROVED: "已通过",
-  REJECTED: "已拒绝",
-  SUPERSEDED: "已替换"
+export const candidateSubmissionStatusLabel: Record<CandidateSubmissionStatus, MessageKey> = {
+  ACTIVE: "legacy.currently_valid.e6b1dcba",
+  PENDING_REVIEW: "legacy.pending_review.7bf25421",
+  APPROVED: "legacy.approved.3fa9b684",
+  REJECTED: "legacy.rejected.f098218a",
+  SUPERSEDED: "legacy.replaced.b7345661"
 };
 
-export const candidateSubmissionTypeLabel: Record<CandidateSubmissionType, string> = {
-  INITIAL: "首次提交",
-  MODIFICATION: "修改申请"
+export const candidateSubmissionTypeLabel: Record<CandidateSubmissionType, MessageKey> = {
+  INITIAL: "legacy.initial_submission.b1d4c1e3",
+  MODIFICATION: "legacy.change_request.7888bd2a"
 };
 
-export const appointmentStatusLabel: Record<AppointmentStatus, string> = {
-  SCHEDULED: "已安排",
-  CANCELLED: "已取消",
-  COMPLETED: "已完成",
-  NO_SHOW: "未到场"
+export const appointmentStatusLabel: Record<AppointmentStatus, MessageKey> = {
+  SCHEDULED: "legacy.scheduled.2fcab8f6",
+  CANCELLED: "legacy.cancelled.a37778f1",
+  COMPLETED: "legacy.completed.f28461bb",
+  NO_SHOW: "legacy.no_show.3d402a9f"
+};
+
+export const adminStatusLabel: Record<AdminStatus, MessageKey> = {
+  ACTIVE: "enum.adminStatus.ACTIVE",
+  DISABLED: "enum.adminStatus.DISABLED"
+};
+
+export const adminGroupRoleLabel: Record<AdminGroupRole, MessageKey> = {
+  OWNER: "enum.groupRole.OWNER",
+  SCHEDULER: "enum.groupRole.SCHEDULER",
+  REVIEWER: "enum.groupRole.REVIEWER",
+  VIEWER: "enum.groupRole.VIEWER"
+};
+
+export const interviewRoundStatusLabel: Record<InterviewRoundStatus, MessageKey> = {
+  ACTIVE: "enum.roundStatus.ACTIVE",
+  CLOSED: "enum.roundStatus.CLOSED",
+  ARCHIVED: "enum.roundStatus.ARCHIVED"
+};
+
+export const interviewerStatusLabel: Record<InterviewerStatus, MessageKey> = {
+  ACTIVE: "enum.interviewerStatus.ACTIVE",
+  INACTIVE: "enum.interviewerStatus.INACTIVE"
 };

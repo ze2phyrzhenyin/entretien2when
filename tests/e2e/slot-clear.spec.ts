@@ -104,7 +104,7 @@ test("admin clears all deletable time slots", async ({ page }) => {
 
   await page.goto(`/admin/groups/${group.id}/slots`);
   await expect(
-    page.getByText("将删除当前面试组里 2 个未被提交、面试安排或锁定引用的开放时间。")
+    page.getByText("将删除当前面试组中 2 个未被候选人提交、面试安排或锁定引用的开放时间。")
   ).toBeVisible();
 
   const clearForm = page.locator("form").filter({ hasText: "清空可删除的开放时间" });

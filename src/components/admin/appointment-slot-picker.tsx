@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useMemo, useState } from "react";
 import { Check, Search } from "lucide-react";
 import { useDisplayTimezone } from "@/components/timezone/use-display-timezone";
@@ -9,7 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { formatDate, formatTime } from "@/lib/date/timezone";
 import { cn } from "@/lib/utils";
-
+import { useLocale } from "@/i18n/locale-provider";
+import type { MessageKey } from "@/i18n/catalogs";
 type AppointmentSlotPickerSlot = {
   id: string;
   startAt: string;
@@ -18,16 +18,16 @@ type AppointmentSlotPickerSlot = {
   isCurrent?: boolean;
   lockedByOther?: boolean;
 };
-
 type PeriodKey = "all" | "morning" | "afternoon" | "evening";
-
-const periodOptions: Array<{ key: PeriodKey; label: string }> = [
-  { key: "all", label: "全部" },
-  { key: "morning", label: "上午" },
-  { key: "afternoon", label: "下午" },
-  { key: "evening", label: "晚上" }
+const periodOptions: Array<{
+  key: PeriodKey;
+  label: MessageKey;
+}> = [
+  { key: "all", label: "legacy.all.5c55a679" },
+  { key: "morning", label: "legacy.morning.298336ec" },
+  { key: "afternoon", label: "legacy.afternoon.af81dcf3" },
+  { key: "evening", label: "legacy.night.a9b1124b" }
 ];
-
 function periodOf(timeLabel: string): PeriodKey {
   const hour = Number(timeLabel.slice(0, 2));
   if (hour < 12) {
@@ -38,7 +38,6 @@ function periodOf(timeLabel: string): PeriodKey {
   }
   return "evening";
 }
-
 export function AppointmentSlotPicker({
   slots,
   defaultTimezone,
@@ -48,28 +47,28 @@ export function AppointmentSlotPicker({
   defaultTimezone: string;
   initiallySelectedSlotIds?: string[];
 }) {
+  const { t } = useLocale();
   const { timezone } = useDisplayTimezone(defaultTimezone);
+  const { locale } = useLocale();
   const [selectedIds, setSelectedIds] = useState(initiallySelectedSlotIds);
   const [period, setPeriod] = useState<PeriodKey>("all");
   const [query, setQuery] = useState("");
-
   const slotViews = useMemo(
     () =>
       slots.map((slot) => {
         const start = new Date(slot.startAt);
         const end = new Date(slot.endAt);
-        const timeLabel = `${formatTime(start, timezone)}-${formatTime(end, timezone)}`;
+        const timeLabel = `${formatTime(start, timezone, locale)}-${formatTime(end, timezone, locale)}`;
         return {
           ...slot,
-          dateLabel: formatDate(start, timezone),
+          dateLabel: formatDate(start, timezone, locale),
           timeLabel,
           period: periodOf(timeLabel),
           selectable: !slot.lockedByOther && (slot.status === "OPEN" || Boolean(slot.isCurrent))
         };
       }),
-    [slots, timezone]
+    [locale, slots, timezone]
   );
-
   const groupedSlots = useMemo(() => {
     const groups = new Map<string, typeof slotViews>();
     for (const slot of slotViews) {
@@ -77,7 +76,6 @@ export function AppointmentSlotPicker({
     }
     return [...groups.entries()];
   }, [slotViews]);
-
   const firstSelectedDate =
     groupedSlots.find(([, daySlots]) =>
       daySlots.some((slot) => selectedIds.includes(slot.id))
@@ -85,13 +83,11 @@ export function AppointmentSlotPicker({
     groupedSlots[0]?.[0] ??
     "";
   const [activeDate, setActiveDate] = useState(firstSelectedDate);
-
   useEffect(() => {
     if (!groupedSlots.some(([dateLabel]) => dateLabel === activeDate)) {
       setActiveDate(firstSelectedDate);
     }
   }, [activeDate, firstSelectedDate, groupedSlots]);
-
   const activeSlots = groupedSlots.find(([dateLabel]) => dateLabel === activeDate)?.[1] ?? [];
   const normalizedQuery = query.trim();
   const visibleSlots = activeSlots.filter((slot) => {
@@ -104,7 +100,6 @@ export function AppointmentSlotPicker({
   });
   const visibleSlotIds = new Set(visibleSlots.map((slot) => slot.id));
   const selectedHiddenIds = selectedIds.filter((slotId) => !visibleSlotIds.has(slotId));
-
   function setSlotSelected(slotId: string, selected: boolean) {
     setSelectedIds((current) =>
       selected
@@ -114,17 +109,14 @@ export function AppointmentSlotPicker({
         : current.filter((id) => id !== slotId)
     );
   }
-
   function selectVisibleSlots() {
     const selectableIds = visibleSlots.filter((slot) => slot.selectable).map((slot) => slot.id);
     setSelectedIds((current) => [...new Set([...current, ...selectableIds])]);
   }
-
   function clearVisibleSlots() {
     const visibleIds = new Set(visibleSlots.map((slot) => slot.id));
     setSelectedIds((current) => current.filter((id) => !visibleIds.has(id)));
   }
-
   return (
     <div className="space-y-3 rounded-lg border border-border bg-surface-subtle p-3">
       {selectedHiddenIds.map((slotId) => (
@@ -137,7 +129,6 @@ export function AppointmentSlotPicker({
             const selectedCount = daySlots.filter((slot) => selectedIds.includes(slot.id)).length;
             const selectableCount = daySlots.filter((slot) => slot.selectable).length;
             const active = dateLabel === activeDate;
-
             return (
               <button
                 key={dateLabel}
@@ -157,7 +148,10 @@ export function AppointmentSlotPicker({
                     active ? "text-primary-foreground/80" : "text-muted-foreground"
                   )}
                 >
-                  已选 {selectedCount} / 可选 {selectableCount}
+                  {t("selection.daySummary", {
+                    selected: selectedCount,
+                    available: selectableCount
+                  })}
                 </span>
               </button>
             );
@@ -171,7 +165,7 @@ export function AppointmentSlotPicker({
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索时间，如 15:00"
+            placeholder={t("legacy.search_time_such_as_15_00.a92588fc")}
             className="h-11 pl-9"
           />
         </div>
@@ -187,24 +181,26 @@ export function AppointmentSlotPicker({
               variant={period === item.key ? "primary" : "secondary"}
               onClick={() => setPeriod(item.key)}
             >
-              {item.label}
+              {t(item.label)}
             </Button>
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" variant="secondary" onClick={selectVisibleSlots}>
             <Check className="h-4 w-4" aria-hidden="true" />
-            选择当前结果
+            {t("legacy.select_current_result.bf7fc23b")}
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={clearVisibleSlots}>
-            清除当前结果
+            {t("legacy.clear_current_results.6f92819c")}
           </Button>
         </div>
       </div>
 
       {visibleSlots.length === 0 ? (
         <div className="rounded-md border border-dashed border-border bg-white p-5 text-sm text-muted-foreground">
-          当前日期和筛选条件下没有可显示的开放时间。
+          {t(
+            "legacy.there_are_no_opening_hours_to_display_for_the_current_date_and_filter.dc06f266"
+          )}
         </div>
       ) : (
         <div className="grid gap-2 md:grid-cols-2">
@@ -229,15 +225,18 @@ export function AppointmentSlotPicker({
                   defaultChecked={selected}
                   disabled={!slot.selectable}
                   onChange={(event) => setSlotSelected(slot.id, event.currentTarget.checked)}
-                  aria-label={`选择 ${slot.dateLabel} ${slot.timeLabel}`}
+                  aria-label={t("legacy.select_value0_value1.96719939", {
+                    value0: slot.dateLabel,
+                    value1: slot.timeLabel
+                  })}
                 />
                 <span className="min-w-0 flex-1 font-medium">{slot.timeLabel}</span>
                 {slot.isCurrent ? (
-                  <Badge tone="scheduled">当前</Badge>
+                  <Badge tone="scheduled">{t("legacy.current.cb62ebd6")}</Badge>
                 ) : slot.lockedByOther ? (
-                  <Badge tone="locked">已锁定</Badge>
+                  <Badge tone="locked">{t("legacy.locked.56cee909")}</Badge>
                 ) : slot.status === "CLOSED" ? (
-                  <Badge tone="neutral">关闭</Badge>
+                  <Badge tone="neutral">{t("legacy.close.3fd47edc")}</Badge>
                 ) : null}
               </label>
             );
@@ -246,7 +245,7 @@ export function AppointmentSlotPicker({
       )}
 
       <div className="rounded-md border border-border bg-white px-3 py-2 text-sm text-muted-foreground">
-        已选择 {selectedIds.length} 个开放时间。请选择连续开放时间以组成面试时段。
+        {t("appointment.slotSelectionSummary", { count: selectedIds.length })}
       </div>
     </div>
   );

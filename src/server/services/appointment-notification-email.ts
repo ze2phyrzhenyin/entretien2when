@@ -4,8 +4,9 @@ import {
   buildAppointmentCalendarLinks,
   buildAppointmentIcs
 } from "@/lib/mail/appointment-calendar";
-import { formatDateTimeRange } from "@/lib/date/timezone";
+import { formatDateTimeRangeWithTimezone } from "@/lib/date/timezone";
 import { enqueueAppointmentEmail } from "@/server/services/email-outbox";
+import { normalizeLocale, type AppLocale } from "@/i18n/config";
 
 type AppointmentNotificationClient = Pick<Prisma.TransactionClient, "emailOutbox">;
 type AppointmentEventKind = "scheduled" | "rescheduled" | "cancelled";
@@ -29,12 +30,18 @@ type AppointmentNotificationInput = {
   candidate: {
     name: string;
     email: string;
+    locale?: AppLocale;
   };
   interviewers: Array<{
     name: string;
     email: string;
+    locale?: AppLocale;
   }>;
   now?: Date;
+  /** Locale used for staff recipients without an individual preference. */
+  staffLocale?: AppLocale;
+  /** Compatibility default for queued payloads created before recipient-class policy. */
+  locale?: AppLocale;
 };
 
 function reminderHours() {
@@ -50,9 +57,20 @@ function recipientKey(email: string) {
 }
 
 function uniqueRecipients(input: AppointmentNotificationInput) {
+  const candidateLocale = normalizeLocale(input.candidate.locale ?? input.locale);
+  const staffLocale = normalizeLocale(input.staffLocale ?? input.locale);
   const candidates = [
-    { name: input.candidate.name, email: input.candidate.email },
-    ...input.interviewers
+    {
+      name: input.candidate.name,
+      email: input.candidate.email,
+      locale: candidateLocale,
+      recipientClass: "candidate" as const
+    },
+    ...input.interviewers.map((interviewer) => ({
+      ...interviewer,
+      locale: normalizeLocale(interviewer.locale ?? staffLocale),
+      recipientClass: "interviewer" as const
+    }))
   ];
   const seen = new Set<string>();
   return candidates.filter((recipient) => {
@@ -65,7 +83,11 @@ function uniqueRecipients(input: AppointmentNotificationInput) {
   });
 }
 
-function notificationCopy(input: AppointmentNotificationInput, reminder?: number) {
+function notificationCopy(
+  input: AppointmentNotificationInput,
+  locale: AppLocale,
+  reminder?: number
+) {
   const label: Record<AppointmentEventKind, string> = {
     scheduled: "面试安排已确认",
     rescheduled: "面试时间已调整",
@@ -81,9 +103,43 @@ function notificationCopy(input: AppointmentNotificationInput, reminder?: number
     endAt: input.appointment.endAt,
     meetingLocation: input.appointment.meetingLocation,
     description: input.appointment.candidateVisibleMessage,
-    cancelled: input.kind === "cancelled"
+    cancelled: input.kind === "cancelled",
+    locale
   };
   const links = buildAppointmentCalendarLinks(calendarInput);
+  if (locale === "en") {
+    const englishLabel: Record<AppointmentEventKind, string> = {
+      scheduled: "Interview confirmed",
+      rescheduled: "Interview rescheduled",
+      cancelled: "Interview cancelled"
+    };
+    const eventLabel = reminder
+      ? `Interview starts in ${reminder} hour${reminder === 1 ? "" : "s"}`
+      : englishLabel[input.kind];
+    const subject = `[${eventLabel}] ${input.candidate.name} · ${input.group.name}`;
+    const body = [
+      eventLabel,
+      "",
+      `Candidate: ${input.candidate.name}`,
+      `Interview group: ${input.group.name}`,
+      input.roundName ? `Round: ${input.roundName}` : null,
+      `Time: ${formatDateTimeRangeWithTimezone(
+        input.appointment.startAt,
+        input.appointment.endAt,
+        input.group.timezone,
+        locale
+      )}`,
+      `Location/link: ${input.appointment.meetingLocation?.trim() || "Not provided"}`,
+      `Instructions: ${input.appointment.candidateVisibleMessage?.trim() || "Not provided"}`,
+      "",
+      "The attached ICS file can be added to most calendar applications.",
+      `Google Calendar: ${links.google}`,
+      `Outlook Calendar: ${links.outlook}`
+    ]
+      .filter((line): line is string => line !== null)
+      .join("\n");
+    return { subject, body, icsContent: buildAppointmentIcs(calendarInput) };
+  }
   const eventLabel = reminder ? `面试将在 ${reminder} 小时后开始` : label[input.kind];
   const subject = `【${eventLabel}】${input.candidate.name} · ${input.group.name}`;
   const body = [
@@ -92,7 +148,7 @@ function notificationCopy(input: AppointmentNotificationInput, reminder?: number
     `候选人：${input.candidate.name}`,
     `面试组：${input.group.name}`,
     input.roundName ? `轮次：${input.roundName}` : null,
-    `时间：${formatDateTimeRange(
+    `时间：${formatDateTimeRangeWithTimezone(
       input.appointment.startAt,
       input.appointment.endAt,
       input.group.timezone
@@ -119,10 +175,10 @@ export async function queueAppointmentNotifications(
   client: AppointmentNotificationClient
 ) {
   const recipients = uniqueRecipients(input);
-  const immediateCopy = notificationCopy(input);
   const expectedStartAt = input.appointment.startAt.toISOString();
 
   for (const recipient of recipients) {
+    const immediateCopy = notificationCopy(input, recipient.locale);
     const recipientHash = recipientKey(recipient.email);
     await enqueueAppointmentEmail(
       {
@@ -145,7 +201,8 @@ export async function queueAppointmentNotifications(
           subject: immediateCopy.subject,
           body: immediateCopy.body,
           icsFilename: `interview-${input.appointment.id}.ics`,
-          icsContent: immediateCopy.icsContent
+          icsContent: immediateCopy.icsContent,
+          locale: recipient.locale
         }
       },
       client
@@ -162,8 +219,8 @@ export async function queueAppointmentNotifications(
     if (nextAttemptAt.getTime() <= now.getTime() + 60_000) {
       continue;
     }
-    const reminderCopy = notificationCopy(input, hours);
     for (const recipient of recipients) {
+      const reminderCopy = notificationCopy(input, recipient.locale, hours);
       const recipientHash = recipientKey(recipient.email);
       await enqueueAppointmentEmail(
         {
@@ -187,7 +244,8 @@ export async function queueAppointmentNotifications(
             subject: reminderCopy.subject,
             body: reminderCopy.body,
             icsFilename: `interview-${input.appointment.id}.ics`,
-            icsContent: reminderCopy.icsContent
+            icsContent: reminderCopy.icsContent,
+            locale: recipient.locale
           }
         },
         client

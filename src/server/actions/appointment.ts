@@ -41,6 +41,8 @@ import { scheduleAppointmentSchema } from "@/lib/validation/appointment";
 import { createCandidateEmailDelivery } from "@/server/services/candidate-email";
 import { notifyOwnerAboutAppointment } from "@/server/services/owner-notification-email";
 import { queueAppointmentNotifications } from "@/server/services/appointment-notification-email";
+import { normalizeLocale, type AppLocale } from "@/i18n/config";
+import { getRequestLocale } from "@/i18n/server";
 
 function redirectWithScheduleMailStatus(
   groupId: string,
@@ -277,6 +279,7 @@ async function createScheduledAppointment({
   candidateId,
   slotIds,
   interviewerIds,
+  staffLocale,
   input,
   appointmentEmail
 }: {
@@ -286,6 +289,7 @@ async function createScheduledAppointment({
   candidateId: string;
   slotIds: string[];
   interviewerIds: string[];
+  staffLocale: AppLocale;
   input: ScheduleTransactionInput;
   appointmentEmail?: AppointmentCandidateEmailDraft | null;
 }) {
@@ -420,7 +424,6 @@ async function createScheduledAppointment({
           groupId,
           appointmentId: appointment.id,
           slotIds,
-          candidateName: candidate.name,
           lockedByAdminId: adminId
         })
       });
@@ -452,6 +455,7 @@ async function createScheduledAppointment({
               templateKey: appointmentEmail.templateKey,
               subject: appointmentEmail.subject,
               bodyTemplate: appointmentEmail.bodyTemplate,
+              locale: normalizeLocale(candidate.preferredLocale),
               ccEmails: appointmentEmail.ccEmails,
               templateValues: buildAppointmentEmailContext(
                 {
@@ -460,7 +464,8 @@ async function createScheduledAppointment({
                   meetingLocation: appointment.meetingLocation,
                   candidateVisibleMessage: appointment.candidateVisibleMessage
                 },
-                candidate.group.timezone
+                candidate.group.timezone,
+                normalizeLocale(candidate.preferredLocale)
               )
             },
             tx
@@ -516,7 +521,8 @@ async function createScheduledAppointment({
           endAt: appointment.endAt,
           meetingLocation: appointment.meetingLocation,
           candidateVisibleMessage: appointment.candidateVisibleMessage,
-          scheduledByEmail: adminEmail
+          scheduledByEmail: adminEmail,
+          locale: staffLocale
         },
         tx
       );
@@ -528,9 +534,11 @@ async function createScheduledAppointment({
           roundName: candidate.group.round?.name,
           candidate: {
             name: candidate.name,
-            email: candidate.email
+            email: candidate.email,
+            locale: normalizeLocale(candidate.preferredLocale)
           },
-          interviewers: selectedInterviewers
+          interviewers: selectedInterviewers,
+          staffLocale
         },
         tx
       );
@@ -562,6 +570,7 @@ async function rescheduleScheduledAppointment({
   appointmentId,
   slotIds,
   interviewerIds,
+  staffLocale,
   input,
   appointmentEmail
 }: {
@@ -572,6 +581,7 @@ async function rescheduleScheduledAppointment({
   appointmentId: string;
   slotIds: string[];
   interviewerIds: string[];
+  staffLocale: AppLocale;
   input: ScheduleTransactionInput;
   appointmentEmail?: AppointmentCandidateEmailDraft | null;
 }) {
@@ -751,7 +761,6 @@ async function rescheduleScheduledAppointment({
           groupId,
           appointmentId: existingAppointment.id,
           slotIds,
-          candidateName: candidate.name,
           lockedByAdminId: adminId
         })
       });
@@ -782,6 +791,7 @@ async function rescheduleScheduledAppointment({
               templateKey: appointmentEmail.templateKey,
               subject: appointmentEmail.subject,
               bodyTemplate: appointmentEmail.bodyTemplate,
+              locale: normalizeLocale(candidate.preferredLocale),
               ccEmails: appointmentEmail.ccEmails,
               templateValues: buildAppointmentEmailContext(
                 {
@@ -790,7 +800,8 @@ async function rescheduleScheduledAppointment({
                   meetingLocation: appointment.meetingLocation,
                   candidateVisibleMessage: appointment.candidateVisibleMessage
                 },
-                candidate.group.timezone
+                candidate.group.timezone,
+                normalizeLocale(candidate.preferredLocale)
               )
             },
             tx
@@ -855,7 +866,8 @@ async function rescheduleScheduledAppointment({
           endAt: appointment.endAt,
           meetingLocation: appointment.meetingLocation,
           candidateVisibleMessage: appointment.candidateVisibleMessage,
-          scheduledByEmail: adminEmail
+          scheduledByEmail: adminEmail,
+          locale: staffLocale
         },
         tx
       );
@@ -867,9 +879,11 @@ async function rescheduleScheduledAppointment({
           roundName: candidate.group.round?.name,
           candidate: {
             name: candidate.name,
-            email: candidate.email
+            email: candidate.email,
+            locale: normalizeLocale(candidate.preferredLocale)
           },
-          interviewers: selectedInterviewers
+          interviewers: selectedInterviewers,
+          staffLocale
         },
         tx
       );
@@ -900,6 +914,7 @@ export async function scheduleAppointmentAction(
 ) {
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, groupSchedulingRoles);
+  const staffLocale = await getRequestLocale();
 
   const parsed = scheduleAppointmentSchema.safeParse({
     slotIds: formValues(formData, "slotIds"),
@@ -931,6 +946,7 @@ export async function scheduleAppointmentAction(
       candidateId,
       slotIds,
       interviewerIds,
+      staffLocale,
       input,
       appointmentEmail
     });
@@ -966,6 +982,7 @@ export async function rescheduleAppointmentAction(
 ) {
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, groupSchedulingRoles);
+  const staffLocale = await getRequestLocale();
 
   const parsed = scheduleAppointmentSchema.safeParse({
     slotIds: formValues(formData, "slotIds"),
@@ -998,6 +1015,7 @@ export async function rescheduleAppointmentAction(
       appointmentId,
       slotIds,
       interviewerIds,
+      staffLocale,
       input,
       appointmentEmail
     });
@@ -1028,6 +1046,7 @@ export async function rescheduleAppointmentAction(
 export async function cancelAppointmentAction(groupId: string, appointmentId: string) {
   const admin = await requireAdmin();
   await requireGroupPermission(admin, groupId, groupSchedulingRoles);
+  const staffLocale = await getRequestLocale();
 
   let cancelled: CancelledAppointmentResult;
 
@@ -1051,7 +1070,7 @@ export async function cancelAppointmentAction(groupId: string, appointmentId: st
               }
             },
             candidate: {
-              select: { id: true, name: true, email: true }
+              select: { id: true, name: true, email: true, preferredLocale: true }
             },
             interviewers: {
               select: {
@@ -1168,7 +1187,8 @@ export async function cancelAppointmentAction(groupId: string, appointmentId: st
             endAt: appointment.endAt,
             meetingLocation: appointment.meetingLocation,
             candidateVisibleMessage: appointment.candidateVisibleMessage,
-            scheduledByEmail: admin.email
+            scheduledByEmail: admin.email,
+            locale: staffLocale
           },
           tx
         );
@@ -1189,8 +1209,12 @@ export async function cancelAppointmentAction(groupId: string, appointmentId: st
             appointment: cancelledAppointment,
             group: appointment.group,
             roundName: appointment.group.round?.name,
-            candidate: appointment.candidate,
-            interviewers: appointment.interviewers.map(({ interviewer }) => interviewer)
+            candidate: {
+              ...appointment.candidate,
+              locale: normalizeLocale(appointment.candidate.preferredLocale)
+            },
+            interviewers: appointment.interviewers.map(({ interviewer }) => interviewer),
+            staffLocale
           },
           tx
         );

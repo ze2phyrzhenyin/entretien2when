@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AuditActorType, CandidateEmailDeliveryStatus } from "@prisma/client";
 import { buildAppointmentEmailContext } from "@/lib/mail/appointment-email-context";
+import { buildLocalizedCandidateEmailRecipientPlan } from "@/lib/mail/candidate-email-localization";
 import { requireAdmin } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { groupSchedulingRoles, requireGroupPermission } from "@/lib/permissions/admin";
@@ -14,6 +15,7 @@ import {
   createCandidateEmailDelivery,
   requeueCandidateEmailDelivery
 } from "@/server/services/candidate-email";
+import { normalizeLocale } from "@/i18n/config";
 
 function sanitizeReturnTo(value: string | undefined, groupId: string) {
   const fallback = `/admin/groups/${groupId}/candidates`;
@@ -61,8 +63,14 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
   const parsed = candidateEmailActionSchema.safeParse({
     candidateIds: formValues(formData, "candidateIds"),
     templateKey: formValue(formData, "templateKey"),
+    contentMode: formValue(formData, "contentMode"),
+    locale: formValue(formData, "locale"),
     subject: formValue(formData, "subject"),
     body: formValue(formData, "body"),
+    subjectZhCn: formValue(formData, "subjectZhCn"),
+    bodyZhCn: formValue(formData, "bodyZhCn"),
+    subjectEn: formValue(formData, "subjectEn"),
+    bodyEn: formValue(formData, "bodyEn"),
     ccEmails: formValue(formData, "ccEmails"),
     confirmSend: formValue(formData, "confirmSend"),
     returnTo
@@ -73,6 +81,13 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
   }
 
   const input = parsed.data;
+  const localizedContent =
+    input.contentMode === "localizedBatch"
+      ? {
+          "zh-CN": { subject: input.subjectZhCn, body: input.bodyZhCn },
+          en: { subject: input.subjectEn, body: input.bodyEn }
+        }
+      : null;
   const group = await prisma.interviewGroup.findUniqueOrThrow({
     where: { id: groupId },
     select: { id: true, name: true, timezone: true }
@@ -87,6 +102,7 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
       id: true,
       name: true,
       email: true,
+      preferredLocale: true,
       appointments: {
         where: { status: "SCHEDULED" },
         orderBy: { startAt: "desc" },
@@ -110,6 +126,24 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
   const deliveryIds = await prisma.$transaction(async (tx) => {
     const deliveries = [];
     for (const candidate of candidates) {
+      const localizedPlan =
+        input.contentMode === "localizedBatch"
+          ? buildLocalizedCandidateEmailRecipientPlan({
+              preferredLocale: candidate.preferredLocale,
+              appointment: candidate.appointments[0],
+              timezone: group.timezone,
+              content: localizedContent!
+            })
+          : {
+              locale: normalizeLocale(candidate.preferredLocale),
+              subject: input.subject,
+              bodyTemplate: input.body,
+              templateValues: buildAppointmentEmailContext(
+                candidate.appointments[0],
+                group.timezone,
+                normalizeLocale(candidate.preferredLocale)
+              )
+            };
       deliveries.push(
         await createCandidateEmailDelivery(
           {
@@ -118,10 +152,11 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
             candidate,
             batchId,
             templateKey: input.templateKey,
-            subject: input.subject,
-            bodyTemplate: input.body,
+            subject: localizedPlan.subject,
+            bodyTemplate: localizedPlan.bodyTemplate,
+            locale: localizedPlan.locale,
             ccEmails: input.ccEmails,
-            templateValues: buildAppointmentEmailContext(candidate.appointments[0], group.timezone)
+            templateValues: localizedPlan.templateValues
           },
           tx
         )
@@ -137,11 +172,26 @@ export async function sendCandidateEmailAction(groupId: string, formData: FormDa
         entityType: "CandidateEmailBatch",
         entityId: batchId,
         afterData: {
-          subject: input.subject,
+          subjects:
+            input.contentMode === "localizedBatch"
+              ? {
+                  "zh-CN": input.subjectZhCn,
+                  en: input.subjectEn
+                }
+              : { [normalizeLocale(candidates[0]?.preferredLocale)]: input.subject },
           ccEmails: input.ccEmails,
           candidateIds: candidates.map((candidate) => candidate.id),
           deliveryIds: deliveries.map((delivery) => delivery.id),
           recipientCount: candidates.length,
+          contentMode: input.contentMode,
+          recipientLocales: Object.fromEntries(
+            candidates.map((candidate) => [
+              candidate.id,
+              input.contentMode === "localizedBatch"
+                ? normalizeLocale(candidate.preferredLocale)
+                : normalizeLocale(candidate.preferredLocale)
+            ])
+          ),
           status: "queued"
         }
       }

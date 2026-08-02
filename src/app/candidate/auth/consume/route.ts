@@ -6,6 +6,12 @@ import {
   getCandidateSessionCookieOptions
 } from "@/lib/auth/candidate-session";
 import { isCandidateToken } from "@/lib/auth/candidate-token";
+import {
+  isSupportedLocale,
+  localeCookieName,
+  localeCookieOptions,
+  normalizeLocale
+} from "@/i18n/config";
 
 function redirectForRequest(request: NextRequest, pathAndSearch: string) {
   const basePath = getRequestBasePath(request.nextUrl.basePath);
@@ -25,12 +31,14 @@ export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const tokenValue = formData.get("token");
   const token = typeof tokenValue === "string" ? tokenValue : "";
+  const localeValue = formData.get("locale");
+  const requestedLocale = isSupportedLocale(localeValue) ? localeValue : undefined;
 
   if (!isCandidateToken(token)) {
     return redirectForRequest(request, "/join?access=invalid");
   }
 
-  const consumed = await consumeCandidateAccessToken(token);
+  const consumed = await consumeCandidateAccessToken(token, requestedLocale);
   if (!consumed) {
     return redirectForRequest(request, "/join?access=invalid");
   }
@@ -41,6 +49,11 @@ export async function POST(request: NextRequest) {
     getCandidateSessionCookieName(consumed.groupId),
     consumed.sessionToken,
     getCandidateSessionCookieOptions(consumed.expiresAt, basePath)
+  );
+  response.cookies.set(
+    localeCookieName,
+    normalizeLocale(consumed.locale),
+    localeCookieOptions(basePath)
   );
   return response;
 }

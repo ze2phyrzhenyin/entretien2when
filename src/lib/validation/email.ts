@@ -78,20 +78,38 @@ export const ccEmailListSchema = z
     }
   });
 
-export const candidateEmailActionSchema = z.object({
+const candidateEmailActionCommon = {
   candidateIds: z
     .array(cuidSchema)
     .min(1, "请选择至少一位候选人")
     .max(50, "一次最多发送 50 位候选人"),
-  templateKey: z.string().trim().max(80).optional(),
-  subject: requiredTextSchema("请输入邮件主题", 160),
-  body: requiredTextSchema("请输入邮件正文", 5000),
+  templateKey: z.string().refine((value) => candidateEmailTemplateKeys.has(value), {
+    message: "未知邮件模板"
+  }),
   ccEmails: ccEmailListSchema,
   confirmSend: z.literal("yes", {
     errorMap: () => ({ message: "发送前请确认收件人、主题和正文" })
   }),
   returnTo: z.string().optional()
-});
+};
+
+export const candidateEmailActionSchema = z.discriminatedUnion("contentMode", [
+  z.object({
+    ...candidateEmailActionCommon,
+    contentMode: z.literal("single"),
+    locale: z.enum(["zh-CN", "en"]),
+    subject: requiredTextSchema("请输入邮件主题", 160),
+    body: requiredTextSchema("请输入邮件正文", 5000)
+  }),
+  z.object({
+    ...candidateEmailActionCommon,
+    contentMode: z.literal("localizedBatch"),
+    subjectZhCn: requiredTextSchema("请输入邮件主题", 160),
+    bodyZhCn: requiredTextSchema("请输入邮件正文", 5000),
+    subjectEn: requiredTextSchema("请输入邮件主题", 160),
+    bodyEn: requiredTextSchema("请输入邮件正文", 5000)
+  })
+]);
 
 export const retryCandidateEmailSchema = z.object({
   returnTo: z.string().optional()
@@ -112,6 +130,7 @@ export const emailTemplateUpdateSchema = z.object({
   key: z.string().refine((value) => candidateEmailTemplateKeys.has(value), {
     message: "未知邮件模板"
   }),
+  locale: z.enum(["zh-CN", "en"]),
   label: requiredTextSchema("请输入模板名称", 80),
   subject: requiredTextSchema("请输入邮件主题", 160),
   body: requiredTextSchema("请输入邮件正文", 5000)
@@ -120,5 +139,6 @@ export const emailTemplateUpdateSchema = z.object({
 export const emailTemplateResetSchema = z.object({
   key: z.string().refine((value) => candidateEmailTemplateKeys.has(value), {
     message: "未知邮件模板"
-  })
+  }),
+  locale: z.enum(["zh-CN", "en"])
 });

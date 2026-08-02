@@ -122,8 +122,8 @@ test("admin sends candidate email with preview, delivery history, and batch summ
 
   await page.goto(`/admin/groups/${group.id}/candidates`);
   await expect(page.getByRole("heading", { name: `${group.name} · 候选人` })).toBeVisible();
-  await expect(page.getByText("发送候选人通知")).toHaveCount(0);
-  await expect(page.getByText("邮件测试候选人")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "发送候选人通知" })).toBeVisible();
+  await expect(page.getByText("邮件测试候选人").first()).toBeVisible();
 
   await page.goto(`/admin/groups/${group.id}/candidates/${candidate.id}?section=email`);
   await expect(page.getByRole("heading", { name: "发送候选人通知" })).toBeVisible();
@@ -157,6 +157,7 @@ test("admin sends candidate email with preview, delivery history, and batch summ
 });
 
 test("admin updates global candidate email template and send form uses it", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await loginEmailOpsAdmin(page);
 
   const group = await prisma.interviewGroup.findFirstOrThrow({
@@ -169,8 +170,15 @@ test("admin updates global candidate email template and send form uses it", asyn
   await expect(page.getByRole("heading", { name: "邮件模板", level: 2 })).toBeVisible();
   const templateForm = page
     .locator("form")
-    .filter({ has: page.getByRole("button", { name: "保存模板" }) })
-    .filter({ has: page.locator('input[name="key"][value="interview_notice"]') });
+    .filter({ has: page.locator('input[name="key"][value="interview_notice"]') })
+    .filter({ has: page.locator('input[name="subject"]') });
+
+  await templateForm.getByLabel("邮件主题").fill("未保存的模板主题");
+  await page.getByRole("button", { name: "切换到EN" }).click();
+  await expect(templateForm.locator('input[name="subject"]')).toHaveValue("未保存的模板主题");
+  await expect(page).not.toHaveURL(/templateLocale=en/u);
+  await page.getByRole("button", { name: "Switch to 中文" }).click();
+  await expect(templateForm.locator('input[name="subject"]')).toHaveValue("未保存的模板主题");
 
   await templateForm.getByLabel("邮件主题").fill("{groupName} 全局自定义通知");
   await templateForm
@@ -196,4 +204,58 @@ test("admin updates global candidate email template and send form uses it", asyn
   });
   expect(delivery.subject).toBe("{groupName} 全局自定义通知");
   expect(delivery.bodyTemplate).toContain("这是全局模板");
+});
+
+test("one batch sends reviewed Chinese and English drafts by recipient preference", async ({
+  page
+}) => {
+  await loginEmailOpsAdmin(page);
+  const group = await prisma.interviewGroup.findFirstOrThrow({
+    where: { name: { startsWith: groupNamePrefix } },
+    include: { candidates: true }
+  });
+  const chineseCandidate = group.candidates[0]!;
+  const englishCandidate = await prisma.candidate.create({
+    data: {
+      groupId: group.id,
+      name: "Email Candidate EN",
+      email: "email-candidate-en@example.com",
+      normalizedEmail: "email-candidate-en@example.com",
+      preferredLocale: "en",
+      status: CandidateStatus.SUBMITTED
+    }
+  });
+
+  await page.goto(`/admin/groups/${group.id}/candidates`);
+  await page.getByRole("checkbox", { name: `选择 ${chineseCandidate.name}` }).check();
+  await page.getByRole("checkbox", { name: `选择 ${englishCandidate.name}` }).check();
+
+  await page.getByLabel("邮件主题").fill("中文批量主题");
+  await page.getByLabel("邮件正文").fill("你好 {name}，尚未安排：{appointmentTime}");
+  await page.getByLabel("模板内容语言").selectOption("en");
+  await page.getByLabel("邮件主题").fill("English batch subject");
+  await page.getByLabel("邮件正文").fill("Hello {name}. Schedule: {appointmentTime}");
+  await page.getByLabel(/我已确认收件人/).check();
+  await page.getByRole("button", { name: "发送给选中候选人" }).click();
+
+  await expect(page.getByText("已将 2 封候选人通知写入可靠发送队列")).toBeVisible();
+  const deliveries = await prisma.candidateEmailDelivery.findMany({
+    where: { groupId: group.id },
+    orderBy: { locale: "asc" }
+  });
+  expect(deliveries).toHaveLength(2);
+  const englishDelivery = deliveries.find((delivery) => delivery.locale === "en");
+  const chineseDelivery = deliveries.find((delivery) => delivery.locale === "zh-CN");
+  expect(englishDelivery).toMatchObject({
+    candidateId: englishCandidate.id,
+    subject: "English batch subject",
+    bodyTemplate: "Hello {name}. Schedule: {appointmentTime}"
+  });
+  expect(englishDelivery?.renderedBody).toContain("Not scheduled");
+  expect(chineseDelivery).toMatchObject({
+    candidateId: chineseCandidate.id,
+    subject: "中文批量主题",
+    bodyTemplate: "你好 {name}，尚未安排：{appointmentTime}"
+  });
+  expect(chineseDelivery?.renderedBody).toContain("尚未安排");
 });

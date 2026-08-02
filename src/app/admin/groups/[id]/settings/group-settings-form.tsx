@@ -1,5 +1,5 @@
 "use client";
-
+import { useLocale } from "@/i18n/locale-provider";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { Save } from "lucide-react";
@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { updateGroupAction, type GroupFormState } from "@/server/actions/group";
-
+import type { TimezoneOption } from "@/lib/date/timezone";
+import { translateKnownSource } from "@/i18n/catalogs";
 type GroupSettingsFormValues = {
   name: string;
   publicDescription: string;
@@ -21,25 +22,17 @@ type GroupSettingsFormValues = {
   minSelectSlots: number;
   maxSelectSlots: number;
 };
-
-type TimezoneOption = {
-  value: string;
-  label: string;
-};
-
 const initialState: GroupFormState = {};
-
 function SubmitButton() {
+  const { t } = useLocale();
   const { pending } = useFormStatus();
-
   return (
     <Button type="submit" className="w-full md:w-auto" disabled={pending} isLoading={pending}>
       {pending ? null : <Save className="h-4 w-4" aria-hidden="true" />}
-      {pending ? "正在保存" : "保存设置"}
+      {pending ? t("legacy.saving.570d6020") : t("legacy.save_settings.c8550237")}
     </Button>
   );
 }
-
 export function GroupSettingsForm({
   groupId,
   group,
@@ -49,12 +42,18 @@ export function GroupSettingsForm({
   group: GroupSettingsFormValues;
   timezoneOptions: TimezoneOption[];
 }) {
+  const { locale, t } = useLocale();
   const [state, formAction] = useActionState(updateGroupAction.bind(null, groupId), initialState);
   const errors = state.fieldErrors ?? {};
-
+  const localizedError = (message?: string) =>
+    message ? translateKnownSource(locale, message) : undefined;
   return (
     <form action={formAction} className="grid gap-5" noValidate>
-      <FormField id="name" label="面试组名称" error={errors.name}>
+      <FormField
+        id="name"
+        label={t("legacy.interview_group_name.6ac47fcf")}
+        error={localizedError(errors.name)}
+      >
         <Input
           id="name"
           name="name"
@@ -63,7 +62,11 @@ export function GroupSettingsForm({
           aria-invalid={Boolean(errors.name)}
         />
       </FormField>
-      <FormField id="publicDescription" label="候选人可见说明" error={errors.publicDescription}>
+      <FormField
+        id="publicDescription"
+        label={t("legacy.candidate_visible_instructions.4fb1e953")}
+        error={localizedError(errors.publicDescription)}
+      >
         <Textarea
           id="publicDescription"
           name="publicDescription"
@@ -72,7 +75,11 @@ export function GroupSettingsForm({
         />
       </FormField>
       <div className="grid gap-5 md:grid-cols-2">
-        <FormField id="timezone" label="时区" error={errors.timezone}>
+        <FormField
+          id="timezone"
+          label={t("legacy.time_zone.b5d72c5c")}
+          error={localizedError(errors.timezone)}
+        >
           <Select
             id="timezone"
             name="timezone"
@@ -81,31 +88,35 @@ export function GroupSettingsForm({
           >
             {timezoneOptions.map((timezone) => (
               <option key={timezone.value} value={timezone.value}>
-                {timezone.label}
+                {timezone.labelKey ? t(timezone.labelKey) : timezone.label}
               </option>
             ))}
           </Select>
         </FormField>
-        <FormField id="status" label="状态" error={errors.status}>
+        <FormField
+          id="status"
+          label={t("legacy.status.6320b4a8")}
+          error={localizedError(errors.status)}
+        >
           <Select
             id="status"
             name="status"
             defaultValue={group.status}
             aria-invalid={Boolean(errors.status)}
           >
-            <option value="DRAFT">草稿</option>
-            <option value="OPEN">开放</option>
-            <option value="CLOSED">关闭</option>
-            <option value="ARCHIVED">归档</option>
+            <option value="DRAFT">{t("legacy.draft.2a2fd29b")}</option>
+            <option value="OPEN">{t("legacy.open.c14c915d")}</option>
+            <option value="CLOSED">{t("legacy.close.3fd47edc")}</option>
+            <option value="ARCHIVED">{t("legacy.archived.5292ab1a")}</option>
           </Select>
         </FormField>
       </div>
       <div className="grid gap-5 md:grid-cols-2">
         <FormField
           id="slotDurationMinutes"
-          label="时间粒度（分钟）"
-          description="候选人可选择的最小时间单位。"
-          error={errors.slotDurationMinutes}
+          label={t("legacy.time_granularity_minutes.45c97115")}
+          description={t("legacy.the_smallest_unit_of_time_a_candidate_can_select.560bdf71")}
+          error={localizedError(errors.slotDurationMinutes)}
         >
           <Input
             id="slotDurationMinutes"
@@ -117,9 +128,11 @@ export function GroupSettingsForm({
         </FormField>
         <FormField
           id="interviewDurationMinutes"
-          label="面试时长（分钟）"
-          description="正式面试预计占用时长，必须短于时间粒度。"
-          error={errors.interviewDurationMinutes}
+          label={t("legacy.interview_duration_minutes.289317ec")}
+          description={t(
+            "legacy.the_expected_duration_of_the_formal_interview_must_be_shorter_than_the_t.705fbc1a"
+          )}
+          error={localizedError(errors.interviewDurationMinutes)}
         >
           <Input
             id="interviewDurationMinutes"
@@ -131,7 +144,11 @@ export function GroupSettingsForm({
         </FormField>
       </div>
       <div className="grid gap-5 md:grid-cols-2">
-        <FormField id="minSelectSlots" label="最少选择数量" error={errors.minSelectSlots}>
+        <FormField
+          id="minSelectSlots"
+          label={t("legacy.minimum_number_of_choices.1098b16b")}
+          error={localizedError(errors.minSelectSlots)}
+        >
           <Input
             id="minSelectSlots"
             name="minSelectSlots"
@@ -142,7 +159,11 @@ export function GroupSettingsForm({
             aria-invalid={Boolean(errors.minSelectSlots)}
           />
         </FormField>
-        <FormField id="maxSelectSlots" label="最多选择数量" error={errors.maxSelectSlots}>
+        <FormField
+          id="maxSelectSlots"
+          label={t("legacy.maximum_number_of_choices.72429439")}
+          error={localizedError(errors.maxSelectSlots)}
+        >
           <Input
             id="maxSelectSlots"
             name="maxSelectSlots"
@@ -156,7 +177,7 @@ export function GroupSettingsForm({
       </div>
       {state.message ? (
         <InlineNotice tone={state.status === "success" ? "success" : "danger"}>
-          {state.message}
+          {translateKnownSource(locale, state.message)}
         </InlineNotice>
       ) : null}
       <SubmitButton />
