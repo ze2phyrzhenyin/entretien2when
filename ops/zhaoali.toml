@@ -10,7 +10,10 @@ base_path = "/when2entretien"
 public_host = "h5.cnniceshop.com"
 public_origin = "https://h5.cnniceshop.com/when2entretien"
 remote_root = "/opt/when2entretien"
-nginx_vhost = "/www/server/panel/vhost/nginx/h5.com.conf"
+nginx_layout = "current"
+nginx_vhost = "/etc/nginx/conf.d/h5.com.conf"
+nginx_main = "/etc/nginx/nginx.conf"
+nginx_prefix = "/etc/nginx/"
 
 [services]
 web = "when2entretien-web.service"

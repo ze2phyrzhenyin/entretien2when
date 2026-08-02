@@ -28,6 +28,7 @@ BACKUP_COPY_DIR="${BACKUP_COPY_DIR:-}"
 NGINX_CONF="${NGINX_CONF:-}"
 NGINX_BIN="${NGINX_BIN:-}"
 NGINX_MAIN="${NGINX_MAIN:-}"
+NGINX_PREFIX="${NGINX_PREFIX:-}"
 RELEASE="${RELEASE:-$(date +%Y%m%d-%H%M%S)}"
 SKIP_CHECKS=0
 SKIP_PUBLIC_CHECK=0
@@ -152,6 +153,11 @@ if [[ -n "$NGINX_CONF" && "$NGINX_CONF" != /www/server/panel/vhost/nginx/*.conf 
   exit 1
 fi
 
+if [[ -n "$NGINX_PREFIX" && "$NGINX_PREFIX" != "/www/server/nginx/" && "$NGINX_PREFIX" != "/etc/nginx/" ]]; then
+  echo "NGINX_PREFIX must match a registered nginx installation prefix." >&2
+  exit 1
+fi
+
 log() {
   printf '\n== %s ==\n' "$*"
 }
@@ -238,6 +244,7 @@ log "Install remote release"
   "$NGINX_CONF" \
   "$NGINX_BIN" \
   "$NGINX_MAIN" \
+  "$NGINX_PREFIX" \
   "$BACKUP_COPY_DIR" <<'REMOTE'
 set -euo pipefail
 
@@ -261,7 +268,8 @@ BACKUP_KEEP="${17}"
 REQUESTED_NGINX_CONF="${18}"
 REQUESTED_NGINX_BIN="${19}"
 REQUESTED_NGINX_MAIN="${20}"
-BACKUP_COPY_DIR="${21:-}"
+REQUESTED_NGINX_PREFIX="${21}"
+BACKUP_COPY_DIR="${22:-}"
 PUBLIC_HOST="${PUBLIC_ORIGIN#https://}"
 PUBLIC_HOST="${PUBLIC_HOST%%/*}"
 REMOTE_RELEASE="$REMOTE_ROOT/releases/$RELEASE"
@@ -612,7 +620,12 @@ systemctl enable --now "$RETENTION_TIMER_NAME"
 
 if [[ -n "$REQUESTED_NGINX_CONF" ]]; then
   case "$REQUESTED_NGINX_CONF" in
-    /www/server/panel/vhost/nginx/*.conf | /etc/nginx/conf.d/*.conf) ;;
+    /www/server/panel/vhost/nginx/*.conf)
+      EXPECTED_NGINX_PREFIX="/www/server/nginx/"
+      ;;
+    /etc/nginx/conf.d/*.conf)
+      EXPECTED_NGINX_PREFIX="/etc/nginx/"
+      ;;
     *)
       echo "Requested nginx vhost is outside the managed configuration directories." >&2
       exit 1
@@ -625,14 +638,21 @@ if [[ -n "$REQUESTED_NGINX_CONF" ]]; then
   NGINX_CONF="$REQUESTED_NGINX_CONF"
   NGINX_BIN="${REQUESTED_NGINX_BIN:-/www/server/nginx/sbin/nginx}"
   NGINX_MAIN="${REQUESTED_NGINX_MAIN:-/www/server/nginx/conf/nginx.conf}"
+  NGINX_PREFIX="${REQUESTED_NGINX_PREFIX:-$EXPECTED_NGINX_PREFIX}"
+  [[ "$NGINX_PREFIX" == "$EXPECTED_NGINX_PREFIX" ]] || {
+    echo "Requested nginx prefix does not match the managed vhost layout." >&2
+    exit 1
+  }
 elif [[ -f /www/server/panel/vhost/nginx/00-thesisforma.conf && -f /www/server/nginx/conf/nginx.conf ]]; then
   NGINX_CONF="/www/server/panel/vhost/nginx/00-thesisforma.conf"
   NGINX_BIN="/www/server/nginx/sbin/nginx"
   NGINX_MAIN="/www/server/nginx/conf/nginx.conf"
+  NGINX_PREFIX="/www/server/nginx/"
 elif [[ -f /etc/nginx/conf.d/thesisforma.conf ]]; then
   NGINX_CONF="/etc/nginx/conf.d/thesisforma.conf"
   NGINX_BIN="$(command -v nginx)"
   NGINX_MAIN=""
+  NGINX_PREFIX=""
 else
   echo "root nginx config not found." >&2
   exit 1
@@ -763,7 +783,11 @@ path.write_text(text)
 PY
 
 if [[ -n "$NGINX_MAIN" ]]; then
-  "$NGINX_BIN" -t -c "$NGINX_MAIN"
+  if [[ -n "$NGINX_PREFIX" ]]; then
+    "$NGINX_BIN" -t -p "$NGINX_PREFIX" -c "$NGINX_MAIN"
+  else
+    "$NGINX_BIN" -t -c "$NGINX_MAIN"
+  fi
 else
   "$NGINX_BIN" -t
 fi

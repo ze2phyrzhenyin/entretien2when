@@ -67,6 +67,8 @@ pnpm exec playwright test --project=chromium --workers=1
 - 应用 ID：`when2entretien`
 - 备案 HTTPS 入口：`h5.cnniceshop.com`
 - 唯一公开路径：`https://h5.cnniceshop.com/when2entretien`
+- 当前共享 Nginx 布局：`/etc/nginx/conf.d/h5.com.conf`，主配置前缀为 `/etc/nginx/`；
+  `server-ops` 发布入口仍兼容迁移前的宝塔布局并自动探测。
 
 `nip.io` Host 会被当前云入口的备案策略重置，禁止再作为登录或候选人入口。受管脚本只在
 `h5.cnniceshop.com` 下新增 `/when2entretien` 最长前缀路由，保留该域名原有根站点，并在发布前验证可信证书和该路径的 HTTP→HTTPS 跳转：
